@@ -1,0 +1,30 @@
+export class CreateDepoDto {
+  kod: string
+  ad: string
+  durum?: boolean
+  barkodOnEki?: string
+  erisimKodu?: string
+  ozelKod?: string
+  isYeriKodu?: string
+  negatifStokKontrol?: string
+  kritikStokKontrol?: string
+  anaDepoOnDegeri?: boolean
+  sevkiyatDepoOnDegeri?: boolean
+  sanalDepo?: boolean
+  antrepoDepo?: boolean
+  showRoomDeposu?: boolean
+  kartelaDeposu?: boolean
+  adres1?: string
+  adres2?: string
+  postaKodu?: string
+  bolge?: string
+  ulke?: string
+  sehir?: string
+  ilce?: string
+  telefon?: string
+  faks?: string
+  eposta?: string
+  gpsX?: string
+  gpsY?: string
+  aciklama?: string
+}

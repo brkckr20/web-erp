@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .etiket-yazdir-alan,
+  .etiket-yazdir-alan * {
+    visibility: visible;
+  }
+  .etiket-yazdir-alan {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block !important;
+  }
+  .barkod-etiket {
+    border: none !important;
+    page-break-after: always;
+  }
+  .ant-modal,
+  .ant-modal-mask,
+  .ant-modal-content {
+    display: none !important;
+  }
+}

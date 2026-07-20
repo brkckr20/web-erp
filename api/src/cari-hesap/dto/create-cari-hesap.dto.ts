@@ -1,0 +1,33 @@
+export class CreateCariHesapDto {
+  kod: string
+  ad: string
+  kullanimda?: boolean
+  erisimKodu?: string
+  ozelKod?: string
+  grubu?: string
+  sektoru?: string
+  ticariIslemGrubu?: string
+  cariHesapTipi?: string
+  cariHesapTuru?: string
+  ticariUnvani?: string
+  personel?: string
+  satisPersoneli?: string
+  satisKanali?: string
+  araciKurum?: string
+  potansiyel?: boolean
+  bayi?: boolean
+  faktoring?: boolean
+  musteriHesapKodu?: string
+  saticiHesapKodu?: string
+  vadeFarkiFaizOrani?: string
+  vadeOpsiyonu?: string
+  odemePlani?: string
+  indirimKodu?: string
+  fiyatKodu?: string
+  alisIndirimKodu?: string
+  satisIndirimKodu?: string
+  vergiDairesi?: string
+  vergiNo?: string
+  dovizCinsi?: string
+  dovizKurTipi?: string
+}

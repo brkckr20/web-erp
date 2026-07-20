@@ -1,0 +1,9 @@
+{
+  "name": "tekstil-erp",
+  "private": true,
+  "workspaces": [
+    "api",
+    "web",
+    "packages/*"
+  ]
+}

@@ -1,0 +1,442 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model KolonSecimi {
+  id          Int      @id @default(autoincrement())
+  kullaniciId Int      @map("kullanici_id")
+  ekranAdi    String   @map("ekran_adi")
+  kolonAdi    String   @map("kolon_adi")
+  gizli       Boolean  @default(false)
+  genislik    Int?     @map("genislik")
+  sira        Int?     @map("sira")
+  siralamaYon String?  @map("siralama_yon")
+
+  @@unique([kullaniciId, ekranAdi, kolonAdi])
+  @@map("kolon_secimi")
+}
+
+model Depo {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  ad                String   @db.VarChar(200)
+  durum             Boolean  @default(true)
+
+  erisimKodu        String?  @map("erisim_kodu") @db.VarChar(50)
+  ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
+  isYeriKodu        String?  @map("is_yeri_kodu") @db.VarChar(50)
+
+  negatifStokKontrol String? @map("negatif_stok_kontrol") @db.VarChar(50)
+  kritikStokKontrol  String? @map("kritik_stok_kontrol") @db.VarChar(50)
+
+  anaDepoOnDegeri    Boolean @default(false) @map("ana_depo_on_degeri")
+  sevkiyatDepoOnDegeri Boolean @default(false) @map("sevkiyat_depo_on_degeri")
+  sanalDepo          Boolean @default(false) @map("sanal_depo")
+  antrepoDepo        Boolean @default(false) @map("antrepo_depo")
+  showRoomDeposu     Boolean @default(false) @map("show_room_deposu")
+  kartelaDeposu      Boolean @default(false) @map("kartela_deposu")
+
+  adres1             String? @map("adres_1") @db.VarChar(500)
+  adres2             String? @map("adres_2") @db.VarChar(500)
+  postaKodu          String? @map("posta_kodu") @db.VarChar(20)
+  bolge              String? @db.VarChar(100)
+  ulke               String? @db.VarChar(100)
+  sehir              String? @db.VarChar(100)
+  ilce               String? @db.VarChar(100)
+  telefon            String? @db.VarChar(30)
+  faks               String? @db.VarChar(30)
+  eposta             String? @db.VarChar(150)
+  gpsX               String? @map("gps_x") @db.VarChar(50)
+  gpsY               String? @map("gps_y") @db.VarChar(50)
+  aciklama           String? @db.VarChar(1000)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  barkodOnEki       String?  @map("barkod_on_eki") @db.VarChar(20)
+
+  fisler            StokHareketFisi[] @relation("FisDepo")
+  kaliteKontrolFisler KaliteKontrol[] @relation("KKFisDepo")
+
+  @@map("depo")
+}
+
+model Kullanici {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  ad                String   @db.VarChar(200)
+  durum             Boolean  @default(true)
+
+  girisKodu         String?  @map("giris_kodu") @db.VarChar(50)
+  sifre             String?  @db.VarChar(255)
+  kullaniciRolu     String?  @map("kullanici_rolu") @db.VarChar(100)
+  cariHesapKodu     String?  @map("cari_hesap_kodu") @db.VarChar(50)
+  yetkiliAdi        String?  @map("yetkili_adi") @db.VarChar(200)
+  kasaKodu          String?  @map("kasa_kodu") @db.VarChar(50)
+  departmanKodu     String?  @map("departman_kodu") @db.VarChar(50)
+  personelKodu      String?  @map("personel_kodu") @db.VarChar(50)
+  masrafYeri        String?  @map("masraf_yeri") @db.VarChar(100)
+  dilOndegeri       String?  @map("dil_ondegeri") @db.VarChar(20)
+  ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
+  aciklama          String?  @db.VarChar(500)
+  kullaniciTipi     String?  @map("kullanici_tipi") @db.VarChar(100)
+
+  satisElemani          Boolean @default(false) @map("satis_elemani")
+  mobilKullanici        Boolean @default(false) @map("mobil_kullanici")
+  hizmetSunucusu        Boolean @default(false) @map("hizmet_sunucusu")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("kullanici")
+}
+
+model Malzeme {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  ad                String   @db.VarChar(200)
+  kullanimda        Boolean  @default(true)
+
+  malzemeTuru       String?  @map("malzeme_turu") @db.VarChar(100)
+  tipi              String?  @db.VarChar(100)
+  kategori          String?  @db.VarChar(100)
+  pluKodu           String?  @map("plu_kodu") @db.VarChar(50)
+  rafOmru           Int?     @map("raf_omru")
+  rafOmruBirim      String?  @map("raf_omru_birim") @db.VarChar(20)
+  sezon             String?  @db.VarChar(100)
+  marka             String?  @db.VarChar(100)
+  model             String?  @db.VarChar(100)
+
+  kdvGenel          String?  @map("kdv_genel") @db.VarChar(50)
+  kdvPerakende      String?  @map("kdv_perakende") @db.VarChar(50)
+  kdvToptan         String?  @map("kdv_toptan") @db.VarChar(50)
+  kdvPSatisIade     String?  @map("kdv_p_satis_iade") @db.VarChar(50)
+  kdvTSatisIade     String?  @map("kdv_t_satis_iade") @db.VarChar(50)
+  ekVergiTanimi     String?  @map("ek_vergi_tanimi") @db.VarChar(100)
+
+  tevkifatSatinAlmaPay    Int?   @map("tevkifat_satin_alma_pay")
+  tevkifatSatinAlmaPayda  Int?   @map("tevkifat_satin_alma_payda")
+  tevkifatSatisPay        Int?   @map("tevkifat_satis_pay")
+  tevkifatSatisPayda      Int?   @map("tevkifat_satis_payda")
+
+  kullanimYeri      String?  @map("kullanim_yeri") @db.VarChar(200)
+  takipSekli        String?  @map("takip_sekli") @db.VarChar(200)
+
+  ureticiFirmaKodu  String?  @map("uretici_firma_kodu") @db.VarChar(50)
+  ureticiUrunKodu   String?  @map("uretici_urun_kodu") @db.VarChar(100)
+  isoDokumanNo      String?  @map("iso_dokuman_no") @db.VarChar(100)
+  gtipNo            String?  @map("gtip_no") @db.VarChar(50)
+  webSayfasi        String?  @map("web_sayfasi") @db.VarChar(500)
+  kampanyaGrubu     String?  @map("kampanya_grubu") @db.VarChar(100)
+  fiyatGrubu        String?  @map("fiyat_grubu") @db.VarChar(100)
+  operasyonKodu     String?  @map("operasyon_kodu") @db.VarChar(50)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  kalemler          StokHareketFisiKalem[] @relation("KalemMalzeme")
+  kkKalemler        KaliteKontrolKalem[] @relation("KKKalemMalzeme")
+
+  @@map("malzeme")
+}
+
+model Makina {
+  id                 Int      @id @default(autoincrement())
+  kod                String   @unique @db.VarChar(50)
+  ad                 String   @db.VarChar(200)
+  kullanimda         Boolean  @default(true)
+
+  makinaTuru         String?  @map("makina_turu") @db.VarChar(100)
+  marka              String?  @db.VarChar(100)
+  model              String?  @db.VarChar(100)
+  seriNo             String?  @map("seri_no") @db.VarChar(100)
+  envanterNo         String?  @map("envanter_no") @db.VarChar(100)
+  kategori           String?  @db.VarChar(100)
+  lokasyon           String?  @db.VarChar(200)
+  departman          String?  @db.VarChar(100)
+  sorumlu            String?  @db.VarChar(200)
+
+  ureticiFirma       String?  @map("uretici_firma") @db.VarChar(200)
+  tedarikci          String?  @db.VarChar(200)
+  alimTarihi         DateTime? @map("alim_tarihi")
+  garantiBitis       DateTime? @map("garanti_bitis")
+  alimBedeli         Decimal? @map("alim_bedeli") @db.Decimal(18, 2)
+
+  gucKw              Decimal? @map("guc_kw") @db.Decimal(18, 2)
+  kapasite           String?  @db.VarChar(100)
+  kapasiteBirim      String?  @map("kapasite_birim") @db.VarChar(50)
+  voltaj             String?  @db.VarChar(50)
+
+  bakimPeriyodu      Int?     @map("bakim_periyodu")
+  bakimPeriyoduBirim String?  @map("bakim_periyodu_birim") @db.VarChar(20)
+  sonBakimTarihi     DateTime? @map("son_bakim_tarihi")
+  durumu             String?  @db.VarChar(50)
+  aciklama           String?  @db.VarChar(1000)
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("makina")
+}
+
+model CariHesap {
+  id                 Int      @id @default(autoincrement())
+  kod                String   @unique @db.VarChar(50)
+  ad                 String   @db.VarChar(200)
+  kullanimda         Boolean  @default(true) @map("kullanimda")
+
+  erisimKodu         String?  @map("erisim_kodu") @db.VarChar(50)
+  ozelKod            String?  @map("ozel_kod") @db.VarChar(50)
+  grubu              String?  @db.VarChar(100)
+  sektoru            String?  @db.VarChar(100)
+  ticariIslemGrubu   String?  @map("ticari_islem_grubu") @db.VarChar(100)
+  cariHesapTipi      String?  @map("cari_hesap_tipi") @db.VarChar(100)
+  cariHesapTuru      String?  @map("cari_hesap_turu") @db.VarChar(100)
+  ticariUnvani       String?  @map("ticari_unvani") @db.VarChar(200)
+  personel           String?  @db.VarChar(100)
+  satisPersoneli     String?  @map("satis_personeli") @db.VarChar(100)
+  satisKanali        String?  @map("satis_kanali") @db.VarChar(100)
+  araciKurum         String?  @map("araci_kurum") @db.VarChar(100)
+  potansiyel         Boolean  @default(false)
+  bayi               Boolean  @default(false)
+  faktoring          Boolean  @default(false)
+
+  musteriHesapKodu   String?  @map("musteri_hesap_kodu") @db.VarChar(50)
+  saticiHesapKodu    String?  @map("satici_hesap_kodu") @db.VarChar(50)
+  vadeFarkiFaizOrani String?  @map("vade_farki_faiz_orani") @db.VarChar(20)
+  vadeOpsiyonu       String?  @map("vade_opsiyonu") @db.VarChar(20)
+  odemePlani         String?  @map("odeme_plani") @db.VarChar(100)
+  indirimKodu        String?  @map("indirim_kodu") @db.VarChar(50)
+  fiyatKodu          String?  @map("fiyat_kodu") @db.VarChar(50)
+  alisIndirimKodu    String?  @map("alis_indirim_kodu") @db.VarChar(50)
+  satisIndirimKodu   String?  @map("satis_indirim_kodu") @db.VarChar(50)
+  vergiDairesi       String?  @map("vergi_dairesi") @db.VarChar(100)
+  vergiNo            String?  @map("vergi_no") @db.VarChar(50)
+  dovizCinsi         String?  @map("doviz_cinsi") @db.VarChar(10)
+  dovizKurTipi       String?  @map("doviz_kur_tipi") @db.VarChar(50)
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  fisler            StokHareketFisi[] @relation("FisCariHesap")
+  kkFisler          KaliteKontrol[] @relation("KKFisCariHesap")
+
+  @@map("cari_hesap")
+}
+
+model StokHareketFisi {
+  id                Int      @id @default(autoincrement())
+  fisNo             String   @map("fis_no") @db.VarChar(50)
+  fisTipi           String   @map("fis_tipi") @db.VarChar(20)
+  fisTarihi         DateTime @map("fis_tarihi")
+  aciklama          String?  @db.VarChar(1000)
+  faturaNo          String?  @map("fatura_no") @db.VarChar(50)
+  faturaTarihi      DateTime? @map("fatura_tarihi")
+  sevkNo            String?  @map("sevk_no") @db.VarChar(50)
+  sevkTarihi        DateTime? @map("sevk_tarihi")
+  vadeTarihi        DateTime? @map("vade_tarihi")
+  yetkili           String?  @db.VarChar(200)
+  onaylandi         Boolean  @default(false)
+  tamamlandi        Boolean  @default(false) @map("tamamlandi")
+  musteriSiparisNo  String?  @map("musteri_siparis_no") @db.VarChar(50)
+  siparisNo         String?  @map("siparis_no") @db.VarChar(50)
+  vade              Int?
+  odemeTipi         String?  @map("odeme_tipi") @db.VarChar(50)
+  kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
+  kayitTarihi       DateTime? @map("kayit_tarihi")
+  guncelleyen       String?  @db.VarChar(100)
+  guncellemeTarihi  DateTime? @map("guncelleme_tarihi")
+  tasiyiciId        Int?     @map("tasiyici_id")
+  nakliyeciId       Int?     @map("nakliyeci_id")
+  belgeAdi          String?  @map("belge_adi") @db.VarChar(200)
+
+  cariHesapId       Int?     @map("cari_hesap_id")
+  cariHesap         CariHesap? @relation("FisCariHesap", fields: [cariHesapId], references: [id])
+  depoId            Int?     @map("depo_id")
+  depo              Depo?    @relation("FisDepo", fields: [depoId], references: [id])
+
+  kalemler          StokHareketFisiKalem[] @relation("FisKalemleri")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([fisTipi, fisNo])
+  @@map("stok_hareket_fisi")
+}
+
+model StokHareketFisiKalem {
+  id                Int      @id @default(autoincrement())
+  fisId             Int      @map("fis_id")
+  fis               StokHareketFisi @relation("FisKalemleri", fields: [fisId], references: [id])
+
+  islemTipi         String?  @map("islem_tipi") @db.VarChar(20)
+  malzemeId         Int?     @map("malzeme_id")
+  malzeme           Malzeme? @relation("KalemMalzeme", fields: [malzemeId], references: [id])
+
+  grM2              Decimal? @map("gr_m2") @db.Decimal(18, 6)
+  brutAgirlik       Decimal? @map("brut_agirlik") @db.Decimal(18, 6)
+  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 6)
+  brutMetre         Decimal? @map("brut_metre") @db.Decimal(18, 6)
+  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 6)
+  adet              Int?
+  dovizFiyati       Decimal? @map("doviz_fiyati") @db.Decimal(18, 6)
+  doviz             String?  @db.VarChar(10)
+  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 6)
+  variantId         Int?     @map("variant_id")
+  renkId            Int?     @map("renk_id")
+  aciklama          String?  @db.VarChar(1000)
+  uuid              String?  @db.VarChar(100)
+  takipNo           String?  @map("takip_no") @db.VarChar(100)
+  desenId           Int?     @map("desen_id")
+  islemId           Int?     @map("islem_id")
+  satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 6)
+  kdv               Decimal? @db.Decimal(18, 6)
+  alici             String?  @db.VarChar(200)
+  olcuBirimi        String?  @map("olcu_birimi") @db.VarChar(20)
+  fisNo             String?  @map("fis_no") @db.VarChar(50)
+  marka             String?  @db.VarChar(100)
+  fire              Decimal? @db.Decimal(18, 6)
+  miktar            Decimal? @db.Decimal(18, 6)
+  variant           String?  @db.VarChar(100)
+  pesinOdeme        Boolean  @default(false) @map("pesin_odeme")
+  vadeliOdeme       Boolean  @default(false) @map("vadeli_odeme")
+  satirAciklama     String?  @map("satir_aciklama") @db.VarChar(1000)
+  partiNo           String?  @map("parti_no") @db.VarChar(100)
+  siparisNo         String?  @map("siparis_no") @db.VarChar(50)
+  musteriSiparisNo  String?  @map("musteri_siparis_no") @db.VarChar(50)
+  maliyetHesaplandi Boolean  @default(false) @map("maliyet_hesaplandi")
+  cipLi             Boolean  @default(false) @map("cip_li")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([fisId, uuid])
+  @@map("stok_hareket_fisi_kalem")
+}
+
+model KaliteKontrol {
+  id                Int      @id @default(autoincrement())
+  fisNo             String   @map("fis_no") @db.VarChar(50)
+  isEmriNo          String?  @map("is_emri_no") @db.VarChar(100)
+  isEmriId          Int?     @map("is_emri_id")
+  isEmri            IsEmri?   @relation("KKIsEmri", fields: [isEmriId], references: [id])
+  fisTarihi         DateTime @map("fis_tarihi")
+  aciklama          String?  @db.VarChar(1000)
+  belgeAdi          String?  @map("belge_adi") @db.VarChar(200)
+  kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
+  kayitTarihi       DateTime? @map("kayit_tarihi")
+  guncelleyen       String?  @db.VarChar(100)
+  guncellemeTarihi  DateTime? @map("guncelleme_tarihi")
+
+  cariHesapId       Int?     @map("cari_hesap_id")
+  cariHesap         CariHesap? @relation("KKFisCariHesap", fields: [cariHesapId], references: [id])
+  depoId            Int?     @map("depo_id")
+  depo              Depo?    @relation("KKFisDepo", fields: [depoId], references: [id])
+
+  kalemler          KaliteKontrolKalem[] @relation("KKFisKalemleri")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([fisNo])
+  @@map("kalite_kontrol")
+}
+
+model IsEmri {
+  id                Int      @id @default(autoincrement())
+  isEmriNo          String   @unique @map("is_emri_no") @db.VarChar(100)
+  aciklama          String?  @db.VarChar(1000)
+  siparisNo         String?  @map("siparis_no") @db.VarChar(50)
+  musteriSiparisNo  String?  @map("musteri_siparis_no") @db.VarChar(50)
+  baslangicTarihi   DateTime? @map("baslangic_tarihi")
+  bitisTarihi       DateTime? @map("bitis_tarihi")
+  durum             String?  @map("durum") @db.VarChar(50)
+  kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
+  kayitTarihi       DateTime? @map("kayit_tarihi")
+
+  kalemler          IsEmriKalem[] @relation("IsEmriKalemleri")
+
+  kaliteKontroller  KaliteKontrol[] @relation("KKIsEmri")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("is_emri")
+}
+
+model IsEmriKalem {
+  id          Int     @id @default(autoincrement())
+  isEmriId    Int     @map("is_emri_id")
+  sira        Int     @default(0) @map("sira")
+  siparisNo   String? @map("siparis_no") @db.VarChar(50)
+  malzemeId   Int?    @map("malzeme_id")
+  malzemeKod  String? @map("malzeme_kod") @db.VarChar(50)
+  malzemeAd   String? @map("malzeme_ad") @db.VarChar(255)
+  kg          Float?  @map("kg")
+  mt          Float?  @map("mt")
+  adet        Float?  @map("adet")
+
+  isEmri      IsEmri  @relation("IsEmriKalemleri", fields: [isEmriId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([isEmriId])
+  @@map("is_emri_kalem")
+}
+
+model KaliteKontrolKalem {
+  id                Int      @id @default(autoincrement())
+  fisId             Int      @map("fis_id")
+  fis               KaliteKontrol @relation("KKFisKalemleri", fields: [fisId], references: [id])
+
+  barkod            String?  @db.VarChar(100)
+  malzemeId         Int?     @map("malzeme_id")
+  malzeme           Malzeme? @relation("KKKalemMalzeme", fields: [malzemeId], references: [id])
+  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 6)
+  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 6)
+  adet              Int?
+  hataMiktar        Int?     @map("hata_miktar")
+  aciklama          String?  @db.VarChar(1000)
+
+  hatalar           KaliteKontrolHata[] @relation("KKHataKalem")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("kalite_kontrol_kalem")
+}
+
+model HataTanim {
+  id                Int      @id @default(autoincrement())
+  hataKodu          String   @unique @map("hata_kodu") @db.VarChar(50)
+  hataAdi           String   @map("hata_adi") @db.VarChar(200)
+  ozelKod           String?  @map("ozel_kod") @db.VarChar(100)
+  kullanimda        Boolean  @default(true)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("hata_tanim")
+}
+
+model KaliteKontrolHata {
+  id                Int      @id @default(autoincrement())
+  kalemId           Int      @map("kalem_id")
+  kalem             KaliteKontrolKalem @relation("KKHataKalem", fields: [kalemId], references: [id])
+
+  hataKodu          String   @map("hata_kodu") @db.VarChar(50)
+  hataAdi           String   @map("hata_adi") @db.VarChar(200)
+  miktar            Int?     @default(1)
+  aciklama          String?  @db.VarChar(1000)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("kalite_kontrol_hata")
+}

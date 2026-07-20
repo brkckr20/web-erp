@@ -1,0 +1,31 @@
+# === Dosya tipleri (kullanıcı isteği: md/txt github'a gitmesin) ===
+*.md
+*.txt
+
+# === Node / bağımlılıklar ===
+node_modules/
+**/node_modules/
+package-lock.json
+**/package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# === Ortam / gizli dosyalar ===
+.env
+.env.*
+*.env
+!.env.example
+
+# === Build çıktıları ===
+dist/
+**/dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# === OS / editör ===
+.DS_Store
+Thumbs.db
+*.log
+nul

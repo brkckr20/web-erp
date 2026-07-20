@@ -1,0 +1,34 @@
+export class CreateMalzemeDto {
+  kod: string
+  ad: string
+  kullanimda?: boolean
+  malzemeTuru?: string
+  tipi?: string
+  kategori?: string
+  pluKodu?: string
+  rafOmru?: number
+  rafOmruBirim?: string
+  sezon?: string
+  marka?: string
+  model?: string
+  kdvGenel?: string
+  kdvPerakende?: string
+  kdvToptan?: string
+  kdvPSatisIade?: string
+  kdvTSatisIade?: string
+  ekVergiTanimi?: string
+  tevkifatSatinAlmaPay?: number
+  tevkifatSatinAlmaPayda?: number
+  tevkifatSatisPay?: number
+  tevkifatSatisPayda?: number
+  kullanimYeri?: string
+  takipSekli?: string
+  ureticiFirmaKodu?: string
+  ureticiUrunKodu?: string
+  isoDokumanNo?: string
+  gtipNo?: string
+  webSayfasi?: string
+  kampanyaGrubu?: string
+  fiyatGrubu?: string
+  operasyonKodu?: string
+}
