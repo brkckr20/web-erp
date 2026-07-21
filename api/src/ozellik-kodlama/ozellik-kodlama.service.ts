@@ -8,7 +8,14 @@ export class OzellikKodlamaService {
   constructor(private prisma: PrismaService) {}
 
   findAll() {
-    return this.prisma.ozellikKodlama.findMany({ orderBy: { labelAdi: 'asc' } })
+    return this.prisma.ozellikKodlama.findMany({ orderBy: { ad: 'asc' } })
+  }
+
+  findByKategori(kategori: string) {
+    return this.prisma.ozellikKodlama.findMany({
+      where: { kategori },
+      orderBy: { ad: 'asc' },
+    })
   }
 
   async findOne(id: number) {

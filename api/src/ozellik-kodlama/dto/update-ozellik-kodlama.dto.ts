@@ -2,14 +2,10 @@ import { IsOptional, Length } from 'class-validator'
 
 export class UpdateOzellikKodlamaDto {
   @IsOptional()
-  @Length(0, 50)
-  malzemeTuru?: string
-
-  @IsOptional()
   @Length(0, 200)
-  labelAdi?: string
+  ad?: string
 
   @IsOptional()
-  @Length(0, 500)
-  aciklama?: string
+  @Length(0, 100)
+  kategori?: string
 }

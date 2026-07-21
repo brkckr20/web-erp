@@ -139,9 +139,9 @@ model Malzeme {
   operasyonKodu     String?  @map("operasyon_kodu") @db.VarChar(50)
 
   kumasTuruId       Int?     @map("kumas_turu_id")
-  kumasTuru         Numarator? @relation("KumasTuru", fields: [kumasTuruId], references: [id])
-  ozellikKodlamaId  Int?     @map("ozellik_kodlama_id")
-  ozellikKodlama    OzellikKodlama? @relation("MalzemeOzellik", fields: [ozellikKodlamaId], references: [id])
+  kumasTuru         OzellikKodlama? @relation("KumasTuru", fields: [kumasTuruId], references: [id])
+  numaratorId       Int?     @map("numarator_id")
+  numarator         Numarator? @relation("MalzemeNumarator", fields: [numaratorId], references: [id])
   cinsi             String?  @db.VarChar(100)
   grm2              Decimal? @db.Decimal(10, 2)
   ebat              String?  @db.VarChar(100)
@@ -167,7 +167,7 @@ model Numarator {
   sonNo             Int      @default(0) @map("son_no")
   kullanimda        Boolean  @default(true)
 
-  kumasMalzemeler   Malzeme[] @relation("KumasTuru")
+  malzemeler        Malzeme[] @relation("MalzemeNumarator")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -177,15 +177,15 @@ model Numarator {
 
 model OzellikKodlama {
   id           Int      @id @default(autoincrement())
-  malzemeTuru  String   @map("malzeme_turu") @db.VarChar(50)
-  labelAdi     String   @map("label_adi") @db.VarChar(200)
-  aciklama     String?  @db.VarChar(500)
+  ad           String   @db.VarChar(200)
+  kategori     String   @db.VarChar(100)
 
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  malzemeler   Malzeme[] @relation("MalzemeOzellik")
+  malzemeler   Malzeme[] @relation("KumasTuru")
 
+  @@index([kategori])
   @@map("ozellik_kodlama")
 }
 

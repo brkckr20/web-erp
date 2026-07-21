@@ -40,6 +40,7 @@ interface IsEmriSecimiKalem {
   mt: number
   adet: number
   kullanilanKg: number
+  kullanilanMt: number
 }
 
 interface IsEmriSecimiModalProps {
@@ -91,6 +92,7 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
           mt: k.mt ?? 0,
           adet: k.adet ?? 0,
           kullanilanKg: k.kullanilanKg ?? 0,
+          kullanilanMt: k.kullanilanMt ?? 0,
         })
       }
     }
@@ -99,8 +101,9 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
 
   const visibleKalemler = useMemo(() => {
     return allKalemler.filter((row) => {
-      const kalan = row.kg - row.kullanilanKg
-      return kalan > 0
+      const kalanKg = row.kg - row.kullanilanKg
+      const kalanMt = row.mt - row.kullanilanMt
+      return kalanKg > 0 || kalanMt > 0
     })
   }, [allKalemler])
 
@@ -137,7 +140,9 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
         },
         valueGetter: (p) => {
           const row = p.data!
-          return row.kg - row.kullanilanKg
+          if (row.kg > 0) return row.kg - row.kullanilanKg
+          if (row.mt > 0) return row.mt - row.kullanilanMt
+          return 0
         },
         valueFormatter: (p) => (p.value ?? 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       },

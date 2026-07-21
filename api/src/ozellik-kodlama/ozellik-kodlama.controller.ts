@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common';
 import { OzellikKodlamaService } from './ozellik-kodlama.service';
 import { CreateOzellikKodlamaDto } from './dto/create-ozellik-kodlama.dto';
 import { UpdateOzellikKodlamaDto } from './dto/update-ozellik-kodlama.dto';
@@ -8,7 +8,10 @@ export class OzellikKodlamaController {
   constructor(private readonly ozellikKodlamaService: OzellikKodlamaService) {}
 
   @Get()
-  findAll() {
+  findAll(@Query('kategori') kategori?: string) {
+    if (kategori) {
+      return this.ozellikKodlamaService.findByKategori(kategori);
+    }
     return this.ozellikKodlamaService.findAll();
   }
 

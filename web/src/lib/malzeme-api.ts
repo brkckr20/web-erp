@@ -39,6 +39,8 @@ export interface Malzeme {
   operasyonKodu: string | null
   kumasTuruId: number | null
   kumasTuru?: { id: number; ad: string } | null
+  numaratorId: number | null
+  numarator?: { id: number; ad: string; onEk: string } | null
   cinsi: string | null
   grm2: number | null
   ebat: string | null

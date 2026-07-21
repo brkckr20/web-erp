@@ -24,12 +24,17 @@ interface KalemRow {
   malzemeId: number | null
   malzemeKod: string
   malzemeAd: string
+  tur: string
+  cinsi: string
+  grm2: string
+  en: string
+  boy: string
   kg: number | null
   mt: number | null
   adet: number | null
 }
 
-const emptyKalem = (): KalemRow => ({ sira: 0, siparisNo: '', malzemeId: null, malzemeKod: '', malzemeAd: '', kg: null, mt: null, adet: null })
+const emptyKalem = (): KalemRow => ({ sira: 0, siparisNo: '', malzemeId: null, malzemeKod: '', malzemeAd: '', tur: '', cinsi: '', grm2: '', en: '', boy: '', kg: null, mt: null, adet: null })
 
 interface IsEmriKartiProps {
   isNew?: boolean
@@ -70,12 +75,17 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
         kalemler: [],
       })
       setKalemler(
-        (data.kalemler ?? []).map((k: IsEmriKalem, i) => ({
+        (data.kalemler ?? []).map((k: any, i) => ({
           sira: k.sira ?? i,
           siparisNo: k.siparisNo ?? '',
           malzemeId: k.malzemeId ?? null,
           malzemeKod: k.malzemeKod ?? '',
           malzemeAd: k.malzemeAd ?? '',
+          tur: k.malzeme?.malzemeTuru ?? '',
+          cinsi: k.malzeme?.cinsi ?? '',
+          grm2: k.malzeme?.grm2 ?? '',
+          en: k.malzeme?.en != null ? String(k.malzeme.en) : '',
+          boy: k.malzeme?.boy != null ? String(k.malzeme.boy) : '',
           kg: k.kg ?? null,
           mt: k.mt ?? null,
           adet: k.adet ?? null,
@@ -230,92 +240,115 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
                 key: 'genel',
                 label: 'Genel',
                 children: (
-                  <Row gutter={[16, 12]}>
-                    <Col span={12}>
-                      <div className="!border !border-gray-200 !rounded-sm !p-3">
-                        <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">İş Emri Bilgileri</div>
-                        <div className="!space-y-2.5">
-                          <FormField label="Sipariş No">
-                            <Input size="small" value={form.siparisNo ?? ''} onChange={(e) => set('siparisNo', e.target.value)} className="!text-[11px]" />
-                          </FormField>
-                          <FormField label="Müşteri Sip. No">
-                            <Input size="small" value={form.musteriSiparisNo ?? ''} onChange={(e) => set('musteriSiparisNo', e.target.value)} className="!text-[11px]" />
-                          </FormField>
-                          <FormField label="Açıklama">
-                            <Input size="small" value={form.aciklama ?? ''} onChange={(e) => set('aciklama', e.target.value)} className="!text-[11px]" />
-                          </FormField>
-                        </div>
+                  <div className="!space-y-3">
+                    <div className="!border !border-gray-200 !rounded-sm !p-3">
+                      <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">İş Emri Bilgileri</div>
+                      <div className="!space-y-2.5">
+                        <FormField label="Sipariş No">
+                          <Input size="small" value={form.siparisNo ?? ''} onChange={(e) => set('siparisNo', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Müşteri Sip. No">
+                          <Input size="small" value={form.musteriSiparisNo ?? ''} onChange={(e) => set('musteriSiparisNo', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Açıklama">
+                          <Input size="small" value={form.aciklama ?? ''} onChange={(e) => set('aciklama', e.target.value)} className="!text-[11px]" />
+                        </FormField>
                       </div>
-                    </Col>
-                    <Col span={12}>
-                      <div className="!border !border-gray-200 !rounded-sm !p-3 !flex !flex-col">
-                        <div className="!flex !items-center !justify-between !mb-2">
-                          <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Malzemeler (Kalemler)</div>
-                          <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} className="!text-[11px] !h-[22px]">
-                            Satır Ekle
-                          </Button>
-                        </div>
-                        <div className="!overflow-auto !max-h-[260px]">
-                          <table className="!w-full !border-collapse !text-[11px]">
-                            <thead>
-                                <tr className="!bg-[#F0F0F0]">
-                                  <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Malzeme Kodu</th>
-                                  <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Malzeme Adı</th>
-                                  <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold !w-20">Sip. No</th>
+                    </div>
+
+                    <div className="!border !border-gray-200 !rounded-sm !p-3 !flex !flex-col">
+                      <div className="!flex !items-center !justify-between !mb-2">
+                        <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Malzemeler (Kalemler)</div>
+                        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} className="!text-[11px] !h-[22px]">
+                          Satır Ekle
+                        </Button>
+                      </div>
+                      <div className="!overflow-auto !max-h-[260px]">
+                        <table className="!w-full !border-collapse !text-[11px]">
+                          <thead>
+                              <tr className="!bg-[#F0F0F0]">
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Malzeme Kodu</th>
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Malzeme Adı</th>
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Türü</th>
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Cinsi</th>
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Gr/m²</th>
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">En</th>
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold">Boy</th>
+                                <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold !w-20">Sip. No</th>
                                 <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold !w-16">Kg</th>
                                 <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold !w-16">Mt</th>
                                 <th className="!border !border-gray-200 !px-1 !py-1 !text-left !font-semibold !w-16">Adet</th>
                                 <th className="!border !border-gray-200 !px-1 !py-1 !w-8"></th>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {kalemler.map((k, idx) => (
-                                <tr key={idx}>
-                                  <td className="!border !border-gray-200 !px-1 !py-1">
+                          </thead>
+                          <tbody>
+                            {kalemler.map((k, idx) => (
+                              <tr key={idx}>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
                                     <SearchableMalzemeSelect
                                       value={k.malzemeKod}
                                       onChange={(kod, rec) => {
                                         setKalem(idx, 'malzemeKod', kod)
                                         setKalem(idx, 'malzemeId', rec?.id ?? null)
                                         setKalem(idx, 'malzemeAd', rec?.ad ?? '')
+                                        setKalem(idx, 'tur', rec?.malzemeTuru ?? '')
+                                        setKalem(idx, 'cinsi', rec?.cinsi ?? '')
+                                        setKalem(idx, 'grm2', rec?.grm2 ?? '')
+                                        setKalem(idx, 'en', rec?.en != null ? String(rec.en) : '')
+                                        setKalem(idx, 'boy', rec?.boy != null ? String(rec.boy) : '')
                                       }}
                                       className="!text-[11px]"
                                       widthClass="!w-full"
+                                      tip={2}
                                     />
-                                  </td>
-                                  <td className="!border !border-gray-200 !px-1 !py-1 !text-[11px] !text-gray-600 !align-middle">
-                                    {k.malzemeAd || '-'}
-                                  </td>
-                                  <td className="!border !border-gray-200 !px-1 !py-1">
-                                    <Input size="small" value={k.siparisNo} onChange={(e) => setKalem(idx, 'siparisNo', e.target.value)} className="!text-[11px]" />
-                                  </td>
-                                  <td className="!border !border-gray-200 !px-1 !py-1">
-                                    <Input size="small" type="number" value={k.kg ?? ''} onChange={(e) => setKalem(idx, 'kg', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
-                                  </td>
-                                  <td className="!border !border-gray-200 !px-1 !py-1">
-                                    <Input size="small" type="number" value={k.mt ?? ''} onChange={(e) => setKalem(idx, 'mt', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
-                                  </td>
-                                  <td className="!border !border-gray-200 !px-1 !py-1">
-                                    <Input size="small" type="number" value={k.adet ?? ''} onChange={(e) => setKalem(idx, 'adet', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
-                                  </td>
-                                  <td className="!border !border-gray-200 !px-1 !py-1 !text-center">
-                                    <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeKalem(idx)} />
-                                  </td>
-                                </tr>
-                              ))}
-                              {kalemler.length === 0 && (
-                                <tr>
-                                  <td colSpan={6} className="!border !border-gray-200 !px-2 !py-3 !text-center !text-[11px] !text-gray-400">
-                                    Henüz kalem yok. "Satır Ekle" ile malzeme ekleyin.
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1 !text-[11px] !text-gray-600 !align-middle">
+                                  {k.malzemeAd || '-'}
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" value={k.tur ?? ''} readOnly className="!text-[11px] !bg-gray-50" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" value={k.cinsi ?? ''} readOnly className="!text-[11px] !bg-gray-50" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" value={k.grm2 ?? ''} readOnly className="!text-[11px] !bg-gray-50" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" value={k.en ?? ''} readOnly className="!text-[11px] !bg-gray-50" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" value={k.boy ?? ''} readOnly className="!text-[11px] !bg-gray-50" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" value={k.siparisNo} onChange={(e) => setKalem(idx, 'siparisNo', e.target.value)} className="!text-[11px]" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" type="number" value={k.kg ?? ''} onChange={(e) => setKalem(idx, 'kg', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" type="number" value={k.mt ?? ''} onChange={(e) => setKalem(idx, 'mt', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1">
+                                  <Input size="small" type="number" value={k.adet ?? ''} onChange={(e) => setKalem(idx, 'adet', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
+                                </td>
+                                <td className="!border !border-gray-200 !px-1 !py-1 !text-center">
+                                  <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeKalem(idx)} />
+                                </td>
+                              </tr>
+                            ))}
+                            {kalemler.length === 0 && (
+                              <tr>
+                                <td colSpan={12} className="!border !border-gray-200 !px-2 !py-3 !text-center !text-[11px] !text-gray-400">
+                                  Henüz kalem yok. "Satır Ekle" ile malzeme ekleyin.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
                       </div>
-                    </Col>
-                  </Row>
+                    </div>
+                  </div>
                 ),
               },
             ]}

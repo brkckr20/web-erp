@@ -11,6 +11,7 @@ export interface IsEmriKalem {
   mt?: number | null
   adet?: number | null
   kullanilanKg?: number | null
+  kullanilanMt?: number | null
 }
 
 export interface IsEmri {

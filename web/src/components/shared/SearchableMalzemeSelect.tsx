@@ -12,11 +12,12 @@ interface SearchableMalzemeSelectProps {
   className?: string
   widthClass?: string
   filterKodlar?: string[]
+  tip?: number
 }
 
 export default function SearchableMalzemeSelect(props: SearchableMalzemeSelectProps) {
   const [modalOpen, setModalOpen] = useState(false)
-  const { filterKodlar } = props
+  const { filterKodlar, tip } = props
 
   return (
     <>
@@ -26,7 +27,7 @@ export default function SearchableMalzemeSelect(props: SearchableMalzemeSelectPr
         searchLabel={(d) => `${d.kod} - ${d.ad}`}
         onIconClick={() => setModalOpen(true)}
         fetchList={async () => {
-          const list = await malzemeApi.list()
+          const list = await malzemeApi.list(tip)
           if (filterKodlar && filterKodlar.length > 0) {
             return list.filter((d) => filterKodlar.includes(d.kod))
           }

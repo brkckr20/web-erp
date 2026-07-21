@@ -9,7 +9,11 @@ export class MalzemeService {
 
   findAll(tip?: number) {
     const where = tip != null ? { tip } : undefined
-    return this.prisma.malzeme.findMany({ where, orderBy: { kod: 'asc' } })
+    return this.prisma.malzeme.findMany({
+      where,
+      include: { kumasTuru: true },
+      orderBy: { kod: 'asc' },
+    })
   }
 
   async findOne(id: number) {

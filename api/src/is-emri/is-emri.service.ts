@@ -15,7 +15,7 @@ export class IsEmriService {
 
     const kkGrouped = await this.prisma.kaliteKontrolKalem.groupBy({
       by: ['isEmriNo', 'malzemeId'],
-      _sum: { netAgirlik: true },
+      _sum: { netAgirlik: true, netMetre: true },
       where: { isEmriNo: { not: null }, malzemeId: { not: null } },
     })
 
@@ -25,18 +25,21 @@ export class IsEmriService {
       : []
     const malzemeMap = new Map(malzemeler.map((m) => [m.id, m.kod]))
 
-    const kkMap = new Map<string, number>()
+    const kkMapKg = new Map<string, number>()
+    const kkMapMt = new Map<string, number>()
     for (const k of kkGrouped) {
       const malzemeKod = malzemeMap.get(k.malzemeId!) ?? ''
       if (!malzemeKod) continue
       const key = `${k.isEmriNo}|${malzemeKod}`
-      kkMap.set(key, Number(k._sum.netAgirlik) || 0)
+      kkMapKg.set(key, Number(k._sum.netAgirlik) || 0)
+      kkMapMt.set(key, Number(k._sum.netMetre) || 0)
     }
 
     for (const isEmri of items) {
       for (const kalem of isEmri.kalemler) {
         const key = `${isEmri.isEmriNo}|${kalem.malzemeKod}`
-        ;(kalem as any).kullanilanKg = kkMap.get(key) ?? 0
+        ;(kalem as any).kullanilanKg = kkMapKg.get(key) ?? 0
+        ;(kalem as any).kullanilanMt = kkMapMt.get(key) ?? 0
       }
     }
 
@@ -46,7 +49,7 @@ export class IsEmriService {
   async findOne(id: number) {
     const entity = await this.prisma.isEmri.findUnique({
       where: { id },
-      include: { kalemler: { orderBy: { sira: 'asc' } } },
+      include: { kalemler: { include: { malzeme: true }, orderBy: { sira: 'asc' } } },
     })
     if (!entity) throw new NotFoundException('İş emri bulunamadı')
     return entity
@@ -55,7 +58,7 @@ export class IsEmriService {
   async findByKod(kod: string) {
     const entity = await this.prisma.isEmri.findUnique({
       where: { isEmriNo: kod },
-      include: { kalemler: { orderBy: { sira: 'asc' } } },
+      include: { kalemler: { include: { malzeme: true }, orderBy: { sira: 'asc' } } },
     })
     if (!entity) throw new NotFoundException('İş emri bulunamadı')
     return entity

@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Input, Switch, Select, InputNumber, App, Spin, Modal, Table, Button } from 'antd'
-import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import { Input, Switch, Select, InputNumber, App, Spin } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
+import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
 import { malzemeApi, type MalzemeFormData } from '@/lib/malzeme-api'
 import { numaratorApi, type Numarator } from '@/lib/numarator-api'
+import { ozellikKodlamaApi, type OzellikKodlama } from '@/lib/ozellik-kodlama-api'
 
 const emptyData: MalzemeFormData = {
   kod: '',
@@ -43,6 +44,7 @@ const emptyData: MalzemeFormData = {
   fiyatGrubu: '',
   operasyonKodu: '',
   kumasTuruId: null,
+  numaratorId: null,
   cinsi: '',
   grm2: null,
   ebat: '',
@@ -66,7 +68,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
   const [saving, setSaving] = useState(false)
   const [numaratorlar, setNumaratorlar] = useState<Numarator[]>([])
   const [turModalOpen, setTurModalOpen] = useState(false)
-  const [turInputOnEk, setTurInputOnEk] = useState('')
+  const [turData, setTurData] = useState<OzellikKodlama | null>(null)
 
   useEffect(() => {
     if (kod) {
@@ -74,6 +76,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
     } else {
       setForm({ ...emptyData })
       setId(null)
+      setTurData(null)
     }
   }, [kod])
 
@@ -121,6 +124,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
         fiyatGrubu: data.fiyatGrubu ?? '',
         operasyonKodu: data.operasyonKodu ?? '',
         kumasTuruId: data.kumasTuruId ?? null,
+        numaratorId: data.numaratorId ?? null,
         cinsi: data.cinsi ?? '',
         grm2: data.grm2 ?? null,
         ebat: data.ebat ?? '',
@@ -130,6 +134,16 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
         ormeTipi: data.ormeTipi ?? '',
         kumasUretimTipi: data.kumasUretimTipi ?? '',
       })
+      if (data.kumasTuruId) {
+        try {
+          const tur = await ozellikKodlamaApi.get(data.kumasTuruId)
+          setTurData(tur)
+        } catch {
+          setTurData(null)
+        }
+      } else {
+        setTurData(null)
+      }
     } catch {
       message.warning('Kod bulunamadı')
     } finally {
@@ -140,15 +154,24 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
   const set = <K extends keyof MalzemeFormData>(key: K, value: MalzemeFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
+  const handleTurChange = (id: number | null, record?: OzellikKodlama) => {
+    set('kumasTuruId', id)
+    setTurData(record ?? null)
+  }
+
   const handleNumaratorChange = (val: number | null) => {
-    set('kumasTuruId', val)
+    set('numaratorId', val)
     if (val) {
       const n = numaratorlar.find((x) => x.id === val)
       if (n) {
-        const nextKod = `${n.onEk}${String(n.sonNo + 1).padStart(3, '0')}`
-        set('kod', nextKod)
+        set('ad', n.ad)
+        if (!id) {
+          const nextKod = `${n.onEk}${String(n.sonNo + 1).padStart(3, '0')}`
+          set('kod', nextKod)
+        }
       }
     } else {
+      set('ad', '')
       set('kod', '')
     }
   }
@@ -156,10 +179,10 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm({ ...emptyData })
+    setTurData(null)
   }
 
   const handleKaydet = async () => {
-    if (!form.kod.trim()) { message.warning('Kod alanı zorunludur'); return }
     if (!form.ad.trim()) { message.warning('Ad alanı zorunludur'); return }
     setSaving(true)
     try {
@@ -168,11 +191,13 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
         message.success('Kumaş başarıyla güncellendi')
       } else {
         let payload = { ...form }
-        if (form.kumasTuruId) {
-          const res = await malzemeApi.nextKod(form.kumasTuruId)
+        if (form.numaratorId) {
+          const res = await malzemeApi.nextKod(form.numaratorId)
           payload.kod = res.kod
         }
+        if (!payload.kod.trim()) { message.warning('Kod alanı zorunludur'); setSaving(false); return }
         const created = await malzemeApi.create(payload)
+        numaratorApi.list().then(setNumaratorlar).catch(() => {})
         setId(created.id)
         setForm((prev) => ({ ...prev, kod: created.kod }))
         message.success('Kumaş başarıyla oluşturuldu')
@@ -225,27 +250,6 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
     })
   }
 
-  const handleTurEkle = async () => {
-    if (!turInputOnEk.trim()) {
-      message.warning('Ön Ek zorunludur')
-      return
-    }
-    try {
-      const onEk = turInputOnEk.trim()
-      const created = await numaratorApi.create({ ad: onEk, onEk, sonNo: 0, kullanimda: true })
-      setNumaratorlar((prev) => [...prev, created])
-      setTurInputOnEk('')
-      message.success('Eklendi')
-    } catch {
-      message.error('Eklenemedi')
-    }
-  }
-
-  const turColumns: ColumnsType<Numarator> = [
-    { title: 'Ön Ek', dataIndex: 'onEk', key: 'onEk', width: 100, render: (t) => <span className="!text-[11px]">{t}</span> },
-    { title: 'Son No', dataIndex: 'sonNo', key: 'sonNo', width: 80, render: (t) => <span className="!text-[11px]">{t}</span> },
-  ]
-
   const toolbarButtons = createToolbarButtons({
     onNew: handleYeni,
     onSave: handleKaydet,
@@ -280,8 +284,8 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
                   showSearch
                   placeholder="Kod seç..."
                   className="!w-32 !text-[11px]"
-                  value={form.kumasTuruId}
-                  onChange={(val) => handleNumaratorChange(val)}
+                  value={form.numaratorId}
+                  onChange={handleNumaratorChange}
                   labelRender={({ label }) => (form.kod ? form.kod : (label as React.ReactNode))}
                   filterOption={(input, option) =>
                     ((option?.label as string) ?? '').toLowerCase().includes(input.toLowerCase())
@@ -307,7 +311,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
                 <FormField label="Türü">
                   <Input
                     size="small"
-                    value={numaratorlar.find((n) => n.id === form.kumasTuruId)?.ad ?? ''}
+                    value={turData?.ad ?? ''}
                     className="!text-[11px]"
                     readOnly
                     suffix={
@@ -346,33 +350,13 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
         </Spin>
       </div>
 
-      <Modal
-        title="Kumaş Türü Seç"
+      <OzellikKodlamaModal
         open={turModalOpen}
-        onCancel={() => { setTurModalOpen(false); setTurInputOnEk('') }}
-        footer={null}
-        width={500}
-      >
-        <div className="!flex !gap-2 !mb-3">
-          <Input size="small" placeholder="Ön Ek" value={turInputOnEk} onChange={(e) => setTurInputOnEk(e.target.value)} className="!w-20 !text-[11px]" />
-          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={handleTurEkle} className="!text-[11px] !h-7">Ekle</Button>
-        </div>
-        <Table
-          columns={turColumns}
-          dataSource={numaratorlar.filter((n) => n.kullanimda)}
-          rowKey="id"
-          size="small"
-          pagination={false}
-          onRow={(record) => ({
-            onDoubleClick: () => {
-              handleNumaratorChange(record.id)
-              setTurModalOpen(false)
-            },
-            className: '!cursor-pointer',
-          })}
-          className="[&_.ant-table-thead>tr>th]:!text-[10px] [&_.ant-table-thead>tr>th]:!text-[#6b7280] [&_.ant-table-tbody>tr>td]:!text-[11px] [&_.ant-table-tbody>tr>td]:!py-1.5"
-        />
-      </Modal>
+        kategori="kumasTuru"
+        value={form.kumasTuruId}
+        onChange={handleTurChange}
+        onClose={() => setTurModalOpen(false)}
+      />
     </div>
   )
 }

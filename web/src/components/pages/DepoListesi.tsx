@@ -107,7 +107,7 @@ export default function DepoListesi({ onSelect, onNew }: DepoListesiProps) {
         </div>
 
         <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
-          <Spin spinning={loading} wrapperClassName="!h-full [&_.ant-spin-container]:!h-full">
+          <Spin spinning={loading} classNames={{ root: "!h-full [&_.ant-spin-container]:!h-full" }}>
             <DataGrid
               rowData={data}
               columnDefs={columns}

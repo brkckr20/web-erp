@@ -15,9 +15,10 @@ import { KaliteKontrolModule } from './kalite-kontrol/kalite-kontrol.module';
 import { HataTanimModule } from './hata-tanim/hata-tanim.module';
 import { IsEmriModule } from './is-emri/is-emri.module';
 import { NumaratorModule } from './numarator/numarator.module';
+import { OzellikKodlamaModule } from './ozellik-kodlama/ozellik-kodlama.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule],
+  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule],
   controllers: [AppController],
   providers: [AppService],
 })
