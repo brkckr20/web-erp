@@ -1,7 +1,8 @@
 'use client'
 
-import { Tabs, Input, Select, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Modal } from 'antd'
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { Tabs, Input, Select, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Modal, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
+import { useState, useEffect, useRef } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
@@ -12,6 +13,8 @@ import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
+import StokSecimiModal from '@/components/shared/StokSecimiModal'
+import type { DepoBazliStokSatir } from '@/lib/depo-bazli-stok-api'
 import { stokHareketFisiApi } from '@/lib/stok-hareket-fisi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { stokHareketFisiOnizle, stokHareketFisiPdfAl, stokHareketFisiTasarimlari, type FisRaporData } from '@/lib/reports/stok-hareket-fisi.report'
@@ -104,6 +107,8 @@ const fisTipiMap: Record<string, string> = {
   '137': '137-Karma Koli Bozma',
   '140': '140-Üretime Çıkış Fişi',
 }
+
+const cikisTipleri = new Set(['130', '131', '132', '136', '137', '140', '99'])
 
 const formatTR = (v: number) => {
   if (v === 0) return ''
@@ -209,6 +214,8 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [raporModalAcik, setRaporModalAcik] = useState(false)
+  const [stokSecimiModalAcik, setStokSecimiModalAcik] = useState(false)
+  const isCikis = cikisTipleri.has(fisTipi)
 
   useEffect(() => {
     if (id) {
@@ -391,6 +398,34 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     toplam,
   })
 
+  const handleStokSecimi = () => {
+    if (!depoKod) {
+      message.warning('Lütfen önce depo seçiniz')
+      return
+    }
+    setStokSecimiModalAcik(true)
+  }
+
+  const handleStokSecimiEkle = (secimler: DepoBazliStokSatir[]) => {
+    const yeniKalemler: KalemRow[] = secimler.map((s) => ({
+      ...emptyKalem(),
+      malzemeKod: s.malzemeKod,
+      malzemeAd: s.malzemeAd,
+      brutKg: s.brutKg,
+      kg: s.kg,
+      brutMt: s.brutMt,
+      mt: s.mt,
+      adet: s.adet,
+    }))
+    const varOlan = new Set(kalemler.filter((k) => k.malzemeKod).map((k) => k.malzemeKod))
+    const eklenecek = yeniKalemler.filter((k) => !varOlan.has(k.malzemeKod))
+    if (eklenecek.length === 0) {
+      message.info('Seçilen malzemeler zaten listede mevcut')
+      return
+    }
+    setKalemler((prev) => [...prev, ...eklenecek])
+  }
+
   const handleRapor = () => {
     setRaporModalAcik(true)
   }
@@ -445,6 +480,10 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const depoListesi = async () => (await import('@/lib/depo-api')).depoApi.list()
 
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
+
+  const contextMenuItems: MenuProps['items'] = isCikis
+    ? [{ key: 'stok-secimi', label: 'Stok Seçimi', onClick: handleStokSecimi }]
+    : []
 
   // Odaklanan hücrenin içindeki gerçek input/select'i otomatik odakla
   const focusCellEditor = (colId: string, rowIndex: number) => {
@@ -702,6 +741,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
             onOnizle={(id) => handleRaporOnizle(id)}
             onIndir={(id) => handleRaporIndir(id)}
           />
+          <StokSecimiModal
+            open={stokSecimiModalAcik}
+            depoKod={depoKod}
+            onClose={() => setStokSecimiModalAcik(false)}
+            onSelect={handleStokSecimiEkle}
+          />
       </div>
       <div className="!flex-1 !min-h-0 !flex !flex-col">
         <Tabs
@@ -788,48 +833,95 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
                       </Button>
                     </div>
                     <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
-                      <AgGridReact
-                        rowData={kalemler}
-                        columnDefs={minimalColDefs}
-                        theme={antTheme}
-                        headerHeight={32}
-                        rowHeight={30}
-                        rowSelection="single"
-                        getRowId={(p) => p.data.key}
-                        localeText={agGridLocaleTR}
-                        defaultColDef={{ resizable: true, sortable: true }}
-                        onGridReady={(e) => { gridApiRef.current = e.api }}
-                        tabToNextCell={(params) => {
-                          // Tab: sil/malzemeAd kolonlarını atlayarak sonraki düzenlenebilir hücreye git
-                          const editableCols = minimalColDefs
-                            .map((c) => c.field as string)
-                            .filter((f) => f && f !== 'key' && f !== 'malzemeAd')
-                          const prev = params.previousCellPosition
-                          if (!prev) return params.nextCellPosition ?? false
-                          const curCol = prev.column.getColId()
-                          const curIdx = editableCols.indexOf(curCol)
-                          const rowCount = kalemler.length
-                          let colIdx = curIdx
-                          let rowIndex = prev.rowIndex
-                          if (params.backwards) {
-                            colIdx -= 1
-                            if (colIdx < 0) { colIdx = editableCols.length - 1; rowIndex -= 1 }
-                          } else {
-                            colIdx += 1
-                            if (colIdx > editableCols.length - 1) { colIdx = 0; rowIndex += 1 }
-                          }
-                          if (rowIndex < 0 || rowIndex >= rowCount) return prev
-                          const col = gridApiRef.current?.getColumn(editableCols[colIdx])
-                          if (!col) return prev
-                          return { rowIndex, column: col, rowPinned: null }
-                        }}
-                        onCellFocused={(e: CellFocusedEvent) => {
-                          const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
-                          if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
-                            focusCellEditor(colId, e.rowIndex)
-                          }
-                        }}
-                      />
+                      {isCikis ? (
+                        <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
+                          <div style={{ height: '100%', width: '100%' }}>
+                            <AgGridReact
+                              rowData={kalemler}
+                              columnDefs={minimalColDefs}
+                              theme={antTheme}
+                              headerHeight={32}
+                              rowHeight={30}
+                              rowSelection="single"
+                              getRowId={(p) => p.data.key}
+                              localeText={agGridLocaleTR}
+                              defaultColDef={{ resizable: true, sortable: true }}
+                              onGridReady={(e) => { gridApiRef.current = e.api }}
+                              tabToNextCell={(params) => {
+                                const editableCols = minimalColDefs
+                                  .map((c) => c.field as string)
+                                  .filter((f) => f && f !== 'key' && f !== 'malzemeAd')
+                                const prev = params.previousCellPosition
+                                if (!prev) return params.nextCellPosition ?? false
+                                const curCol = prev.column.getColId()
+                                const curIdx = editableCols.indexOf(curCol)
+                                const rowCount = kalemler.length
+                                let colIdx = curIdx
+                                let rowIndex = prev.rowIndex
+                                if (params.backwards) {
+                                  colIdx -= 1
+                                  if (colIdx < 0) { colIdx = editableCols.length - 1; rowIndex -= 1 }
+                                } else {
+                                  colIdx += 1
+                                  if (colIdx > editableCols.length - 1) { colIdx = 0; rowIndex += 1 }
+                                }
+                                if (rowIndex < 0 || rowIndex >= rowCount) return prev
+                                const col = gridApiRef.current?.getColumn(editableCols[colIdx])
+                                if (!col) return prev
+                                return { rowIndex, column: col, rowPinned: null }
+                              }}
+                              onCellFocused={(e: CellFocusedEvent) => {
+                                const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
+                                if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
+                                  focusCellEditor(colId, e.rowIndex)
+                                }
+                              }}
+                            />
+                          </div>
+                        </Dropdown>
+                      ) : (
+                        <AgGridReact
+                          rowData={kalemler}
+                          columnDefs={minimalColDefs}
+                          theme={antTheme}
+                          headerHeight={32}
+                          rowHeight={30}
+                          rowSelection="single"
+                          getRowId={(p) => p.data.key}
+                          localeText={agGridLocaleTR}
+                          defaultColDef={{ resizable: true, sortable: true }}
+                          onGridReady={(e) => { gridApiRef.current = e.api }}
+                          tabToNextCell={(params) => {
+                            const editableCols = minimalColDefs
+                              .map((c) => c.field as string)
+                              .filter((f) => f && f !== 'key' && f !== 'malzemeAd')
+                            const prev = params.previousCellPosition
+                            if (!prev) return params.nextCellPosition ?? false
+                            const curCol = prev.column.getColId()
+                            const curIdx = editableCols.indexOf(curCol)
+                            const rowCount = kalemler.length
+                            let colIdx = curIdx
+                            let rowIndex = prev.rowIndex
+                            if (params.backwards) {
+                              colIdx -= 1
+                              if (colIdx < 0) { colIdx = editableCols.length - 1; rowIndex -= 1 }
+                            } else {
+                              colIdx += 1
+                              if (colIdx > editableCols.length - 1) { colIdx = 0; rowIndex += 1 }
+                            }
+                            if (rowIndex < 0 || rowIndex >= rowCount) return prev
+                            const col = gridApiRef.current?.getColumn(editableCols[colIdx])
+                            if (!col) return prev
+                            return { rowIndex, column: col, rowPinned: null }
+                          }}
+                          onCellFocused={(e: CellFocusedEvent) => {
+                            const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
+                            if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
+                              focusCellEditor(colId, e.rowIndex)
+                            }
+                          }}
+                        />
+                      )}
                     </div>
                     <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
                       <div className="!flex !items-center !gap-4">

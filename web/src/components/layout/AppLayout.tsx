@@ -28,6 +28,10 @@ import HataTanimKarti from '@/components/pages/HataTanimKarti'
 import HataTanimListesi from '@/components/pages/HataTanimListesi'
 import IsEmriKarti from '@/components/pages/IsEmriKarti'
 import IsEmriListesi from '@/components/pages/IsEmriListesi'
+import KumasListesi from '@/components/pages/KumasListesi'
+import KumasKarti from '@/components/pages/KumasKarti'
+import NumaratorListesi from '@/components/pages/NumaratorListesi'
+import NumaratorKarti from '@/components/pages/NumaratorKarti'
 
 const { Content } = Layout
 
@@ -250,6 +254,50 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
+  const openKumasKarti = useCallback((kod: string) => {
+    const key = 'kumas-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Kumaş Kartı - ' + kod, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniKumas = useCallback(() => {
+    const key = 'kumas-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Kumaş Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openNumaratorKarti = useCallback((id: number) => {
+    const key = 'numarator-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Numaratör Kartı - ' + id, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniNumarator = useCallback(() => {
+    const key = 'numarator-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Numaratör Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
   const openIsEmriKarti = useCallback((kod: string) => {
     const key = 'is-emri-karti-' + kod
     setTabs((prev) => {
@@ -366,6 +414,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('is-emri-karti-')) {
       return <IsEmriKarti kod={tab.key.replace('is-emri-karti-', '')} />
+    }
+    if (tab.key === 'kumas-kartlari') {
+      return <KumasListesi onSelect={openKumasKarti} onNew={openYeniKumas} />
+    }
+    if (tab.key === 'kumas-karti-yeni') {
+      return <KumasKarti isNew />
+    }
+    if (tab.key.startsWith('kumas-karti-')) {
+      return <KumasKarti kod={tab.key.replace('kumas-karti-', '')} />
+    }
+    if (tab.key === 'numarator-tanimlari') {
+      return <NumaratorListesi onSelect={openNumaratorKarti} onNew={openYeniNumarator} />
+    }
+    if (tab.key === 'numarator-karti-yeni') {
+      return <NumaratorKarti isNew />
+    }
+    if (tab.key.startsWith('numarator-karti-')) {
+      return <NumaratorKarti id={Number(tab.key.replace('numarator-karti-', ''))} />
     }
     if (tab.key === 'hata-tanimlari') {
       return <HataTanimListesi onSelect={openHataTanimKarti} onNew={openYeniHataTanim} />

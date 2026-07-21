@@ -47,8 +47,8 @@ export default function BarkodEtiket({ fisNo, isEmriNo, siparisNo, tarih, kalem 
     <div
       className="barkod-etiket"
       style={{
-        width: '90mm',
-        height: '130mm',
+        width: '100mm',
+        height: '150mm',
         boxSizing: 'border-box',
         padding: '6mm 5mm',
         border: '1px solid #ccc',

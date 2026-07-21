@@ -7,11 +7,40 @@ import { UpdateIsEmriDto } from './dto/update-is-emri.dto'
 export class IsEmriService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.isEmri.findMany({
+  async findAll() {
+    const items = await this.prisma.isEmri.findMany({
       orderBy: { isEmriNo: 'asc' },
       include: { kalemler: { orderBy: { sira: 'asc' } } },
     })
+
+    const kkGrouped = await this.prisma.kaliteKontrolKalem.groupBy({
+      by: ['isEmriNo', 'malzemeId'],
+      _sum: { netAgirlik: true },
+      where: { isEmriNo: { not: null }, malzemeId: { not: null } },
+    })
+
+    const malzemeIds = [...new Set(kkGrouped.map((k) => k.malzemeId).filter(Boolean) as number[])]
+    const malzemeler = malzemeIds.length > 0
+      ? await this.prisma.malzeme.findMany({ where: { id: { in: malzemeIds } }, select: { id: true, kod: true } })
+      : []
+    const malzemeMap = new Map(malzemeler.map((m) => [m.id, m.kod]))
+
+    const kkMap = new Map<string, number>()
+    for (const k of kkGrouped) {
+      const malzemeKod = malzemeMap.get(k.malzemeId!) ?? ''
+      if (!malzemeKod) continue
+      const key = `${k.isEmriNo}|${malzemeKod}`
+      kkMap.set(key, Number(k._sum.netAgirlik) || 0)
+    }
+
+    for (const isEmri of items) {
+      for (const kalem of isEmri.kalemler) {
+        const key = `${isEmri.isEmriNo}|${kalem.malzemeKod}`
+        ;(kalem as any).kullanilanKg = kkMap.get(key) ?? 0
+      }
+    }
+
+    return items
   }
 
   async findOne(id: number) {

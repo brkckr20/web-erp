@@ -11,6 +11,7 @@ const emptyData: MalzemeFormData = {
   kod: '',
   ad: '',
   kullanimda: true,
+  tip: 1,
   malzemeTuru: null,
   tipi: '',
   kategori: '',
@@ -40,6 +41,15 @@ const emptyData: MalzemeFormData = {
   kampanyaGrubu: '',
   fiyatGrubu: '',
   operasyonKodu: '',
+  kumasTuruId: null,
+  cinsi: '',
+  grm2: null,
+  ebat: '',
+  en: null,
+  boy: null,
+  iplikBoyali: null,
+  ormeTipi: '',
+  kumasUretimTipi: '',
 }
 
 interface MalzemeKartiProps {
@@ -72,6 +82,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         kod: data.kod,
         ad: data.ad,
         kullanimda: data.kullanimda,
+        tip: data.tip,
         malzemeTuru: data.malzemeTuru ?? null,
         tipi: data.tipi ?? '',
         kategori: data.kategori ?? '',
@@ -101,6 +112,15 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         kampanyaGrubu: data.kampanyaGrubu ?? '',
         fiyatGrubu: data.fiyatGrubu ?? '',
         operasyonKodu: data.operasyonKodu ?? '',
+        kumasTuruId: data.kumasTuruId ?? null,
+        cinsi: data.cinsi ?? '',
+        grm2: data.grm2 ?? null,
+        ebat: data.ebat ?? '',
+        en: data.en ?? null,
+        boy: data.boy ?? null,
+        iplikBoyali: data.iplikBoyali ?? null,
+        ormeTipi: data.ormeTipi ?? '',
+        kumasUretimTipi: data.kumasUretimTipi ?? '',
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -145,8 +165,17 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         setId(created.id)
         message.success('Malzeme başarıyla oluşturuldu')
       }
-    } catch {
-      message.error('Kayıt sırasında hata oluştu')
+    } catch (e: any) {
+      if (e?.message) {
+        try {
+          const parsed = JSON.parse(e.message)
+          message.error(parsed.message || 'Kayıt sırasında hata oluştu')
+        } catch {
+          message.error(e.message)
+        }
+      } else {
+        message.error('Kayıt sırasında hata oluştu')
+      }
     } finally {
       setSaving(false)
     }
@@ -220,6 +249,13 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
     { value: '%20', label: '%20' },
   ]
 
+  const tipOptions = [
+    { value: 1, label: 'Genel' },
+    { value: 2, label: 'Kumaş' },
+    { value: 3, label: 'Aksesuar' },
+    { value: 4, label: 'İplik' },
+  ]
+
   const malzemeTuruOptions = [
     { value: 'Hammadde', label: 'Hammadde' },
     { value: 'Yarı Mamul', label: 'Yarı Mamul' },
@@ -266,6 +302,10 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
               </div>
               <Switch checked={form.kullanimda} onChange={(checked) => set('kullanimda', checked)} />
               <span className="!text-[11px]">Kullanımda</span>
+            </div>
+            <div className="!flex !items-center !gap-1.5 !mt-1.5">
+              <label className="!text-[11px] !font-semibold !text-[#333] !uppercase !w-12">Tip</label>
+              <Select size="small" value={form.tip} onChange={(v) => set('tip', v)} className="!w-28 !text-[11px]" options={tipOptions} />
             </div>
           </div>
 

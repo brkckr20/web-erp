@@ -32,7 +32,7 @@ export default function TabBar({ tabs, activeKey, onTabChange, onTabClose }: Tab
           ),
           closable: true,
         }))}
-        className="!mb-0 [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-tab]:!px-3 [&_.ant-tabs-tab]:!py-1 [&_.ant-tabs-tab]:!text-[11px] [&_.ant-tabs-tab-btn]:!text-[11px] [&_.ant-tabs-nav]:!min-h-[32px] [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-[#f57c00]"
+        className="!mb-0 [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-tab]:!px-3 [&_.ant-tabs-tab]:!py-1 [&_.ant-tabs-tab]:!text-[11px] [&_.ant-tabs-tab-btn]:!text-[11px] [&_.ant-tabs-nav]:!min-h-[32px] [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-[#f57c00] [&_.ant-tabs-tab-remove]:!flex [&_.ant-tabs-tab-remove]:!items-center [&_.ant-tabs-tab-remove]:!justify-center [&_.ant-tabs-tab-remove]:!p-0.5 [&_.ant-tabs-tab-remove]:!rounded-full [&_.ant-tabs-tab-remove:hover]:!bg-[#FF9933] [&_.ant-tabs-tab-remove:hover]:!text-white"
       />
     </div>
   )

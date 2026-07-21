@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe, Query } from '@nestjs/common'
 import { MalzemeService } from './malzeme.service'
 import { CreateMalzemeDto } from './dto/create-malzeme.dto'
 import { UpdateMalzemeDto } from './dto/update-malzeme.dto'
@@ -8,8 +8,8 @@ export class MalzemeController {
   constructor(private readonly malzemeService: MalzemeService) {}
 
   @Get()
-  findAll() {
-    return this.malzemeService.findAll()
+  findAll(@Query('tip') tip?: string) {
+    return this.malzemeService.findAll(tip ? Number(tip) : undefined)
   }
 
   @Get(':id')
@@ -20,6 +20,11 @@ export class MalzemeController {
   @Get('kod/:kod')
   findByKod(@Param('kod') kod: string) {
     return this.malzemeService.findByKod(kod)
+  }
+
+  @Get('next-kod/:numaratorId')
+  nextKod(@Param('numaratorId', ParseIntPipe) numaratorId: number) {
+    return this.malzemeService.nextKod(numaratorId)
   }
 
   @Post()

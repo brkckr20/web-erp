@@ -41,6 +41,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus()
       mesaj = exception.getResponse()
+    } else if (exception instanceof Error && (exception as any).code === 'P2002') {
+      status = 409
+      const meta = (exception as any).meta
+      const target = Array.isArray(meta?.target) ? meta.target : []
+      const field = target.includes('kod') ? 'kod' : target[0] ?? 'kod'
+      mesaj = { statusCode: 409, message: `Bu ${field} ile kayıtlı bir malzeme zaten mevcut` }
     } else if (exception instanceof Error) {
       mesaj = { statusCode: 500, message: exception.message }
     }

@@ -5,6 +5,8 @@ export class CreateKaliteKontrolKalemDto {
   netMetre?: number
   adet?: number
   aciklama?: string
+  isEmriNo?: string
+  isEmriKg?: number
 }
 
 export class UpdateKaliteKontrolKalemDto extends CreateKaliteKontrolKalemDto {}

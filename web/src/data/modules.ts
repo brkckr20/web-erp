@@ -38,6 +38,7 @@ export const modules: Module[] = [
           { key: 'makina-kartlari', label: 'Makina Kartları', isForm: true },
           { key: 'hata-tanimlari', label: 'Hata Tanımları', isForm: true },
           { key: 'kumas-kartlari', label: 'Kumaş Kartları', isFavorite: true, isForm: true },
+          { key: 'numarator-tanimlari', label: 'Numaratör Tanımları', isForm: true },
           { key: 'yan-malzeme-kartlari', label: 'Yan Malzeme Kartları', isForm: true },
           { key: 'urun-model-kartlari', label: 'Ürün / Model Kartları', isForm: true },
           { key: 'renk-kartlari', label: 'Renk Kartları', isForm: true },

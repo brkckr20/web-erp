@@ -2,6 +2,7 @@ export class UpdateMalzemeDto {
   kod?: string
   ad?: string
   kullanimda?: boolean
+  tip?: number
   malzemeTuru?: string
   tipi?: string
   kategori?: string
@@ -31,4 +32,13 @@ export class UpdateMalzemeDto {
   kampanyaGrubu?: string
   fiyatGrubu?: string
   operasyonKodu?: string
+  kumasTuruId?: number
+  cinsi?: string
+  grm2?: number
+  ebat?: string
+  en?: number
+  boy?: number
+  iplikBoyali?: boolean
+  ormeTipi?: string
+  kumasUretimTipi?: string
 }

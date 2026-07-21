@@ -2,6 +2,7 @@
 
 import { Tabs, Input, DatePicker, Button, App, Tooltip, Popconfirm, Spin } from 'antd'
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { toSVG } from '@bwip-js/browser'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
@@ -17,6 +18,7 @@ import { isEmriApi } from '@/lib/is-emri-api'
 import { type Malzeme } from '@/lib/malzeme-api'
 import HataModal from '@/components/shared/HataModal'
 import EtiketOnizleme from '@/components/shared/EtiketOnizleme'
+import IsEmriSecimiModal from '@/components/shared/IsEmriSecimiModal'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { useAuth } from '@/context/AuthContext'
 
@@ -60,6 +62,9 @@ interface KalemRow {
   adet: number
   hataMiktar: number
   aciklama: string
+  isEmriNo: string
+  isEmriId: number | null
+  isEmriKg: number
   hatalar: { hataKodu: string; hataAdi: string; miktar?: number; aciklama?: string }[]
 }
 
@@ -74,6 +79,9 @@ const emptyKalem = (): KalemRow => ({
   adet: 0,
   hataMiktar: 0,
   aciklama: '',
+  isEmriNo: '',
+  isEmriId: null,
+  isEmriKg: 0,
   hatalar: [],
 })
 
@@ -128,11 +136,12 @@ function TurkishNumberInput({ value, onChange, className, onEnter }: { value: nu
 
 const numberFormat = (v: number) => (v ?? 0).toFixed(2)
 
-export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
+export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
+  const [id, setId] = useState<number | null>(propId ?? null)
   const [fisNo, setFisNo] = useState('')
   const [isEmriKod, setIsEmriKod] = useState<string>('')
   const [isEmriId, setIsEmriId] = useState<number | null>(null)
@@ -149,13 +158,16 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
   const [loading, setLoading] = useState(false)
   const [hataModalRow, setHataModalRow] = useState<KalemRow | null>(null)
   const [etiketOpen, setEtiketOpen] = useState(false)
+  const [etiketKalemler, setEtiketKalemler] = useState<{ barkod: string; malzemeKod: string; malzemeAd: string; kg: number; mt: number; adet: number; hatalar: { hataKodu: string; hataAdi: string; aciklama?: string }[] }[]>([])
+  const [isEmriModalOpen, setIsEmriModalOpen] = useState(false)
   const focusedRowIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (id) {
+    setId(propId ?? null)
+    if (propId) {
       setLoading(true)
       kaliteKontrolApi
-        .get(id)
+        .get(propId)
         .then((f: any) => {
           setFisNo(f.fisNo)
           if (f.fisTarihi) setFisTarihi(dayjs(f.fisTarihi))
@@ -191,6 +203,9 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
               adet: k.adet || 0,
               hataMiktar: k.hataMiktar || 0,
               aciklama: k.aciklama ?? '',
+              isEmriNo: k.isEmriNo ?? '',
+              isEmriId: null,
+              isEmriKg: Number(k.isEmriKg) || 0,
               hatalar: (k.hatalar || []).map((h: any) => ({
                 hataKodu: h.hataKodu,
                 hataAdi: h.hataAdi,
@@ -203,6 +218,7 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
         .catch((err) => message.error('Yüklenemedi: ' + (err?.message || err)))
         .finally(() => setLoading(false))
     } else {
+      setId(null)
       setCariKod('')
       setCariHesapId(null)
       setDepoKod('')
@@ -219,7 +235,7 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
         .then((res) => setFisNo(res.fisNo))
         .catch(() => setFisNo('00000001'))
     }
-  }, [id])
+  }, [propId])
 
   const addKalem = async (fromRow?: KalemRow) => {
     const newRow = emptyKalem()
@@ -227,6 +243,9 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
       newRow.malzemeId = fromRow.malzemeId
       newRow.malzemeKod = fromRow.malzemeKod
       newRow.malzemeAd = fromRow.malzemeAd
+      newRow.isEmriNo = fromRow.isEmriNo
+      newRow.isEmriId = fromRow.isEmriId
+      newRow.isEmriKg = fromRow.isEmriKg
     }
     if (depoKod) {
       try {
@@ -244,11 +263,61 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
     setKalemler((prev) => [...prev, newRow])
     return newRow
   }
+  const handleIsEmriSecimi = async (secimler: { isEmriNo: string; isEmriId: number; malzemeId: number | null; malzemeKod: string; malzemeAd: string; kg: number; mt: number; adet: number }[], gelenIsEmriNo: string) => {
+    if (!isEmriKod) {
+      setIsEmriKod(gelenIsEmriNo)
+      try {
+        const ie = await isEmriApi.getByKod(gelenIsEmriNo)
+        setIsEmriId(ie.id)
+        setSiparisNo(ie.siparisNo ?? '')
+        setIsEmriMalzemeKodlari(
+          (ie.kalemler ?? []).map((k: any) => k.malzemeKod).filter(Boolean),
+        )
+      } catch {
+        // iş emri detayı alınamadı
+      }
+    }
+    const existingKodlar = new Set(kalemler.map((k) => k.malzemeKod).filter(Boolean))
+    const yeniKalemler = secimler
+      .filter((s) => !existingKodlar.has(s.malzemeKod))
+      .map((s) => ({
+        ...emptyKalem(),
+        malzemeId: s.malzemeId,
+        malzemeKod: s.malzemeKod,
+        malzemeAd: s.malzemeAd,
+        isEmriNo: s.isEmriNo,
+        isEmriId: s.isEmriId,
+        isEmriKg: s.kg,
+        kg: 0,
+        mt: 0,
+        adet: 0,
+      }))
+    if (yeniKalemler.length === 0) {
+      message.info('Seçilen kalemler zaten satırlarda mevcut')
+      return
+    }
+    if (depoKod) {
+      try {
+        let barkod = (await kaliteKontrolApi.nextBarkod(depoKod)).barkod
+        const existing = new Set(kalemler.map((k) => k.barkod).filter(Boolean))
+        for (const row of yeniKalemler) {
+          while (existing.has(barkod)) {
+            barkod = incrementBarkod(barkod)
+          }
+          row.barkod = barkod
+          existing.add(barkod)
+          barkod = incrementBarkod(barkod)
+        }
+      } catch {
+        // barkod alınamadı
+      }
+    }
+    setKalemler((prev) => [...prev, ...yeniKalemler])
+    message.success(`${yeniKalemler.length} kalem eklendi`)
+  }
+
   const removeKalem = (key: string) =>
-    setKalemler((prev) => {
-      if (prev.length > 1) return prev.filter((k) => k.key !== key)
-      return prev.map((k) => (k.key === key ? { ...emptyKalem(), key: k.key } : k))
-    })
+    setKalemler((prev) => prev.filter((k) => k.key !== key))
 
   const updateKalem = (key: string, patch: Partial<KalemRow>) => {
     setKalemler((prev) =>
@@ -276,6 +345,8 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
           adet: k.adet || undefined,
           hataMiktar: k.hataMiktar || undefined,
           aciklama: k.aciklama || null,
+          isEmriNo: k.isEmriNo || null,
+          isEmriKg: k.isEmriKg || undefined,
           hatalar: k.hatalar.length > 0 ? k.hatalar.map((h) => ({
             hataKodu: h.hataKodu,
             hataAdi: h.hataAdi,
@@ -299,7 +370,8 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
         await kaliteKontrolApi.update(id, data as any)
         message.success('Güncellendi')
       } else {
-        await kaliteKontrolApi.create(data as any)
+        const created = await kaliteKontrolApi.create(data as any)
+        setId(created.id)
         message.success('Kaydedildi')
       }
     } catch (err: any) {
@@ -325,7 +397,7 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
           await kaliteKontrolApi.remove(id)
           message.success('Fiş silindi')
           setFisNo('')
-          setIsEmriNo('')
+          setIsEmriKod('')
           setCariKod('')
           setDepoKod('')
           setFisTarihi(dayjs())
@@ -350,6 +422,44 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
   const cariHesapListesi = async () => (await import('@/lib/cari-hesap-api')).cariHesapApi.list()
   const depoListesi = async () => (await import('@/lib/depo-api')).depoApi.list()
 
+  const fmt = (v: number) => v ? new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) : ''
+
+  const directPrint = (row: KalemRow) => {
+    let barkodSvg = ''
+    if (row.barkod) {
+      try {
+        barkodSvg = toSVG({
+          bcid: 'code128', text: row.barkod,
+          scale: 3, height: 12,
+          includetext: true, textxalign: 'center', textsize: 9,
+        })
+      } catch {}
+    }
+    const hataHtml = row.hatalar.length > 0
+      ? `<hr><div style="font-weight:bold;font-size:10px">HATALAR</div>${row.hatalar.map((h) => `<div style="font-size:10px">▸ ${h.hataKodu} ${h.hataAdi}${h.miktar ? ` x${h.miktar}` : ''}</div>`).join('')}`
+      : ''
+    const html = `<div class="barkod-etiket" style="width:100mm;height:150mm;box-sizing:border-box;padding:6mm 5mm;font-size:11px;font-family:Arial,sans-serif;display:flex;flex-direction:column;gap:4px;background:white">
+      <div style="font-weight:bold;font-size:13px">KK FİŞ: ${fisNo}</div>
+      <div>İş Emri: ${isEmriKod || '-'}</div>
+      <div>Sipariş : ${siparisNo || '-'}</div>
+      <div>Tarih  : ${fisTarihi.format('DD.MM.YYYY')}</div>
+      <hr style="width:100%;border:none;border-top:1px solid #999;margin:4px 0">
+      <div style="font-weight:bold">Malzeme: ${row.malzemeKod}</div>
+      <div style="font-size:10px">${row.malzemeAd}</div>
+      <hr style="width:100%;border:none;border-top:1px solid #999;margin:4px 0">
+      <div style="display:flex;gap:16px">${row.kg ? `<span>Kg: ${fmt(row.kg)}</span>` : ''}${row.mt ? `<span>Mt: ${fmt(row.mt)}</span>` : ''}${row.adet ? `<span>Adet: ${row.adet}</span>` : ''}</div>
+      ${hataHtml}
+      <div style="flex:1"></div>
+      ${barkodSvg ? `<div style="display:flex;justify-content:center">${barkodSvg}</div>` : ''}
+      <div style="text-align:center;font-size:10px">${row.barkod}</div>
+    </div>`
+    const w = window.open('', '_blank')
+    if (!w) return
+    w.document.write(`<html><head><title>Etiket</title><style>@page{margin:0;size:100mm 150mm}body{margin:0}</style></head><body>${html}</body></html>`)
+    w.document.close()
+    setTimeout(() => { w.print(); w.close() }, 500)
+  }
+
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
 
   useEffect(() => {
@@ -361,6 +471,13 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
         const idx = focusedRowIndexRef.current
         if (idx != null && idx >= 0 && idx < kalemler.length) {
           openHataModal(kalemler[idx])
+        }
+      }
+      if (!e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault()
+        const idx = focusedRowIndexRef.current
+        if (idx != null && idx >= 0 && idx < kalemler.length) {
+          directPrint(kalemler[idx])
         }
       }
     }
@@ -390,7 +507,7 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
   }
 
   const focusNextCell = (currentColId: string, rowIndex: number) => {
-    const editableCols = kolonDefs.map((c) => c.field as string).filter((f) => f && f !== 'malzemeAd')
+    const editableCols = kolonDefs.map((c) => c.field as string).filter((f) => f && !['malzemeAd', 'isEmriNo', 'isEmriKg'].includes(f))
     const idx = editableCols.indexOf(currentColId)
     if (idx === -1) return
     if (idx < editableCols.length - 1) {
@@ -469,6 +586,23 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
       cellRenderer: (p: { data: KalemRow }) => (
         <div className="!h-full !flex !items-center !px-2 !text-[12px] !text-[#6b7280]">
           {p.data.malzemeAd}
+        </div>
+      ),
+    },
+    {
+      headerName: 'Üretim Emri', field: 'isEmriNo', width: 120,
+      cellClass: '!text-[#f57c00] !font-medium',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <div className="!h-full !flex !items-center !px-2 !text-[12px]">
+          {p.data.isEmriNo}
+        </div>
+      ),
+    },
+    {
+      headerName: 'İş Emri Miktarı', field: 'isEmriKg', width: 110, type: 'rightAligned',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <div className="!h-full !flex !items-center !px-2 !text-[12px] !text-[#6b7280] !justify-end">
+          {formatTR(p.data.isEmriKg)}
         </div>
       ),
     },
@@ -565,7 +699,31 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
         buttons={createToolbarButtons({
           onSave: handleKaydet,
           onDelete: handleSil,
-          onReport: () => setEtiketOpen(true),
+          onReport: () => {
+            if (focusedRowIndexRef.current != null && focusedRowIndexRef.current >= 0 && focusedRowIndexRef.current < kalemler.length) {
+              const row = kalemler[focusedRowIndexRef.current]
+              setEtiketKalemler([{
+                barkod: row.barkod,
+                malzemeKod: row.malzemeKod,
+                malzemeAd: row.malzemeAd,
+                kg: row.kg,
+                mt: row.mt,
+                adet: row.adet,
+                hatalar: row.hatalar,
+              }])
+            } else {
+              setEtiketKalemler(kalemler.map((k) => ({
+                barkod: k.barkod,
+                malzemeKod: k.malzemeKod,
+                malzemeAd: k.malzemeAd,
+                kg: k.kg,
+                mt: k.mt,
+                adet: k.adet,
+                hatalar: k.hatalar,
+              })))
+            }
+            setEtiketOpen(true)
+          },
         }, {
           delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
         })}
@@ -584,50 +742,40 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
                 <div className="!flex !flex-col !h-full">
                   <div className="!flex-shrink-0 !space-y-1.5">
                     <div className="!flex !gap-2">
-                      <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
-                        <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Genel Bilgiler</div>
-                        <div className="!space-y-0.5">
-                          <div className="!flex !items-center !gap-3">
-                            <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Fiş No</div>
-                            <Input size="small" value={fisNo} onChange={(e) => setFisNo(e.target.value)} className="!w-48 !text-[12px]" />
+                      <div className="!flex !flex-col !gap-1.5 !shrink-0">
+                        <div className="!border !border-gray-200 !rounded-sm !p-2">
+                          <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Genel Bilgiler</div>
+                          <div className="!space-y-0.5">
+                            <div className="!flex !items-center !gap-3">
+                              <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Fiş No</div>
+                              <Input size="small" value={fisNo} onChange={(e) => setFisNo(e.target.value)} className="!w-48 !text-[12px]" />
+                            </div>
+                            <div className="!flex !items-center !gap-3">
+                              <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Fiş Tarihi</div>
+                              <DatePicker size="small" value={fisTarihi} onChange={(d) => d && setFisTarihi(d)} format="DD.MM.YYYY" placeholder="Fiş tarihi" className="!w-48 !text-[12px]" />
+                            </div>
+                            <div className="!flex !items-center !gap-3">
+                              <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Açıklama</div>
+                              <Input size="small" value={aciklama} onChange={(e) => setAciklama(e.target.value)} className="!flex-1 !text-[12px]" />
+                            </div>
                           </div>
-                          <div className="!flex !items-center !gap-3">
-                            <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Fiş Tarihi</div>
-                            <DatePicker size="small" value={fisTarihi} onChange={(d) => d && setFisTarihi(d)} format="DD.MM.YYYY" placeholder="Fiş tarihi" className="!w-48 !text-[12px]" />
-                          </div>
-                          <div className="!flex !items-center !gap-3">
-                            <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">İş Emri No</div>
-                            <SearchableIsEmriSelect
-                              value={isEmriKod}
-                              onChange={async (kod, rec) => {
-                                setIsEmriKod(kod)
-                                setIsEmriId(kod ? (rec as any)?.id ?? null : null)
-                                setSiparisNo(kod ? (rec as any)?.siparisNo ?? '' : '')
-                                if (kod) {
-                                  try {
-                                    const ie = await isEmriApi.getByKod(kod)
-                                    setIsEmriMalzemeKodlari(
-                                      (ie.kalemler ?? [])
-                                        .map((k: any) => k.malzemeKod)
-                                        .filter((c: any) => !!c),
-                                    )
-                                  } catch {
-                                    setIsEmriMalzemeKodlari([])
-                                  }
-                                } else {
-                                  setIsEmriMalzemeKodlari([])
-                                }
-                              }}
-                              widthClass="!w-48"
-                            />
-                          </div>
-                          <div className="!flex !items-center !gap-3">
-                            <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Sipariş No</div>
-                            <Input size="small" value={siparisNo} readOnly className="!w-48 !text-[12px] !bg-gray-100" />
-                          </div>
-                          <div className="!flex !items-center !gap-3">
-                            <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Açıklama</div>
-                            <Input size="small" value={aciklama} onChange={(e) => setAciklama(e.target.value)} className="!w-48 !text-[12px]" />
+                        </div>
+                        <div className="!border !border-gray-200 !rounded-sm !p-2">
+                          <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Depo Bilgileri</div>
+                          <div className="!flex !items-start !gap-3">
+                            <div className="!text-[12px] !text-[red] !w-20 !shrink-0 !pt-0.5">Depo</div>
+                            <div className="!flex !flex-col !gap-1.5 !flex-1 !w-48">
+                              <SearchableDepoSelect value={depoKod} onChange={(kod, rec) => { setDepoKod(kod); setDepoId(kod ? (rec as any)?.id ?? null : null) }} />
+                              <Button
+                                size="small"
+                                type="default"
+                                block
+                                onClick={() => setIsEmriModalOpen(true)}
+                                className="!text-[11px]"
+                              >
+                                İş Emirleri
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -640,14 +788,6 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
                             <SearchableCariSelect value={cariKod} onChange={(kod, rec) => { setCariKod(kod); setCariHesapId(kod ? (rec as any)?.id ?? null : null) }} />
                           </div>
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="!border !border-gray-200 !rounded-sm !p-2">
-                      <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Depo Bilgileri</div>
-                      <div className="!flex !items-center !gap-3">
-                        <div className="!text-[12px] !text-[red] !w-20 !shrink-0">Depo</div>
-                        <SearchableDepoSelect value={depoKod} onChange={(kod, rec) => { setDepoKod(kod); setDepoId(kod ? (rec as any)?.id ?? null : null) }} />
                       </div>
                     </div>
                   </div>
@@ -687,7 +827,7 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
                         tabToNextCell={(params) => {
                           const editableCols = kolonDefs
                             .map((c) => c.field as string)
-                            .filter((f) => f && f !== 'malzemeAd')
+                            .filter((f) => f && !['key', 'malzemeAd', 'isEmriNo', 'isEmriKg'].includes(f))
                           const prev = params.previousCellPosition
                           if (!prev) return params.nextCellPosition ?? false
                           const curCol = prev.column.getColId()
@@ -710,7 +850,7 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
                         onCellFocused={(e: CellFocusedEvent) => {
                           const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
                           if (e.rowIndex != null) focusedRowIndexRef.current = e.rowIndex
-                          if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
+                          if (colId && colId !== 'key' && colId !== 'malzemeAd' && colId !== 'isEmriNo' && colId !== 'isEmriKg' && e.rowIndex != null) {
                             focusCellEditor(colId, e.rowIndex)
                           }
                         }}
@@ -746,18 +886,15 @@ export default function KaliteKontrolKarti({ id, onDeleted }: KKFormProps) {
           ]}
         />
       </div>
+      <IsEmriSecimiModal
+        open={isEmriModalOpen}
+        onClose={() => setIsEmriModalOpen(false)}
+        onSelect={handleIsEmriSecimi}
+      />
       <EtiketOnizleme
         open={etiketOpen}
         fis={{ fisNo, isEmriNo: isEmriKod, siparisNo, tarih: fisTarihi.format('DD.MM.YYYY') }}
-        kalemler={kalemler.map((k) => ({
-          barkod: k.barkod,
-          malzemeKod: k.malzemeKod,
-          malzemeAd: k.malzemeAd,
-          kg: k.kg,
-          mt: k.mt,
-          adet: k.adet,
-          hatalar: k.hatalar,
-        }))}
+        kalemler={etiketKalemler}
         onClose={() => setEtiketOpen(false)}
       />
     </div>

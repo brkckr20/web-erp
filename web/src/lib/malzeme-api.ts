@@ -7,6 +7,7 @@ export interface Malzeme {
   kod: string
   ad: string
   kullanimda: boolean
+  tip: number
   malzemeTuru: string | null
   tipi: string | null
   kategori: string | null
@@ -36,14 +37,28 @@ export interface Malzeme {
   kampanyaGrubu: string | null
   fiyatGrubu: string | null
   operasyonKodu: string | null
+  kumasTuruId: number | null
+  kumasTuru?: { id: number; ad: string } | null
+  cinsi: string | null
+  grm2: number | null
+  ebat: string | null
+  en: number | null
+  boy: number | null
+  iplikBoyali: boolean | null
+  ormeTipi: string | null
+  kumasUretimTipi: string | null
 }
 
-export type MalzemeFormData = Omit<Malzeme, 'id'>
+export type MalzemeFormData = Omit<Malzeme, 'id' | 'kumasTuru'>
 
 export const malzemeApi = {
-  list: () => api.get<Malzeme[]>('/malzeme'),
+  list: (tip?: number) => {
+    const params = tip != null ? `?tip=${tip}` : ''
+    return api.get<Malzeme[]>(`/malzeme${params}`)
+  },
   get: (id: number) => api.get<Malzeme>(`/malzeme/${id}`),
   getByKod: (kod: string) => api.get<Malzeme>(`/malzeme/kod/${kod}`),
+  nextKod: (numaratorId: number) => api.get<{ kod: string }>(`/malzeme/next-kod/${numaratorId}`),
   create: (data: MalzemeFormData) => api.post<Malzeme>('/malzeme', data),
   update: (id: number, data: Partial<MalzemeFormData>) => api.put<Malzeme>(`/malzeme/${id}`, data),
   delete: (id: number) => api.delete<void>(`/malzeme/${id}`),

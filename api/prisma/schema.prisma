@@ -102,6 +102,8 @@ model Malzeme {
   ad                String   @db.VarChar(200)
   kullanimda        Boolean  @default(true)
 
+  tip               Int      @default(1)
+
   malzemeTuru       String?  @map("malzeme_turu") @db.VarChar(100)
   tipi              String?  @db.VarChar(100)
   kategori          String?  @db.VarChar(100)
@@ -136,6 +138,19 @@ model Malzeme {
   fiyatGrubu        String?  @map("fiyat_grubu") @db.VarChar(100)
   operasyonKodu     String?  @map("operasyon_kodu") @db.VarChar(50)
 
+  kumasTuruId       Int?     @map("kumas_turu_id")
+  kumasTuru         Numarator? @relation("KumasTuru", fields: [kumasTuruId], references: [id])
+  ozellikKodlamaId  Int?     @map("ozellik_kodlama_id")
+  ozellikKodlama    OzellikKodlama? @relation("MalzemeOzellik", fields: [ozellikKodlamaId], references: [id])
+  cinsi             String?  @db.VarChar(100)
+  grm2              Decimal? @db.Decimal(10, 2)
+  ebat              String?  @db.VarChar(100)
+  en                Decimal? @db.Decimal(10, 2)
+  boy               Decimal? @db.Decimal(10, 2)
+  iplikBoyali       Boolean? @default(false) @map("iplik_boyali")
+  ormeTipi          String?  @map("orme_tipi") @db.VarChar(50)
+  kumasUretimTipi   String?  @map("kumas_uretim_tipi") @db.VarChar(50)
+
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -143,6 +158,35 @@ model Malzeme {
   kkKalemler        KaliteKontrolKalem[] @relation("KKKalemMalzeme")
 
   @@map("malzeme")
+}
+
+model Numarator {
+  id                Int      @id @default(autoincrement())
+  ad                String   @db.VarChar(100)
+  onEk              String   @map("on_ek") @db.VarChar(20)
+  sonNo             Int      @default(0) @map("son_no")
+  kullanimda        Boolean  @default(true)
+
+  kumasMalzemeler   Malzeme[] @relation("KumasTuru")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("numarator")
+}
+
+model OzellikKodlama {
+  id           Int      @id @default(autoincrement())
+  malzemeTuru  String   @map("malzeme_turu") @db.VarChar(50)
+  labelAdi     String   @map("label_adi") @db.VarChar(200)
+  aciklama     String?  @db.VarChar(500)
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  malzemeler   Malzeme[] @relation("MalzemeOzellik")
+
+  @@map("ozellik_kodlama")
 }
 
 model Makina {
@@ -403,6 +447,8 @@ model KaliteKontrolKalem {
   adet              Int?
   hataMiktar        Int?     @map("hata_miktar")
   aciklama          String?  @db.VarChar(1000)
+  isEmriNo          String?  @map("is_emri_no") @db.VarChar(100)
+  isEmriKg          Decimal? @map("is_emri_kg") @db.Decimal(18, 6)
 
   hatalar           KaliteKontrolHata[] @relation("KKHataKalem")
 

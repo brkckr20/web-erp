@@ -1,10 +1,11 @@
 'use client'
 
-import { Table, Tag, Dropdown, Button, Spin } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import { Dropdown, Button, Spin } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import type { ColDef } from 'ag-grid-community'
+import DataGrid from '@/components/shared/DataGrid'
 import { depoApi, type Depo } from '@/lib/depo-api'
 
 interface DepoRow {
@@ -58,44 +59,31 @@ export default function DepoListesi({ onSelect, onNew }: DepoListesiProps) {
     { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
   ]
 
-  const columns: ColumnsType<DepoRow> = [
-    {
-      title: 'Kodu',
-      dataIndex: 'kod',
-      key: 'kod',
-      width: 100,
-      render: (text) => <span className="!text-[11px] !font-medium !text-[#f57c00]">{text}</span>,
-    },
-    {
-      title: 'Adı',
-      dataIndex: 'ad',
-      key: 'ad',
-      render: (text) => <span className="!text-[11px]">{text}</span>,
-    },
-    {
-      title: 'Şehir',
-      dataIndex: 'sehir',
-      key: 'sehir',
-      width: 100,
-      render: (text) => <span className="!text-[11px]">{text ?? '-'}</span>,
-    },
-    {
-      title: 'Durum',
-      dataIndex: 'durum',
-      key: 'durum',
-      width: 90,
-      render: (durum: boolean) => (
-        <Tag color={durum ? 'green' : 'default'} className="!text-[10px]">
-          {durum ? 'Aktif' : 'Pasif'}
-        </Tag>
-      ),
-    },
-  ]
+  const columns = useMemo<ColDef<DepoRow>[]>(
+    () => [
+      {
+        headerName: 'Kodu',
+        field: 'kod',
+        width: 110,
+        cellStyle: { color: '#f57c00', fontWeight: 500 },
+      },
+      { headerName: 'Adı', field: 'ad', flex: 1, minWidth: 160 },
+      { headerName: 'Şehir', field: 'sehir', width: 130, valueFormatter: (p) => p.value ?? '-' },
+      {
+        headerName: 'Durum',
+        field: 'durum',
+        width: 100,
+        valueFormatter: (p) => (p.value ? 'Aktif' : 'Pasif'),
+        cellStyle: (p) => (p.value ? { color: '#16a34a' } : { color: '#9ca3af' }),
+      },
+    ],
+    [],
+  )
 
   return (
     <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
-      <div className="!p-3">
-        <div className="!flex !items-center !justify-between !mb-3">
+      <div className="!p-3 !h-full !flex !flex-col">
+        <div className="!flex !items-center !justify-between !mb-3 !flex-shrink-0">
           <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
             Depo Tanımları Listesi
           </div>
@@ -118,24 +106,20 @@ export default function DepoListesi({ onSelect, onNew }: DepoListesiProps) {
           </div>
         </div>
 
-        <div className="!bg-white !rounded-sm">
-          <Spin spinning={loading}>
-          <Table
-            columns={columns}
-            dataSource={data}
-            size="small"
-            pagination={false}
-            rowSelection={{
-              type: 'radio',
-              selectedRowKeys: selectedRow ? [selectedRow] : [],
-              onChange: (keys) => setSelectedRow(keys[0] as string),
-            }}
-            onRow={(record) => ({
-              onDoubleClick: () => onSelect?.(record.kod),
-              className: '!cursor-pointer',
-            })}
-            className="[&_.ant-table-thead>tr>th]:!text-[10px] [&_.ant-table-thead>tr>th]:!font-semibold [&_.ant-table-thead>tr>th]:!text-[#6b7280] [&_.ant-table-thead>tr>th]:!uppercase [&_.ant-table-thead>tr>th]:!bg-[#f9fafb] [&_.ant-table-tbody>tr>td]:!text-[11px] [&_.ant-table-tbody>tr>td]:!py-1.5"
-          />
+        <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
+          <Spin spinning={loading} wrapperClassName="!h-full [&_.ant-spin-container]:!h-full">
+            <DataGrid
+              rowData={data}
+              columnDefs={columns}
+              domLayout="normal"
+              exportFileName="depo-tanimlari"
+              rowSelection="single"
+              onSelectionChanged={(e) => {
+                const sel = e.api.getSelectedRows()
+                setSelectedRow(sel[0]?.kod ?? null)
+              }}
+              onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.kod)}
+            />
           </Spin>
         </div>
       </div>
