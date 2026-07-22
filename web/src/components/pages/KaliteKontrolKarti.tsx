@@ -843,63 +843,87 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
                       }}
                       trigger={['contextMenu']}
                     >
-                      <div style={{ height: 300, width: '100%' }} className="kk-grid">
-                      <AgGridReact
-                        rowData={kalemler}
-                        columnDefs={kolonDefs}
-                        theme={antTheme}
-                        headerHeight={32}
-                        rowHeight={30}
-                        rowSelection="single"
-                        getRowId={(p) => p.data.key}
-                        localeText={agGridLocaleTR}
-                        defaultColDef={{ resizable: true, sortable: true }}
-                        onGridReady={(e) => { gridApiRef.current = e.api }}
-                        onCellKeyDown={async (e: any) => {
-                          if (e.event?.key !== 'ArrowDown') return
-                          const rowIndex = e.node?.rowIndex
-                          if (rowIndex == null) return
-                          // sadece son satırdayken ve malzeme doluyken yeni satır aç
-                          if (rowIndex !== kalemler.length - 1) return
-                          const cur = kalemler[rowIndex]
-                          if (!cur || !cur.malzemeKod) return
-                          const added = await addKalem(cur)
-                          setTimeout(() => {
-                            gridApiRef.current?.setFocusedCell(rowIndex + 1, 'barkod')
-                          }, 50)
-                        }}
-                        tabToNextCell={(params) => {
-                          const editableCols = kolonDefs
-                            .map((c) => c.field as string)
-                            .filter((f) => f && !['key', 'malzemeAd', 'isEmriNo', 'isEmriKg'].includes(f))
-                          const prev = params.previousCellPosition
-                          if (!prev) return params.nextCellPosition ?? false
-                          const curCol = prev.column.getColId()
-                          const curIdx = editableCols.indexOf(curCol)
-                          const rowCount = kalemler.length
-                          let colIdx = curIdx
-                          let rowIndex = prev.rowIndex
-                          if (params.backwards) {
-                            colIdx -= 1
-                            if (colIdx < 0) { colIdx = editableCols.length - 1; rowIndex -= 1 }
-                          } else {
-                            colIdx += 1
-                            if (colIdx > editableCols.length - 1) { colIdx = 0; rowIndex += 1 }
-                          }
-                          if (rowIndex < 0 || rowIndex >= rowCount) return prev
-                          const col = gridApiRef.current?.getColumn(editableCols[colIdx])
-                          if (!col) return prev
-                          return { rowIndex, column: col, rowPinned: null }
-                        }}
-                        onCellFocused={(e: CellFocusedEvent) => {
-                          const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
-                          if (e.rowIndex != null) focusedRowIndexRef.current = e.rowIndex
-                          if (colId && colId !== 'key' && colId !== 'malzemeAd' && colId !== 'isEmriNo' && colId !== 'isEmriKg' && e.rowIndex != null) {
-                            focusCellEditor(colId, e.rowIndex)
-                          }
-                        }}
-                      />
-                    </div>
+                      <div className="!flex-1 !min-h-0 !flex !flex-col kk-grid">
+                        <div className="!flex-1 !min-h-0">
+                          <AgGridReact
+                            style={{ height: '100%' }}
+                            rowData={kalemler}
+                            columnDefs={kolonDefs}
+                            theme={antTheme}
+                            headerHeight={32}
+                            rowHeight={30}
+                            rowSelection="single"
+                            getRowId={(p) => p.data.key}
+                            localeText={agGridLocaleTR}
+                            defaultColDef={{ resizable: true, sortable: true }}
+                            onGridReady={(e) => { gridApiRef.current = e.api }}
+                            onCellKeyDown={async (e: any) => {
+                              if (e.event?.key !== 'ArrowDown') return
+                              const rowIndex = e.node?.rowIndex
+                              if (rowIndex == null) return
+                              if (rowIndex !== kalemler.length - 1) return
+                              const cur = kalemler[rowIndex]
+                              if (!cur || !cur.malzemeKod) return
+                              const added = await addKalem(cur)
+                              setTimeout(() => {
+                                gridApiRef.current?.setFocusedCell(rowIndex + 1, 'barkod')
+                              }, 50)
+                            }}
+                            tabToNextCell={(params) => {
+                              const editableCols = kolonDefs
+                                .map((c) => c.field as string)
+                                .filter((f) => f && !['key', 'malzemeAd', 'isEmriNo', 'isEmriKg'].includes(f))
+                              const prev = params.previousCellPosition
+                              if (!prev) return params.nextCellPosition ?? false
+                              const curCol = prev.column.getColId()
+                              const curIdx = editableCols.indexOf(curCol)
+                              const rowCount = kalemler.length
+                              let colIdx = curIdx
+                              let rowIndex = prev.rowIndex
+                              if (params.backwards) {
+                                colIdx -= 1
+                                if (colIdx < 0) { colIdx = editableCols.length - 1; rowIndex -= 1 }
+                              } else {
+                                colIdx += 1
+                                if (colIdx > editableCols.length - 1) { colIdx = 0; rowIndex += 1 }
+                              }
+                              if (rowIndex < 0 || rowIndex >= rowCount) return prev
+                              const col = gridApiRef.current?.getColumn(editableCols[colIdx])
+                              if (!col) return prev
+                              return { rowIndex, column: col, rowPinned: null }
+                            }}
+                            onCellFocused={(e: CellFocusedEvent) => {
+                              const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
+                              if (e.rowIndex != null) focusedRowIndexRef.current = e.rowIndex
+                              if (colId && colId !== 'key' && colId !== 'malzemeAd' && colId !== 'isEmriNo' && colId !== 'isEmriKg' && e.rowIndex != null) {
+                                focusCellEditor(colId, e.rowIndex)
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
+                          <div className="!flex !items-center !gap-4">
+                            <span className="!text-[11px] !font-bold !text-[#6b7280] !uppercase !tracking-wide">Toplamlar</span>
+                            <div className="!flex !items-center !gap-3 !text-[12px] !text-[#333]">
+                              <span>
+                                Kalem: <span className="!font-semibold !tabular-nums">{kalemSayisi}</span>
+                              </span>
+                              <span className="!text-[#d1d5db]">|</span>
+                              <span>
+                                Kg: <span className="!font-semibold !tabular-nums">{numberFormat(toplamKg)}</span>
+                              </span>
+                              <span className="!text-[#d1d5db]">|</span>
+                              <span>
+                                Mt: <span className="!font-semibold !tabular-nums">{numberFormat(toplamMt)}</span>
+                              </span>
+                              <span className="!text-[#d1d5db]">|</span>
+                              <span>
+                                Adet: <span className="!font-semibold !tabular-nums">{toplamAdet}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </Dropdown>
                     <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
                       <div className="!flex !items-center !gap-4">
