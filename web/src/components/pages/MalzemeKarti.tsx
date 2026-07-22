@@ -50,6 +50,7 @@ const emptyData: MalzemeFormData = {
   iplikBoyali: null,
   ormeTipi: '',
   kumasUretimTipi: '',
+  hesapBirimi: '',
 }
 
 interface MalzemeKartiProps {
@@ -121,6 +122,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         iplikBoyali: data.iplikBoyali ?? null,
         ormeTipi: data.ormeTipi ?? '',
         kumasUretimTipi: data.kumasUretimTipi ?? '',
+        hesapBirimi: data.hesapBirimi ?? '',
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -342,6 +344,15 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
                             </FormField>
                             <FormField label="Takip Şekli">
                               <Input size="small" value={form.takipSekli} onChange={(e) => set('takipSekli', e.target.value)} className="!text-[11px]" />
+                            </FormField>
+                            <FormField label="Hesap Birimi">
+                              <Select size="small" value={form.hesapBirimi} onChange={(v) => set('hesapBirimi', v)} className="!w-full !text-[11px]" allowClear options={[
+                                { value: 'brutKg', label: 'Brüt Kg' },
+                                { value: 'kg', label: 'Kg' },
+                                { value: 'brutMt', label: 'Brüt Mt' },
+                                { value: 'mt', label: 'Mt' },
+                                { value: 'adet', label: 'Adet' },
+                              ]} />
                             </FormField>
                           </div>
                         </div>

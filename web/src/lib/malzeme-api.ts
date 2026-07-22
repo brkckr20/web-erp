@@ -49,6 +49,8 @@ export interface Malzeme {
   iplikBoyali: boolean | null
   ormeTipi: string | null
   kumasUretimTipi: string | null
+  hesapBirimi: string | null
+  barkod: string | null
 }
 
 export type MalzemeFormData = Omit<Malzeme, 'id' | 'kumasTuru'>

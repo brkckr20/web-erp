@@ -59,6 +59,22 @@ export class StokHareketFisiController {
     return this.service.findKalemler(id)
   }
 
+  @Post(':id/kk-kalem-ekle')
+  kkKalemEkle(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { kkKalemIds: number[] },
+  ) {
+    return this.service.kkKalemEkle(id, body.kkKalemIds)
+  }
+
+  @Post(':id/kk-isaretle')
+  kkIsaretle(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { kkKalemIds: number[] },
+  ) {
+    return this.service.kkIsaretle(id, body.kkKalemIds)
+  }
+
   @Post('kalem')
   createKalem(@Body() dto: CreateStokHareketFisiKalemDto) {
     return this.service.createKalem(dto)

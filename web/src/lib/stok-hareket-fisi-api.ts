@@ -87,4 +87,8 @@ export const stokHareketFisiApi = {
   update: (id: number, data: Partial<StokHareketFisiFormData>) =>
     api.put<StokHareketFisi>(`/stok-hareket-fisi/${id}`, data),
   remove: (id: number) => api.delete<void>(`/stok-hareket-fisi/${id}`),
+  kkKalemEkle: (fisId: number, kkKalemIds: number[]) =>
+    api.post<any[]>(`/stok-hareket-fisi/${fisId}/kk-kalem-ekle`, { kkKalemIds }),
+  kkIsaretle: (fisId: number, kkKalemIds: number[]) =>
+    api.post<void>(`/stok-hareket-fisi/${fisId}/kk-isaretle`, { kkKalemIds }),
 }

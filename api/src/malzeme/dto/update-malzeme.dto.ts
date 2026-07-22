@@ -41,4 +41,5 @@ export class UpdateMalzemeDto {
   iplikBoyali?: boolean
   ormeTipi?: string
   kumasUretimTipi?: string
+  hesapBirimi?: string
 }

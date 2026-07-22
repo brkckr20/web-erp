@@ -1,6 +1,6 @@
 'use client'
 
-import { Tabs, Input, DatePicker, Button, App, Tooltip, Popconfirm, Spin } from 'antd'
+import { Tabs, Input, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Dropdown } from 'antd'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { toSVG } from '@bwip-js/browser'
 import { AgGridReact } from 'ag-grid-react'
@@ -66,6 +66,7 @@ interface KalemRow {
   isEmriId: number | null
   isEmriKg: number
   hatalar: { hataKodu: string; hataAdi: string; miktar?: number; aciklama?: string }[]
+  stokFisNo?: string | null
 }
 
 const emptyKalem = (): KalemRow => ({
@@ -156,6 +157,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [stokFisId, setStokFisId] = useState<number | null>(null)
   const [hataModalRow, setHataModalRow] = useState<KalemRow | null>(null)
   const [etiketOpen, setEtiketOpen] = useState(false)
   const [etiketKalemler, setEtiketKalemler] = useState<{ barkod: string; malzemeKod: string; malzemeAd: string; kg: number; mt: number; adet: number; hatalar: { hataKodu: string; hataAdi: string; aciklama?: string }[] }[]>([])
@@ -170,6 +172,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
         .get(propId)
         .then((f: any) => {
           setFisNo(f.fisNo)
+          setStokFisId(f.stokFisId ?? null)
           if (f.fisTarihi) setFisTarihi(dayjs(f.fisTarihi))
           setAciklama(f.aciklama ?? '')
           setCariKod(f.cariHesap?.kod ?? '')
@@ -212,6 +215,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
                 miktar: h.miktar ?? undefined,
                 aciklama: h.aciklama ?? undefined,
               })),
+              stokFisNo: k.stokFis?.fisNo ?? null,
             })))
           }
         })
@@ -219,6 +223,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
         .finally(() => setLoading(false))
     } else {
       setId(null)
+      setStokFisId(null)
       setCariKod('')
       setCariHesapId(null)
       setDepoKod('')
@@ -406,6 +411,28 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           onDeleted?.()
         } catch (err: any) {
           message.error('Fiş silinirken hata: ' + (err?.message || err))
+        }
+      },
+    })
+  }
+
+  const handleStogaAl = async () => {
+    if (!id) { message.warning('Önce fişi kaydedin'); return }
+    if (stokFisId) { message.warning('Bu fiş zaten stoğa alınmış'); return }
+    const malzemeOlanKalemler = kalemler.filter((k) => k.malzemeId)
+    if (malzemeOlanKalemler.length === 0) { message.warning('Stoğa alınabilecek kalem bulunamadı (malzeme seçilmemiş)'); return }
+    modal.confirm({
+      title: 'Stoğa Al',
+      content: `${malzemeOlanKalemler.length} kalem stoğa alınacak. Devam etmek istediğinize emin misiniz?`,
+      okText: 'Evet, stoğa al',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          const stokFis = await kaliteKontrolApi.stogaAl(id)
+          setStokFisId(stokFis.id)
+          message.success(`Stok fişi oluşturuldu: ${stokFis.fisNo}`)
+        } catch (err: any) {
+          message.error('Stoğa alınırken hata: ' + (err?.message || err))
         }
       },
     })
@@ -672,6 +699,15 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
         />
       ),
     },
+    {
+      headerName: 'Stok', field: 'stokFisNo', width: 140,
+      cellClass: (p) => p.value ? '!text-[#16a34a] !font-medium' : '!text-[#9ca3af]',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <div className="!h-full !flex !items-center !px-2 !text-[11px]">
+          {p.data.stokFisNo ? `✓ ${p.data.stokFisNo}` : '— Aktarılmadı'}
+        </div>
+      ),
+    },
   ], [kalemler])
 
   const toplamKg = useMemo(() => kalemler.reduce((s, k) => s + (k.kg || 0), 0), [kalemler])
@@ -799,7 +835,15 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
                         Satır Ekle
                       </Button>
                     </div>
-                    <div style={{ height: 300, width: '100%' }} className="kk-grid">
+                    <Dropdown
+                      menu={{
+                        items: [
+                          { key: 'stogaAl', label: 'Stoğa Al', disabled: !id || !!stokFisId, onClick: handleStogaAl },
+                        ],
+                      }}
+                      trigger={['contextMenu']}
+                    >
+                      <div style={{ height: 300, width: '100%' }} className="kk-grid">
                       <AgGridReact
                         rowData={kalemler}
                         columnDefs={kolonDefs}
@@ -856,6 +900,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
                         }}
                       />
                     </div>
+                    </Dropdown>
                     <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
                       <div className="!flex !items-center !gap-4">
                         <span className="!text-[11px] !font-bold !text-[#6b7280] !uppercase !tracking-wide">Toplamlar</span>

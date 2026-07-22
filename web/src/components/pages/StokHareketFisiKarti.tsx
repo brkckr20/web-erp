@@ -1,24 +1,27 @@
 'use client'
 
-import { Tabs, Input, Select, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Modal, Dropdown } from 'antd'
+import { Tabs, Input, Select, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Modal, Dropdown, Checkbox, Popover } from 'antd'
 import type { MenuProps } from 'antd'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import StokSecimiModal from '@/components/shared/StokSecimiModal'
+import KKSecimModal from '@/components/shared/KKSecimModal'
+import type { KKSelectRow } from '@/components/shared/KKSecimModal'
 import type { DepoBazliStokSatir } from '@/lib/depo-bazli-stok-api'
 import { stokHareketFisiApi } from '@/lib/stok-hareket-fisi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { stokHareketFisiOnizle, stokHareketFisiPdfAl, stokHareketFisiTasarimlari, type FisRaporData } from '@/lib/reports/stok-hareket-fisi.report'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
+import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { useAuth } from '@/context/AuthContext'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -58,6 +61,7 @@ interface KalemRow {
   tip: string
   malzemeKod: string
   malzemeAd: string
+  barkod: string
   brutKg: number
   kg: number
   brutMt: number
@@ -66,6 +70,7 @@ interface KalemRow {
   hesapBirimi: string
   birimFiyat: number
   doviz: string
+  kkKalemId?: number
   kdv: number
   satirTutari: number
   aciklama: string
@@ -76,6 +81,7 @@ const emptyKalem = (): KalemRow => ({
   tip: 'Malzeme',
   malzemeKod: '',
   malzemeAd: '',
+  barkod: '',
   brutKg: 0,
   kg: 0,
   brutMt: 0,
@@ -210,12 +216,14 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const [fisTarihi, setFisTarihi] = useState(dayjs())
   const [sevkTarihi, setSevkTarihi] = useState(dayjs())
   const [belgeNo, setBelgeNo] = useState('')
-  const [kalemler, setKalemler] = useState<KalemRow[]>([emptyKalem()])
+  const [kalemler, setKalemler] = useState<KalemRow[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [raporModalAcik, setRaporModalAcik] = useState(false)
   const [stokSecimiModalAcik, setStokSecimiModalAcik] = useState(false)
+  const [kkSecimModalAcik, setKkSecimModalAcik] = useState(false)
   const isCikis = cikisTipleri.has(fisTipi)
+  const isGiris = fisTipi === '10'
 
   useEffect(() => {
     if (id) {
@@ -234,6 +242,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
             tip: 'Malzeme',
             malzemeKod: (k as any).malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
             malzemeAd: (k as any).malzeme?.ad ?? '',
+            barkod: (k as any).takipNo ?? (k as any).malzeme?.barkod ?? '',
             brutKg: Number(k.brutAgirlik) || 0,
             kg: Number(k.netAgirlik) || 0,
             brutMt: Number(k.brutMetre) || 0,
@@ -246,7 +255,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
             satirTutari: Number(k.satirTutari) || 0,
             aciklama: k.aciklama ?? '',
           }))
-          setKalemler(rows.length > 0 ? rows : [emptyKalem()])
+          setKalemler(rows.length > 0 ? rows : [])
         })
         .catch((err) => message.error('Fiş yüklenemedi: ' + (err?.message || err)))
         .finally(() => setLoading(false))
@@ -336,10 +345,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
             kdv: k.kdv || null,
             satirTutari: k.satirTutari,
             aciklama: k.aciklama || null,
+            takipNo: k.barkod || null,
           }
         }),
       )
 
+      let savedFisId = id
       if (id) {
         await stokHareketFisiApi.update(id, {
           fisTarihi: fisTarihi.format('YYYY-MM-DD'),
@@ -352,7 +363,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
         } as any)
         message.success('Fiş güncellendi')
       } else {
-        await stokHareketFisiApi.create({
+        const created = await stokHareketFisiApi.create({
           fisNo,
           fisTipi,
           fisTarihi: fisTarihi.format('YYYY-MM-DD'),
@@ -363,7 +374,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
           kayitYapan,
           kalemler: kalemPayload,
         } as any)
+        savedFisId = created.id
         message.success('Fiş ve kalemler kaydedildi')
+      }
+      if (kkKalemIdSeti.size > 0 && savedFisId) {
+        await stokHareketFisiApi.kkIsaretle(savedFisId, Array.from(kkKalemIdSeti))
+        setKkKalemIdSeti(new Set())
       }
     } catch (err: any) {
       message.error('Hata: ' + (err?.message || err))
@@ -426,6 +442,34 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     setKalemler((prev) => [...prev, ...eklenecek])
   }
 
+  const [kkKalemIdSeti, setKkKalemIdSeti] = useState<Set<number>>(new Set())
+
+  const handleKKSecimiEkle = (secimler: KKSelectRow[]) => {
+    const yeniKalemler: KalemRow[] = secimler.map((s) => ({
+      ...emptyKalem(),
+      malzemeKod: s.malzemeKod,
+      malzemeAd: s.malzemeAd,
+      barkod: s.barkod,
+      kg: s.kg,
+      mt: s.mt,
+      adet: s.adet,
+      aciklama: `KK:${s.kkFisNo}`,
+      kkKalemId: s.kkKalemId,
+    }))
+    setKkKalemIdSeti((prev) => {
+      const next = new Set(prev)
+      for (const s of secimler) next.add(s.kkKalemId)
+      return next
+    })
+    const varOlan = new Set(kalemler.filter((k) => k.malzemeKod).map((k) => k.malzemeKod))
+    const eklenecek = yeniKalemler.filter((k) => !varOlan.has(k.malzemeKod))
+    if (eklenecek.length === 0) {
+      message.info('Seçilen kalemler zaten listede mevcut')
+      return
+    }
+    setKalemler((prev) => [...prev, ...eklenecek])
+  }
+
   const handleRapor = () => {
     setRaporModalAcik(true)
   }
@@ -459,7 +503,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
           setFisTarihi(dayjs())
           setSevkTarihi(dayjs())
           setBelgeNo('')
-          setKalemler([emptyKalem()])
+          setKalemler([])
           onDeleted?.(fisTipi)
         } catch (err: any) {
           message.error('Fiş silinirken hata: ' + (err?.message || err))
@@ -483,6 +527,8 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
 
   const contextMenuItems: MenuProps['items'] = isCikis
     ? [{ key: 'stok-secimi', label: 'Stok Seçimi', onClick: handleStokSecimi }]
+    : isGiris
+    ? [{ key: 'kk-giris', label: 'Kalite Kontrol Girişleri', onClick: () => setKkSecimModalAcik(true) }]
     : []
 
   // Odaklanan hücrenin içindeki gerçek input/select'i otomatik odakla
@@ -591,7 +637,9 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
           onChange={(kod, rec) => {
             const rawKdv = rec ? String((rec as Malzeme).kdvGenel ?? '').replace('%', '').replace(',', '.') : ''
             const kdv = parseFloat(rawKdv) || 0
-            updateKalem(p.data.key, { malzemeKod: kod, malzemeAd: (rec as Malzeme)?.ad ?? '', kdv })
+            const hesapBirimi = (rec as Malzeme)?.hesapBirimi ?? p.data.hesapBirimi
+            const barkod = (rec as Malzeme)?.barkod ?? ''
+            updateKalem(p.data.key, { malzemeKod: kod, malzemeAd: (rec as Malzeme)?.ad ?? '', barkod, kdv, hesapBirimi })
             // Seçim yapıldıysa otomatik sonraki (Kg) hücreye geç
             if (kod && p.node.rowIndex != null) focusNextCell('malzemeKod', p.node.rowIndex)
           }}
@@ -599,6 +647,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
       ),
     },
     { headerName: 'Malzeme Adı', field: 'malzemeAd' },
+    { headerName: 'Barkod', field: 'barkod', width: 120, valueFormatter: (p) => p.value ?? '-' },
     {
       headerName: 'Brüt Kg', field: 'brutKg', width: 90, cellClass: '!p-0', type: 'rightAligned',
       cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
@@ -709,6 +758,119 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     },
   ]
 
+  const storageKey = `stokHareketFisiKarti`
+  const kolonLayoutKey = useCallback(
+    () => `kolon_layout_${kullanici?.id ?? 'anonim'}_${storageKey}`,
+    [kullanici?.id],
+  )
+  const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const raw = localStorage.getItem(kolonLayoutKey())
+      if (!raw) return new Set()
+      const kayitlar: KolonKaydi[] = JSON.parse(raw)
+      return new Set(kayitlar.filter((k) => k.gizli).map((k) => k.kolonAdi))
+    } catch { return new Set() }
+  })
+
+  const chooserCols = useMemo(
+    () =>
+      minimalColDefs
+        .map((c) => ({
+          id: c.colId ?? c.field ?? '',
+          label: c.headerName ?? '',
+        }))
+        .filter((c) => c.id && c.id !== 'key'),
+    [],
+  )
+
+  const syncHiddenFromGrid = useCallback(() => {
+    const api = gridApiRef.current
+    if (!api) return
+    const states = api.getColumnState()
+    if (!states) return
+    setHiddenCols(new Set(states.filter((s) => s.hide).map((s) => s.colId)))
+  }, [])
+
+  const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
+    if (!kayitlar.length) return
+    kayitlar.forEach((k) => {
+      if (k.gizli !== undefined) {
+        api.setColumnsVisible([k.kolonAdi], !k.gizli)
+      }
+      if (k.genislik != null) {
+        api.setColumnWidths([{ key: k.kolonAdi, newWidth: k.genislik }])
+      }
+    })
+  }, [])
+
+  const tryLoadKolonFromDb = useCallback((api: GridApi<KalemRow>) => {
+    const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    if (lsKayitlar.length > 0) {
+      applyKolonKayitlari(api, lsKayitlar)
+      syncHiddenFromGrid()
+      return
+    }
+    kolonSecimiApi.get(storageKey)
+      .then((dbKayitlar) => {
+        if (!dbKayitlar.length) return
+        applyKolonKayitlari(api, dbKayitlar)
+        syncHiddenFromGrid()
+      })
+      .catch(() => syncHiddenFromGrid())
+  }, [applyKolonKayitlari, syncHiddenFromGrid])
+
+  const toggleKolon = (id: string, visible: boolean) => {
+    setHiddenCols((prev) => {
+      const next = new Set(prev)
+      if (visible) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    gridApiRef.current?.setColumnsVisible([id], visible)
+  }
+
+  const saveKolonlar = useCallback(() => {
+    const api = gridApiRef.current
+    if (!api || !kullanici?.id) return
+    const states = api.getColumnState()
+    if (!states) return
+    const kolonlar: KolonKaydi[] = states.map((s) => ({
+      kolonAdi: s.colId,
+      gizli: s.hide ?? false,
+      genislik: s.width ?? null,
+      sira: null,
+      siralamaYon: s.sort ?? null,
+    }))
+    localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
+    kolonSecimiApi.save(storageKey, kolonlar).catch(() => {})
+    setKolonChooserOpen(false)
+  }, [kullanici?.id])
+
+  const kolonChooserContent = (
+    <div className="!flex !flex-col !gap-1 !max-h-80 !overflow-auto !min-w-40">
+      {chooserCols.map((c) => (
+        <Checkbox
+          key={c.id}
+          checked={!hiddenCols.has(c.id)}
+          onChange={(e) => toggleKolon(c.id, e.target.checked)}
+          className="!text-[12px]"
+        >
+          {c.label}
+        </Checkbox>
+      ))}
+      <Button
+        type="primary"
+        size="small"
+        className="!mt-2 !text-[12px]"
+        onClick={saveKolonlar}
+      >
+        Kaydet
+      </Button>
+    </div>
+  )
+
   const toplam = kalemler.reduce((acc, k) => acc + (k.satirTutari || 0), 0)
   const toplamMatrah = kalemler.reduce((acc, k) => {
     const hesapMiktari = hesapMiktariGetir(k)
@@ -746,6 +908,11 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
             depoKod={depoKod}
             onClose={() => setStokSecimiModalAcik(false)}
             onSelect={handleStokSecimiEkle}
+          />
+          <KKSecimModal
+            open={kkSecimModalAcik}
+            onClose={() => setKkSecimModalAcik(false)}
+            onSelect={handleKKSecimiEkle}
           />
       </div>
       <div className="!flex-1 !min-h-0 !flex !flex-col">
@@ -828,12 +995,30 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
                   <div className="!border !border-gray-200 !rounded-sm !flex-1 !min-h-0 !flex !flex-col !mt-1.5">
                     <div className="!flex !items-center !justify-between !px-3 !pt-2 !pb-1 !flex-shrink-0">
                       <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide">Satır Detayları</div>
-                      <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} className="!text-[12px]">
-                        Satır Ekle
-                      </Button>
+                      <div className="!flex !items-center !gap-1">
+                        <Popover
+                          content={kolonChooserContent}
+                          title={<span className="!text-[12px] !font-semibold">Sütunlar</span>}
+                          trigger="click"
+                          placement="bottomRight"
+                          open={kolonChooserOpen}
+                          onOpenChange={setKolonChooserOpen}
+                        >
+                          <Button
+                            size="small"
+                            type="text"
+                            icon={<SettingOutlined />}
+                            className="!h-[28px] !w-[28px] !text-[#6b7280]"
+                            title="Sütunları göster/gizle"
+                          />
+                        </Popover>
+                        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} className="!text-[12px]">
+                          Satır Ekle
+                        </Button>
+                      </div>
                     </div>
                     <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
-                      {isCikis ? (
+                      {isCikis || isGiris ? (
                         <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
                           <div style={{ height: '100%', width: '100%' }}>
                             <AgGridReact
@@ -846,7 +1031,10 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
                               getRowId={(p) => p.data.key}
                               localeText={agGridLocaleTR}
                               defaultColDef={{ resizable: true, sortable: true }}
-                              onGridReady={(e) => { gridApiRef.current = e.api }}
+                              onGridReady={(e) => {
+                                gridApiRef.current = e.api
+                                tryLoadKolonFromDb(e.api)
+                              }}
                               tabToNextCell={(params) => {
                                 const editableCols = minimalColDefs
                                   .map((c) => c.field as string)
@@ -890,7 +1078,10 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
                           getRowId={(p) => p.data.key}
                           localeText={agGridLocaleTR}
                           defaultColDef={{ resizable: true, sortable: true }}
-                          onGridReady={(e) => { gridApiRef.current = e.api }}
+                          onGridReady={(e) => {
+                            gridApiRef.current = e.api
+                            tryLoadKolonFromDb(e.api)
+                          }}
                           tabToNextCell={(params) => {
                             const editableCols = minimalColDefs
                               .map((c) => c.field as string)

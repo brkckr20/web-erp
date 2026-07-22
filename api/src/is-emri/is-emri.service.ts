@@ -125,7 +125,10 @@ export class IsEmriService {
 
   async remove(id: number) {
     await this.findOne(id)
-    return this.prisma.isEmri.delete({ where: { id } })
+    return this.prisma.$transaction(async (tx) => {
+      await tx.kaliteKontrol.updateMany({ where: { isEmriId: id }, data: { isEmriId: null } })
+      return tx.isEmri.delete({ where: { id } })
+    })
   }
 
   private async generateIsEmriNo(): Promise<string> {

@@ -11,6 +11,11 @@ export class KaliteKontrolController {
     return this.service.nextFisNo()
   }
 
+  @Get('stoga-alinmamis')
+  stogaAlinmamis() {
+    return this.service.stogaAlinmamisListe()
+  }
+
   @Get('next-barkod')
   nextBarkod(@Query('depoKod') depoKod: string) {
     return this.service.nextBarkod(depoKod)
@@ -39,6 +44,11 @@ export class KaliteKontrolController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id)
+  }
+
+  @Post(':id/stoga-al')
+  stogaAl(@Param('id', ParseIntPipe) id: number) {
+    return this.service.stogaAl(id)
   }
 
   // Hata endpoints

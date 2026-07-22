@@ -151,10 +151,13 @@ model Malzeme {
   ormeTipi          String?  @map("orme_tipi") @db.VarChar(50)
   kumasUretimTipi   String?  @map("kumas_uretim_tipi") @db.VarChar(50)
 
+  hesapBirimi       String?  @map("hesap_birimi") @db.VarChar(50)
+
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   kalemler          StokHareketFisiKalem[] @relation("KalemMalzeme")
+  isEmriKalemler    IsEmriKalem[] @relation("IsEmriKalemMalzeme")
   kkKalemler        KaliteKontrolKalem[] @relation("KKKalemMalzeme")
 
   @@map("malzeme")
@@ -305,6 +308,8 @@ model StokHareketFisi {
   depo              Depo?    @relation("FisDepo", fields: [depoId], references: [id])
 
   kalemler          StokHareketFisiKalem[] @relation("FisKalemleri")
+  kkFisleri         KaliteKontrol[] @relation("KKStokFis")
+  kkKalemleri       KaliteKontrolKalem[] @relation("KKKalemStokFis")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -384,6 +389,9 @@ model KaliteKontrol {
 
   kalemler          KaliteKontrolKalem[] @relation("KKFisKalemleri")
 
+  stokFisId         Int?            @map("stok_fis_id")
+  stokFis           StokHareketFisi? @relation("KKStokFis", fields: [stokFisId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -419,6 +427,7 @@ model IsEmriKalem {
   sira        Int     @default(0) @map("sira")
   siparisNo   String? @map("siparis_no") @db.VarChar(50)
   malzemeId   Int?    @map("malzeme_id")
+  malzeme     Malzeme? @relation("IsEmriKalemMalzeme", fields: [malzemeId], references: [id])
   malzemeKod  String? @map("malzeme_kod") @db.VarChar(50)
   malzemeAd   String? @map("malzeme_ad") @db.VarChar(255)
   kg          Float?  @map("kg")
@@ -449,6 +458,9 @@ model KaliteKontrolKalem {
   aciklama          String?  @db.VarChar(1000)
   isEmriNo          String?  @map("is_emri_no") @db.VarChar(100)
   isEmriKg          Decimal? @map("is_emri_kg") @db.Decimal(18, 6)
+
+  stokFisId         Int?            @map("stok_fis_id")
+  stokFis           StokHareketFisi? @relation("KKKalemStokFis", fields: [stokFisId], references: [id], onUpdate: NoAction, onDelete: NoAction)
 
   hatalar           KaliteKontrolHata[] @relation("KKHataKalem")
 

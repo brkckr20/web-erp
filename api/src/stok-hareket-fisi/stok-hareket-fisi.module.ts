@@ -5,5 +5,6 @@ import { StokHareketFisiService } from './stok-hareket-fisi.service'
 @Module({
   controllers: [StokHareketFisiController],
   providers: [StokHareketFisiService],
+  exports: [StokHareketFisiService],
 })
 export class StokHareketFisiModule {}

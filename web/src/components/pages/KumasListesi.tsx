@@ -137,6 +137,7 @@ export default function KumasListesi({ onSelect, onNew }: KumasListesiProps) {
               columnDefs={columns}
               domLayout="normal"
               exportFileName="kumas-kartlari"
+              storageKey="kumasKarti"
               rowSelection="single"
               onSelectionChanged={(e) => {
                 const sel = e.api.getSelectedRows()
