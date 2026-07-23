@@ -32,6 +32,18 @@ import KumasListesi from '@/components/pages/KumasListesi'
 import KumasKarti from '@/components/pages/KumasKarti'
 import NumaratorListesi from '@/components/pages/NumaratorListesi'
 import NumaratorKarti from '@/components/pages/NumaratorKarti'
+import RenkKarti from '@/components/pages/RenkKarti'
+import RenkListesi from '@/components/pages/RenkListesi'
+import BoyahaneRenkKarti from '@/components/pages/BoyahaneRenkKarti'
+import BoyahaneRenkListesi from '@/components/pages/BoyahaneRenkListesi'
+import ModelKarti from '@/components/pages/ModelKarti'
+import ModelListesi from '@/components/pages/ModelListesi'
+import MarkaKarti from '@/components/pages/MarkaKarti'
+import MarkaListesi from '@/components/pages/MarkaListesi'
+import GrupKarti from '@/components/pages/GrupKarti'
+import GrupListesi from '@/components/pages/GrupListesi'
+import BedenKarti from '@/components/pages/BedenKarti'
+import BedenListesi from '@/components/pages/BedenListesi'
 
 const { Content } = Layout
 
@@ -320,6 +332,138 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
+  const openRenkKarti = useCallback((kod: string) => {
+    const key = 'renk-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Renk Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniRenk = useCallback(() => {
+    const key = 'renk-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Renk Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openBoyahaneRenkKarti = useCallback((kod: string) => {
+    const key = 'boyahane-renk-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Boyahane Renk Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniBoyahaneRenk = useCallback(() => {
+    const key = 'boyahane-renk-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Boyahane Renk Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openModelKarti = useCallback((kod: string) => {
+    const key = 'model-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Model Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniModel = useCallback(() => {
+    const key = 'model-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Model Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openMarkaKarti = useCallback((kod: string) => {
+    const key = 'marka-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Marka Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniMarka = useCallback(() => {
+    const key = 'marka-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Marka Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openGrupKarti = useCallback((kod: string) => {
+    const key = 'grup-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Grup Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniGrup = useCallback(() => {
+    const key = 'grup-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Grup Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openBedenKarti = useCallback((kod: string) => {
+    const key = 'beden-tanim-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Beden Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniBeden = useCallback(() => {
+    const key = 'beden-tanim-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Beden Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
   const handleTabClose = (key: string) => {
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.key === key)
@@ -441,6 +585,60 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('hata-tanim-karti-')) {
       return <HataTanimKarti kod={tab.key.replace('hata-tanim-karti-', '')} />
+    }
+    if (tab.key === 'renk-kartlari') {
+      return <RenkListesi onSelect={openRenkKarti} onNew={openYeniRenk} />
+    }
+    if (tab.key === 'renk-karti-yeni') {
+      return <RenkKarti isNew />
+    }
+    if (tab.key.startsWith('renk-karti-')) {
+      return <RenkKarti kod={tab.key.replace('renk-karti-', '')} />
+    }
+    if (tab.key === 'boyahane-renk-kartlari') {
+      return <BoyahaneRenkListesi onSelect={openBoyahaneRenkKarti} onNew={openYeniBoyahaneRenk} />
+    }
+    if (tab.key === 'boyahane-renk-karti-yeni') {
+      return <BoyahaneRenkKarti isNew />
+    }
+    if (tab.key.startsWith('boyahane-renk-karti-')) {
+      return <BoyahaneRenkKarti kod={tab.key.replace('boyahane-renk-karti-', '')} />
+    }
+    if (tab.key === 'model-kartlari') {
+      return <ModelListesi onSelect={openModelKarti} onNew={openYeniModel} />
+    }
+    if (tab.key === 'model-karti-yeni') {
+      return <ModelKarti isNew />
+    }
+    if (tab.key.startsWith('model-karti-')) {
+      return <ModelKarti kod={tab.key.replace('model-karti-', '')} />
+    }
+    if (tab.key === 'marka-kartlari') {
+      return <MarkaListesi onSelect={openMarkaKarti} onNew={openYeniMarka} />
+    }
+    if (tab.key === 'marka-karti-yeni') {
+      return <MarkaKarti isNew />
+    }
+    if (tab.key.startsWith('marka-karti-')) {
+      return <MarkaKarti kod={tab.key.replace('marka-karti-', '')} />
+    }
+    if (tab.key === 'grup-kartlari') {
+      return <GrupListesi onSelect={openGrupKarti} onNew={openYeniGrup} />
+    }
+    if (tab.key === 'grup-karti-yeni') {
+      return <GrupKarti isNew />
+    }
+    if (tab.key.startsWith('grup-karti-')) {
+      return <GrupKarti kod={tab.key.replace('grup-karti-', '')} />
+    }
+    if (tab.key === 'beden-tanimlari') {
+      return <BedenListesi onSelect={openBedenKarti} onNew={openYeniBeden} />
+    }
+    if (tab.key === 'beden-tanim-yeni') {
+      return <BedenKarti isNew />
+    }
+    if (tab.key.startsWith('beden-tanim-')) {
+      return <BedenKarti kod={tab.key.replace('beden-tanim-', '')} />
     }
     return (
       <div className="!p-3">

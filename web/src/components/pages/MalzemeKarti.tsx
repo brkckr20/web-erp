@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Tabs, Input, Switch, Select, Row, Col, InputNumber, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
+import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
+import SearchableGrupSelect from '@/components/shared/SearchableGrupSelect'
 import { malzemeApi } from '@/lib/malzeme-api'
 import type { MalzemeFormData } from '@/lib/malzeme-api'
 
@@ -19,7 +21,7 @@ const emptyData: MalzemeFormData = {
   rafOmru: null,
   rafOmruBirim: null,
   sezon: '',
-  marka: '',
+  markaId: null,
   model: '',
   kdvGenel: null,
   kdvPerakende: null,
@@ -39,6 +41,7 @@ const emptyData: MalzemeFormData = {
   gtipNo: '',
   webSayfasi: '',
   kampanyaGrubu: '',
+  grupId: null,
   fiyatGrubu: '',
   operasyonKodu: '',
   kumasTuruId: null,
@@ -91,7 +94,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         rafOmru: data.rafOmru ?? null,
         rafOmruBirim: data.rafOmruBirim ?? null,
         sezon: data.sezon ?? '',
-        marka: data.marka ?? '',
+        markaId: data.markaId ?? null,
         model: data.model ?? '',
         kdvGenel: data.kdvGenel ?? null,
         kdvPerakende: data.kdvPerakende ?? null,
@@ -111,6 +114,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         gtipNo: data.gtipNo ?? '',
         webSayfasi: data.webSayfasi ?? '',
         kampanyaGrubu: data.kampanyaGrubu ?? '',
+        grupId: data.grupId ?? null,
         fiyatGrubu: data.fiyatGrubu ?? '',
         operasyonKodu: data.operasyonKodu ?? '',
         kumasTuruId: data.kumasTuruId ?? null,
@@ -414,7 +418,11 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
                               <Input size="small" value={form.sezon} onChange={(e) => set('sezon', e.target.value)} className="!text-[11px]" />
                             </FormField>
                             <FormField label="Marka">
-                              <Input size="small" value={form.marka} onChange={(e) => set('marka', e.target.value)} className="!text-[11px]" />
+                              <SearchableMarkaSelect
+                                value={form.markaId ?? null}
+                                onChange={(id) => set('markaId', id)}
+                                widthClass="!w-full"
+                              />
                             </FormField>
                             <FormField label="Model">
                               <Input size="small" value={form.model} onChange={(e) => set('model', e.target.value)} className="!text-[11px]" />
@@ -441,8 +449,12 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
                         <div className="!border !border-gray-200 !rounded-sm !p-3 !mt-3">
                           <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">Diğer Bilgiler</div>
                           <div className="!space-y-2.5">
-                            <FormField label="Kampanya Grubu">
-                              <Input size="small" value={form.kampanyaGrubu} onChange={(e) => set('kampanyaGrubu', e.target.value)} className="!text-[11px]" />
+                            <FormField label="Grup Kodu">
+                              <SearchableGrupSelect
+                                value={form.grupId ?? null}
+                                onChange={(id) => set('grupId', id)}
+                                widthClass="!w-full"
+                              />
                             </FormField>
                             <FormField label="Fiyat Grubu">
                               <Input size="small" value={form.fiyatGrubu} onChange={(e) => set('fiyatGrubu', e.target.value)} className="!text-[11px]" />

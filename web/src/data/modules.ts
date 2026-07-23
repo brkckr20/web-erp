@@ -73,9 +73,12 @@ export const modules: Module[] = [
       {
         title: 'Tanımlamalar',
         items: [
-          { key: 'olcu-tanim', label: 'Ölçü Tanım Kartları', isForm: true },
           { key: 'model-kartlari', label: 'Model Kartları', isFavorite: true, isForm: true },
-          { key: 'mamul-kartlari', label: 'Mamül Kartları', isForm: true },
+          { key: 'renk-kartlari', label: 'Renk Kartları', isForm: true },
+          { key: 'boyahane-renk-kartlari', label: 'Boyahane Renk Kartları', isForm: true },
+          { key: 'marka-kartlari', label: 'Marka Kartları', isForm: true },
+          { key: 'grup-kartlari', label: 'Grup Kartları', isForm: true },
+          { key: 'beden-tanimlari', label: 'Beden Tanımları', isForm: true },
         ],
       },
       {

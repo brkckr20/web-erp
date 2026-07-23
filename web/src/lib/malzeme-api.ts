@@ -15,7 +15,7 @@ export interface Malzeme {
   rafOmru: number | null
   rafOmruBirim: string | null
   sezon: string | null
-  marka: string | null
+  markaId: number | null
   model: string | null
   kdvGenel: string | null
   kdvPerakende: string | null
@@ -35,6 +35,7 @@ export interface Malzeme {
   gtipNo: string | null
   webSayfasi: string | null
   kampanyaGrubu: string | null
+  grupId: number | null
   fiyatGrubu: string | null
   operasyonKodu: string | null
   kumasTuruId: number | null

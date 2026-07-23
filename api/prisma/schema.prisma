@@ -111,7 +111,8 @@ model Malzeme {
   rafOmru           Int?     @map("raf_omru")
   rafOmruBirim      String?  @map("raf_omru_birim") @db.VarChar(20)
   sezon             String?  @db.VarChar(100)
-  marka             String?  @db.VarChar(100)
+  markaId           Int?     @map("marka_id")
+  markaRef          Marka?   @relation("MalzemeMarka", fields: [markaId], references: [id])
   model             String?  @db.VarChar(100)
 
   kdvGenel          String?  @map("kdv_genel") @db.VarChar(50)
@@ -138,6 +139,9 @@ model Malzeme {
   fiyatGrubu        String?  @map("fiyat_grubu") @db.VarChar(100)
   operasyonKodu     String?  @map("operasyon_kodu") @db.VarChar(50)
 
+  grupId            Int?     @map("grup_id")
+  grup              Grup?    @relation("MalzemeGrup", fields: [grupId], references: [id])
+
   kumasTuruId       Int?     @map("kumas_turu_id")
   kumasTuru         OzellikKodlama? @relation("KumasTuru", fields: [kumasTuruId], references: [id])
   numaratorId       Int?     @map("numarator_id")
@@ -159,8 +163,43 @@ model Malzeme {
   kalemler          StokHareketFisiKalem[] @relation("KalemMalzeme")
   isEmriKalemler    IsEmriKalem[] @relation("IsEmriKalemMalzeme")
   kkKalemler        KaliteKontrolKalem[] @relation("KKKalemMalzeme")
+  receteler         ModelRecete[] @relation("ReceteMalzeme")
+  receteKalemler    ReceteKalem[] @relation("KalemMalzemeRef")
+  malzemeBedenler   MalzemeBeden[] @relation("MalzemeBedenRef")
 
   @@map("malzeme")
+}
+
+model Marka {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  ad                String   @db.VarChar(200)
+  kullanimda        Boolean  @default(true)
+
+  aciklama          String?  @db.VarChar(1000)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  malzemeler        Malzeme[] @relation("MalzemeMarka")
+
+  @@map("marka")
+}
+
+model Grup {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  ad                String   @db.VarChar(200)
+  kullanimda        Boolean  @default(true)
+
+  aciklama          String?  @db.VarChar(1000)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  malzemeler        Malzeme[] @relation("MalzemeGrup")
+
+  @@map("grup")
 }
 
 model Numarator {
@@ -272,6 +311,7 @@ model CariHesap {
 
   fisler            StokHareketFisi[] @relation("FisCariHesap")
   kkFisler          KaliteKontrol[] @relation("KKFisCariHesap")
+  renkler           Renk[] @relation("RenkCariHesap")
 
   @@map("cari_hesap")
 }
@@ -497,4 +537,115 @@ model KaliteKontrolHata {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("kalite_kontrol_hata")
+}
+
+model Renk {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  ad                String   @db.VarChar(200)
+  tip               Int      @default(1)
+  aciklama          String?  @db.VarChar(1000)
+  renk              String?  @db.VarChar(20)
+  cariKodu          String?  @map("cari_kodu") @db.VarChar(50)
+  talepTarihi       DateTime? @map("talep_tarihi")
+  okeyTarihi        DateTime? @map("okey_tarihi")
+  fiyat             Decimal? @db.Decimal(18, 6)
+  dovizCinsi        String?  @map("doviz_cinsi") @db.VarChar(10)
+  kullanimda        Boolean  @default(true)
+
+  tarih             DateTime? @db.Date
+  ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
+  pantoneNo         String?  @map("pantone_no") @db.VarChar(50)
+  renkTuru          String?  @map("renk_turu") @db.VarChar(50)
+  parentRenkId      Int?     @map("parent_renk_id")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  cariHesap         CariHesap? @relation("RenkCariHesap", fields: [cariKodu], references: [kod])
+  parentRenk        Renk?      @relation("RenkParent", fields: [parentRenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childRenkler      Renk[]     @relation("RenkParent")
+
+  @@map("renk")
+}
+
+model Beden {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(20)
+  sira              Int      @default(0)
+  kullanimda        Boolean  @default(true)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  olculer           ReceteOlcu[] @relation("OlcuBeden")
+  malzemeBedenler   MalzemeBeden[] @relation("BedenMalzeme")
+
+  @@map("beden")
+}
+
+model MalzemeBeden {
+  id                Int      @id @default(autoincrement())
+  malzemeId         Int      @map("malzeme_id")
+  bedenId           Int      @map("beden_id")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  malzeme           Malzeme @relation("MalzemeBedenRef", fields: [malzemeId], references: [id], onDelete: Cascade)
+  beden             Beden @relation("BedenMalzeme", fields: [bedenId], references: [id], onDelete: Cascade)
+
+  @@unique([malzemeId, bedenId])
+  @@map("malzeme_beden")
+}
+
+model ModelRecete {
+  id                Int      @id @default(autoincrement())
+  malzemeId         Int      @map("malzeme_id")
+  aciklama          String?  @db.VarChar(500)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  malzeme           Malzeme? @relation("ReceteMalzeme", fields: [malzemeId], references: [id], onDelete: Cascade)
+  kalemler          ReceteKalem[] @relation("KalemRecete")
+
+  @@map("model_recete")
+}
+
+model ReceteKalem {
+  id                Int      @id @default(autoincrement())
+  receteId          Int      @map("recete_id")
+  sira              Int      @default(0)
+  malzemeId         Int?     @map("malzeme_id")
+  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 6)
+  dovizCinsi        String?  @map("doviz_cinsi") @db.VarChar(10)
+  aciklama          String?  @db.VarChar(500)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  recete            ModelRecete? @relation("KalemRecete", fields: [receteId], references: [id], onDelete: Cascade)
+  malzeme           Malzeme? @relation("KalemMalzemeRef", fields: [malzemeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  olculer           ReceteOlcu[] @relation("OlcuKalem")
+
+  @@map("recete_kalem")
+}
+
+model ReceteOlcu {
+  id                Int      @id @default(autoincrement())
+  kalemId           Int      @map("kalem_id")
+  bedenId           Int      @map("beden_id")
+  metraj            Decimal? @db.Decimal(18, 6)
+  en                Decimal? @db.Decimal(18, 6)
+  boy               Decimal? @db.Decimal(18, 6)
+  miktar            Decimal? @db.Decimal(18, 6)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  kalem             ReceteKalem? @relation("OlcuKalem", fields: [kalemId], references: [id], onDelete: Cascade)
+  beden             Beden? @relation("OlcuBeden", fields: [bedenId], references: [id])
+
+  @@unique([kalemId, bedenId])
+  @@map("recete_olcu")
 }
