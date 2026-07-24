@@ -44,6 +44,8 @@ import GrupKarti from '@/components/pages/GrupKarti'
 import GrupListesi from '@/components/pages/GrupListesi'
 import BedenKarti from '@/components/pages/BedenKarti'
 import BedenListesi from '@/components/pages/BedenListesi'
+import GtipListesi from '@/components/pages/GtipListesi'
+import GtipKarti from '@/components/pages/GtipKarti'
 
 const { Content } = Layout
 
@@ -464,6 +466,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
+  const openGtipKarti = useCallback((kod: string) => {
+    const key = 'gtip-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'GTİP Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniGtip = useCallback(() => {
+    const key = 'gtip-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni GTİP Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
   const handleTabClose = (key: string) => {
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.key === key)
@@ -639,6 +663,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('beden-tanim-')) {
       return <BedenKarti kod={tab.key.replace('beden-tanim-', '')} />
+    }
+    if (tab.key === 'gtip-tanimlari') {
+      return <GtipListesi onSelect={openGtipKarti} onNew={openYeniGtip} />
+    }
+    if (tab.key === 'gtip-karti-yeni') {
+      return <GtipKarti isNew />
+    }
+    if (tab.key.startsWith('gtip-karti-')) {
+      return <GtipKarti kod={tab.key.replace('gtip-karti-', '')} />
     }
     return (
       <div className="!p-3">

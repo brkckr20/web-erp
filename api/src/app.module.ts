@@ -22,9 +22,12 @@ import { GrupModule } from './grup/grup.module';
 import { BedenModule } from './beden/beden.module';
 import { ModelReceteModule } from './model-recete/model-recete.module';
 import { ModelBedenModule } from './model-bedens/model-beden.module';
+import { KumasGrupModule } from './kumas-grup/kumas-grup.module';
+import { ModelKumasGrupModule } from './model-kumas-grup/model-kumas-grup.module';
+import { GtipModule } from './gtip/gtip.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule],
+  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -166,6 +166,7 @@ model Malzeme {
   receteler         ModelRecete[] @relation("ReceteMalzeme")
   receteKalemler    ReceteKalem[] @relation("KalemMalzemeRef")
   malzemeBedenler   MalzemeBeden[] @relation("MalzemeBedenRef")
+  malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupMalzeme")
 
   @@map("malzeme")
 }
@@ -648,4 +649,43 @@ model ReceteOlcu {
 
   @@unique([kalemId, bedenId])
   @@map("recete_olcu")
+}
+
+model KumasGrup {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  kullanimda        Boolean  @default(true)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupRef")
+
+  @@map("kumas_grup")
+}
+
+model MalzemeKumasGrup {
+  id                Int      @id @default(autoincrement())
+  malzemeId         Int      @map("malzeme_id")
+  kumasGrupId       Int      @map("kumas_grup_id")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  malzeme           Malzeme  @relation("MalzemeKumasGrupMalzeme", fields: [malzemeId], references: [id], onDelete: Cascade)
+  kumasGrup         KumasGrup @relation("MalzemeKumasGrupRef", fields: [kumasGrupId], references: [id], onDelete: Cascade)
+
+  @@unique([malzemeId, kumasGrupId])
+  @@map("malzeme_kumas_grup")
+}
+
+model Gtip {
+  id                Int      @id @default(autoincrement())
+  kod               String   @unique @db.VarChar(50)
+  ad                String   @db.VarChar(500)
+  kullanimda        Boolean  @default(true)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("gtip")
 }

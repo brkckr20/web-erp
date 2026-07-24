@@ -51,12 +51,44 @@ export class MalzemeService {
   }
 
   create(dto: CreateMalzemeDto) {
-    return this.prisma.malzeme.create({ data: dto as any })
+    const { ...data } = dto as any
+    delete data.id
+    delete data.createdAt
+    delete data.updatedAt
+    delete data.numaratorId
+    delete data.markaRef
+    delete data.grup
+    delete data.numarator
+    delete data.kalemler
+    delete data.isEmriKalemler
+    delete data.kkKalemler
+    delete data.receteler
+    delete data.receteKalemler
+    delete data.malzemeBedenler
+    delete data.malzemeKumasGruplari
+    delete data.kumasTuru
+    return this.prisma.malzeme.create({ data })
   }
 
   async update(id: number, dto: UpdateMalzemeDto) {
     await this.findOne(id)
-    return this.prisma.malzeme.update({ where: { id }, data: dto as any })
+    const { ...data } = dto as any
+    delete data.id
+    delete data.createdAt
+    delete data.updatedAt
+    delete data.numaratorId
+    delete data.markaRef
+    delete data.grup
+    delete data.numarator
+    delete data.kalemler
+    delete data.isEmriKalemler
+    delete data.kkKalemler
+    delete data.receteler
+    delete data.receteKalemler
+    delete data.malzemeBedenler
+    delete data.malzemeKumasGruplari
+    delete data.kumasTuru
+    return this.prisma.malzeme.update({ where: { id }, data })
   }
 
   async remove(id: number) {

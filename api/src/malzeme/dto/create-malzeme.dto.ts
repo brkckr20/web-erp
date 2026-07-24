@@ -10,6 +10,7 @@ export class CreateMalzemeDto {
   rafOmru?: number
   rafOmruBirim?: string
   sezon?: string
+  markaId?: number
   marka?: string
   model?: string
   kdvGenel?: string
@@ -30,6 +31,7 @@ export class CreateMalzemeDto {
   gtipNo?: string
   webSayfasi?: string
   kampanyaGrubu?: string
+  grupId?: number
   fiyatGrubu?: string
   operasyonKodu?: string
   kumasTuruId?: number

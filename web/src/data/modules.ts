@@ -79,6 +79,7 @@ export const modules: Module[] = [
           { key: 'marka-kartlari', label: 'Marka Kartları', isForm: true },
           { key: 'grup-kartlari', label: 'Grup Kartları', isForm: true },
           { key: 'beden-tanimlari', label: 'Beden Tanımları', isForm: true },
+          { key: 'gtip-tanimlari', label: 'GTİP Tanımları', isForm: true },
         ],
       },
       {
