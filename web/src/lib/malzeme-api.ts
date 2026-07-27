@@ -52,6 +52,10 @@ export interface Malzeme {
   kumasUretimTipi: string | null
   hesapBirimi: string | null
   barkod: string | null
+  iplikNoId: number | null
+  iplikCinsiId: number | null
+  organik: boolean | null
+  iplikKompozisyonId: number | null
 }
 
 export type MalzemeFormData = Omit<Malzeme, 'id' | 'kumasTuru'>

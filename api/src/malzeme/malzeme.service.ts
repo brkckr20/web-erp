@@ -50,15 +50,11 @@ export class MalzemeService {
     return { kod }
   }
 
-  create(dto: CreateMalzemeDto) {
-    const { ...data } = dto as any
+  private prepareData(data: any) {
     delete data.id
     delete data.createdAt
     delete data.updatedAt
-    delete data.numaratorId
-    delete data.markaRef
-    delete data.grup
-    delete data.numarator
+    delete data.barkod
     delete data.kalemler
     delete data.isEmriKalemler
     delete data.kkKalemler
@@ -66,28 +62,24 @@ export class MalzemeService {
     delete data.receteKalemler
     delete data.malzemeBedenler
     delete data.malzemeKumasGruplari
+    delete data.markaRef
+    delete data.grup
     delete data.kumasTuru
+    delete data.numarator
+    delete data.iplikNoRef
+    delete data.iplikCinsiRef
+    delete data.iplikKompozisyonRef
+    return data
+  }
+
+  create(dto: CreateMalzemeDto) {
+    const data = this.prepareData(dto as any)
     return this.prisma.malzeme.create({ data })
   }
 
   async update(id: number, dto: UpdateMalzemeDto) {
     await this.findOne(id)
-    const { ...data } = dto as any
-    delete data.id
-    delete data.createdAt
-    delete data.updatedAt
-    delete data.numaratorId
-    delete data.markaRef
-    delete data.grup
-    delete data.numarator
-    delete data.kalemler
-    delete data.isEmriKalemler
-    delete data.kkKalemler
-    delete data.receteler
-    delete data.receteKalemler
-    delete data.malzemeBedenler
-    delete data.malzemeKumasGruplari
-    delete data.kumasTuru
+    const data = this.prepareData(dto as any)
     return this.prisma.malzeme.update({ where: { id }, data })
   }
 

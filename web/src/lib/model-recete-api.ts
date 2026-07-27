@@ -17,10 +17,19 @@ export interface ReceteKalem {
   id: number
   receteId: number
   sira: number
+  tip: number | null
   malzemeId: number | null
   birimFiyat: number | null
   dovizCinsi: string | null
   aciklama: string | null
+  islem: string | null
+  variant1: string | null
+  variant2: string | null
+  suslemeSecimi: string | null
+  kesilecek: boolean | null
+  anaKumas: string | null
+  tedarikHesaplanmayacak: boolean | null
+  kullanimYeri: string | null
   malzeme?: { id: number; kod: string; ad: string; tip: number }
   olculer: ReceteOlcu[]
 }
@@ -34,10 +43,19 @@ export interface ModelRecete {
 
 export interface CreateKalem {
   receteId: number
+  tip?: number
   malzemeId?: number
   birimFiyat?: number
   dovizCinsi?: string
   aciklama?: string
+  islem?: string
+  variant1?: string
+  variant2?: string
+  suslemeSecimi?: string
+  kesilecek?: boolean
+  anaKumas?: string
+  tedarikHesaplanmayacak?: boolean
+  kullanimYeri?: string
 }
 
 export interface CreateOlcu {

@@ -11,7 +11,6 @@ export class CreateMalzemeDto {
   rafOmruBirim?: string
   sezon?: string
   markaId?: number
-  marka?: string
   model?: string
   kdvGenel?: string
   kdvPerakende?: string
@@ -35,6 +34,7 @@ export class CreateMalzemeDto {
   fiyatGrubu?: string
   operasyonKodu?: string
   kumasTuruId?: number
+  numaratorId?: number
   cinsi?: string
   grm2?: number
   ebat?: string
@@ -44,4 +44,8 @@ export class CreateMalzemeDto {
   ormeTipi?: string
   kumasUretimTipi?: string
   hesapBirimi?: string
+  iplikNoId?: number
+  iplikCinsiId?: number
+  organik?: boolean
+  iplikKompozisyonId?: number
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Tabs, Input, Switch, Select, Row, Col, InputNumber, App, Spin } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Tabs, Input, Switch, Select, Row, Col, InputNumber, App, Spin, Button } from 'antd'
+import { SearchOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import SearchableGrupSelect from '@/components/shared/SearchableGrupSelect'
@@ -45,6 +45,7 @@ const emptyData: MalzemeFormData = {
   fiyatGrubu: '',
   operasyonKodu: '',
   kumasTuruId: null,
+  numaratorId: null,
   cinsi: '',
   grm2: null,
   ebat: '',
@@ -54,6 +55,7 @@ const emptyData: MalzemeFormData = {
   ormeTipi: '',
   kumasUretimTipi: '',
   hesapBirimi: '',
+  barkod: '',
 }
 
 interface MalzemeKartiProps {
@@ -67,6 +69,23 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [dosyalar, setDosyalar] = useState<File[]>([])
+  const [selectedDosya, setSelectedDosya] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleDosyaSec = () => fileInputRef.current?.click()
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      setDosyalar((prev) => [...prev, ...Array.from(files)])
+    }
+    e.target.value = ''
+  }
+
+  const removeDosya = (index: number) => {
+    setDosyalar((prev) => prev.filter((_, i) => i !== index))
+  }
 
   useEffect(() => {
     if (kod) {
@@ -118,6 +137,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         fiyatGrubu: data.fiyatGrubu ?? '',
         operasyonKodu: data.operasyonKodu ?? '',
         kumasTuruId: data.kumasTuruId ?? null,
+        numaratorId: data.numaratorId ?? null,
         cinsi: data.cinsi ?? '',
         grm2: data.grm2 ?? null,
         ebat: data.ebat ?? '',
@@ -127,6 +147,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         ormeTipi: data.ormeTipi ?? '',
         kumasUretimTipi: data.kumasUretimTipi ?? '',
         hesapBirimi: data.hesapBirimi ?? '',
+        barkod: data.barkod ?? '',
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -463,6 +484,54 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
                               <Input size="small" value={form.operasyonKodu} onChange={(e) => set('operasyonKodu', e.target.value)} className="!text-[11px]" />
                             </FormField>
                           </div>
+                        </div>
+                      </Col>
+                    </Row>
+                  </div>
+                ),
+              },
+              {
+                key: 'ekler',
+                label: 'Ekler',
+                children: (
+                  <div className="!overflow-y-auto !overflow-x-hidden !h-full">
+                    <Row gutter={16} className="!h-full">
+                      <Col span={6}>
+                        <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !flex-col !gap-2">
+                          <Button size="small" type="primary" icon={<UploadOutlined />} onClick={handleDosyaSec} className="!text-[11px]">
+                            Döküman Seç
+                          </Button>
+                          <input ref={fileInputRef} type="file" multiple className="!hidden" onChange={handleFileChange} />
+                          <div className="!flex-1 !overflow-y-auto !space-y-1.5">
+                            {dosyalar.length === 0 ? (
+                              <span className="!text-[11px] !text-gray-400">Henüz dosya seçilmedi</span>
+                            ) : (
+                              dosyalar.map((f, i) => (
+                                <div key={i} className="!flex !items-center !gap-2 !border !border-gray-100 !rounded !p-1.5 !bg-gray-50 !cursor-pointer !hover:bg-gray-100" onClick={() => setSelectedDosya(f)}>
+                                  {f.type.startsWith('image/') ? (
+                                    <img src={URL.createObjectURL(f)} alt={f.name} className="!w-12 !h-12 !object-cover !rounded !shrink-0" />
+                                  ) : (
+                                    <div className="!w-12 !h-12 !flex !items-center !justify-center !text-[26px] !text-gray-300 !shrink-0">📄</div>
+                                  )}
+                                  <span className="!text-[10px] !text-gray-600 !truncate !flex-1">{f.name}</span>
+                                  <DeleteOutlined className="!text-[11px] !text-red-400 !cursor-pointer !shrink-0" onClick={(e) => { e.stopPropagation(); removeDosya(i) }} />
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </Col>
+                      <Col span={18}>
+                        <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !items-center !justify-center !overflow-hidden">
+                          {selectedDosya ? (
+                            selectedDosya.type.startsWith('image/') ? (
+                              <img src={URL.createObjectURL(selectedDosya)} alt={selectedDosya.name} className="!max-w-full !max-h-full !object-contain" />
+                            ) : (
+                              <span className="!text-[11px] !text-gray-400">{selectedDosya.name}</span>
+                            )
+                          ) : (
+                            <span className="!text-[11px] !text-gray-400">Bir dosya seçin</span>
+                          )}
                         </div>
                       </Col>
                     </Row>

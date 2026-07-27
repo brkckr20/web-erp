@@ -143,7 +143,7 @@ model Malzeme {
   grup              Grup?    @relation("MalzemeGrup", fields: [grupId], references: [id])
 
   kumasTuruId       Int?     @map("kumas_turu_id")
-  kumasTuru         OzellikKodlama? @relation("KumasTuru", fields: [kumasTuruId], references: [id])
+  kumasTuru         OzellikKodlama? @relation("KumasTuru", fields: [kumasTuruId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   numaratorId       Int?     @map("numarator_id")
   numarator         Numarator? @relation("MalzemeNumarator", fields: [numaratorId], references: [id])
   cinsi             String?  @db.VarChar(100)
@@ -156,6 +156,14 @@ model Malzeme {
   kumasUretimTipi   String?  @map("kumas_uretim_tipi") @db.VarChar(50)
 
   hesapBirimi       String?  @map("hesap_birimi") @db.VarChar(50)
+
+  iplikNoId         Int?     @map("iplik_no_id")
+  iplikNoRef        OzellikKodlama? @relation("IplikNo", fields: [iplikNoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  iplikCinsiId      Int?     @map("iplik_cinsi_id")
+  iplikCinsiRef     OzellikKodlama? @relation("IplikCinsi", fields: [iplikCinsiId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organik           Boolean? @default(false)
+  iplikKompozisyonId Int?    @map("iplik_kompozisyon_id")
+  iplikKompozisyonRef OzellikKodlama? @relation("IplikKompozisyon", fields: [iplikKompozisyonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -226,7 +234,10 @@ model OzellikKodlama {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  malzemeler   Malzeme[] @relation("KumasTuru")
+  malzemeler            Malzeme[] @relation("KumasTuru")
+  iplikNoMalzemeler     Malzeme[] @relation("IplikNo")
+  iplikCinsiMalzemeler  Malzeme[] @relation("IplikCinsi")
+  iplikKompozisyonMalzemeler Malzeme[] @relation("IplikKompozisyon")
 
   @@index([kategori])
   @@map("ozellik_kodlama")
@@ -617,10 +628,19 @@ model ReceteKalem {
   id                Int      @id @default(autoincrement())
   receteId          Int      @map("recete_id")
   sira              Int      @default(0)
+  tip               Int?     @map("tip")
   malzemeId         Int?     @map("malzeme_id")
   birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 6)
   dovizCinsi        String?  @map("doviz_cinsi") @db.VarChar(10)
   aciklama          String?  @db.VarChar(500)
+  islem             String?  @map("islem") @db.VarChar(100)
+  variant1          String?  @map("variant_1") @db.VarChar(100)
+  variant2          String?  @map("variant_2") @db.VarChar(100)
+  suslemeSecimi     String?  @map("susleme_secimi") @db.VarChar(200)
+  kesilecek         Boolean? @map("kesilecek")
+  anaKumas          String?  @map("ana_kumas") @db.VarChar(200)
+  tedarikHesaplanmayacak Boolean? @map("tedarik_hesaplanmayacak")
+  kullanimYeri      String?  @map("kullanim_yeri") @db.VarChar(200)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

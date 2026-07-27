@@ -15,7 +15,7 @@ export class KumasGrupService {
 
   async findOne(id: number) {
     const g = await this.prisma.kumasGrup.findUnique({ where: { id } })
-    if (!g) throw new NotFoundException('Kumaş grubu bulunamadı')
+    if (!g) throw new NotFoundException('Varyant grubu bulunamadı')
     return g
   }
 

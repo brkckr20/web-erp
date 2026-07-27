@@ -30,6 +30,8 @@ import IsEmriKarti from '@/components/pages/IsEmriKarti'
 import IsEmriListesi from '@/components/pages/IsEmriListesi'
 import KumasListesi from '@/components/pages/KumasListesi'
 import KumasKarti from '@/components/pages/KumasKarti'
+import IplikListesi from '@/components/pages/IplikListesi'
+import IplikKarti from '@/components/pages/IplikKarti'
 import NumaratorListesi from '@/components/pages/NumaratorListesi'
 import NumaratorKarti from '@/components/pages/NumaratorKarti'
 import RenkKarti from '@/components/pages/RenkKarti'
@@ -283,6 +285,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'kumas-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Kumaş Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openIplikKarti = useCallback((kod: string) => {
+    const key = 'iplik-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'İplik Kartı - ' + kod, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniIplik = useCallback(() => {
+    const key = 'iplik-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni İplik Kartı', moduleKey: 'stok', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -591,6 +615,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('kumas-karti-')) {
       return <KumasKarti kod={tab.key.replace('kumas-karti-', '')} />
+    }
+    if (tab.key === 'iplik-kartlari') {
+      return <IplikListesi onSelect={openIplikKarti} onNew={openYeniIplik} />
+    }
+    if (tab.key === 'iplik-karti-yeni') {
+      return <IplikKarti isNew />
+    }
+    if (tab.key.startsWith('iplik-karti-')) {
+      return <IplikKarti kod={tab.key.replace('iplik-karti-', '')} />
     }
     if (tab.key === 'numarator-tanimlari') {
       return <NumaratorListesi onSelect={openNumaratorKarti} onNew={openYeniNumarator} />
