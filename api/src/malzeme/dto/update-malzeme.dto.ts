@@ -36,8 +36,11 @@ export class UpdateMalzemeDto {
   kumasTuruId?: number
   numaratorId?: number
   cinsi?: string
+  renk?: string
   grm2?: number
   ebat?: string
+  ozellik1?: string
+  ozellik2?: string
   en?: number
   boy?: number
   iplikBoyali?: boolean

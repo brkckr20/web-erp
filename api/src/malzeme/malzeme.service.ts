@@ -11,7 +11,7 @@ export class MalzemeService {
     const where = tip != null ? { tip } : undefined
     return this.prisma.malzeme.findMany({
       where,
-      include: { kumasTuru: true },
+      include: { kumasTuru: true, aksesuarTipi: true, markaRef: true },
       orderBy: { kod: 'asc' },
     })
   }
@@ -19,7 +19,7 @@ export class MalzemeService {
   async findOne(id: number) {
     const m = await this.prisma.malzeme.findUnique({
       where: { id },
-      include: { kumasTuru: true },
+      include: { kumasTuru: true, aksesuarTipi: true, markaRef: true },
     })
     if (!m) throw new NotFoundException('Malzeme bulunamadı')
     return m
@@ -28,7 +28,7 @@ export class MalzemeService {
   async findByKod(kod: string) {
     const m = await this.prisma.malzeme.findUnique({
       where: { kod },
-      include: { kumasTuru: true },
+      include: { kumasTuru: true, aksesuarTipi: true, markaRef: true },
     })
     if (!m) throw new NotFoundException('Malzeme bulunamadı')
     return m
@@ -69,6 +69,7 @@ export class MalzemeService {
     delete data.iplikNoRef
     delete data.iplikCinsiRef
     delete data.iplikKompozisyonRef
+    delete data.aksesuarTipi
     return data
   }
 

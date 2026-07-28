@@ -33,12 +33,14 @@ export const modules: Module[] = [
       {
         title: 'Tanımlamalar',
         items: [
-          { key: 'depo-tanimlari', label: 'Depo Tanımları', isForm: true },
-          { key: 'malzeme-kartlari', label: 'Malzeme Kartları', isForm: true },
-          { key: 'makina-kartlari', label: 'Makina Kartları', isForm: true },
-          { key: 'hata-tanimlari', label: 'Hata Tanımları', isForm: true },
           { key: 'kumas-kartlari', label: 'Kumaş Kartları', isFavorite: true, isForm: true },
           { key: 'iplik-kartlari', label: 'İplik Kartları', isForm: true },
+          { key: 'aksesuar-kartlari', label: 'Aksesuar Kartları', isForm: true },
+          { key: 'aksesuar-tipi-kartlari', label: 'Aksesuar Tipi Kartları', isForm: true },
+          { key: 'malzeme-kartlari', label: 'Malzeme Kartları', isForm: true },
+          { key: 'depo-tanimlari', label: 'Depo Tanımları', isForm: true },
+          { key: 'makina-kartlari', label: 'Makina Kartları', isForm: true },
+          { key: 'hata-tanimlari', label: 'Hata Tanımları', isForm: true },
           { key: 'numarator-tanimlari', label: 'Numaratör Tanımları', isForm: true },
         ],
       },

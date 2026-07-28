@@ -67,6 +67,7 @@ export class ModelReceteService {
       data: {
         receteId,
         sira: (maxSira?.sira ?? 0) + 1,
+        tip: dto.tip ?? null,
         malzemeId: dto.malzemeId ?? null,
         birimFiyat: dto.birimFiyat ?? null,
         dovizCinsi: dto.dovizCinsi ?? null,

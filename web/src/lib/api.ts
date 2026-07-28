@@ -8,12 +8,14 @@ function getToken(): string | null {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
+  const headers: Record<string, string> = {}
   const token = getToken()
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
+  }
+  const isFormData = options?.body instanceof FormData
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json'
   }
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { ...headers, ...options?.headers as Record<string, string> },
@@ -40,4 +42,10 @@ export const api = {
   post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, formData: FormData) => {
+    const headers: Record<string, string> = {}
+    const token = getToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return request<T>(path, { method: 'POST', body: formData, headers })
+  },
 }

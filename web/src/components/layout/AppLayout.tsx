@@ -48,6 +48,10 @@ import BedenKarti from '@/components/pages/BedenKarti'
 import BedenListesi from '@/components/pages/BedenListesi'
 import GtipListesi from '@/components/pages/GtipListesi'
 import GtipKarti from '@/components/pages/GtipKarti'
+import AksesuarTipiListesi from '@/components/pages/AksesuarTipiListesi'
+import AksesuarTipiKarti from '@/components/pages/AksesuarTipiKarti'
+import AksesuarListesi from '@/components/pages/AksesuarListesi'
+import AksesuarKarti from '@/components/pages/AksesuarKarti'
 
 const { Content } = Layout
 
@@ -512,6 +516,51 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
+  const openAksesuarTipiKarti = useCallback((id: number) => {
+    const key = 'aksesuar-tipi-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Aksesuar Tipi Kartı - ' + id, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniAksesuarTipi = useCallback(() => {
+    const key = 'aksesuar-tipi-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Aksesuar Tipi Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openAksesuarKarti = useCallback((kod: string) => {
+    const key = 'aksesuar-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Aksesuar Kartı - ' + kod, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniAksesuar = useCallback((tipId?: number, tipAd?: string) => {
+    const key = tipId ? `aksesuar-karti-yeni-${tipId}` : 'aksesuar-karti-yeni'
+    const label = tipAd ? `Yeni ${tipAd}` : 'Yeni Aksesuar Kartı'
+    setTabs((prev) => {
+      const tab: Tab = { key, label, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
   const handleTabClose = (key: string) => {
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.key === key)
@@ -705,6 +754,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('gtip-karti-')) {
       return <GtipKarti kod={tab.key.replace('gtip-karti-', '')} />
+    }
+    if (tab.key === 'aksesuar-tipi-kartlari') {
+      return <AksesuarTipiListesi onSelect={openAksesuarTipiKarti} onNew={openYeniAksesuarTipi} />
+    }
+    if (tab.key === 'aksesuar-tipi-karti-yeni') {
+      return <AksesuarTipiKarti isNew />
+    }
+    if (tab.key.startsWith('aksesuar-tipi-karti-')) {
+      return <AksesuarTipiKarti id={Number(tab.key.replace('aksesuar-tipi-karti-', ''))} />
+    }
+    if (tab.key === 'aksesuar-kartlari') {
+      return <AksesuarListesi onSelect={openAksesuarKarti} onNew={openYeniAksesuar} onNewTipi={openYeniAksesuarTipi} />
+    }
+    if (tab.key === 'aksesuar-karti-yeni') {
+      return <AksesuarKarti isNew />
+    }
+    if (tab.key.startsWith('aksesuar-karti-yeni-')) {
+      const tipId = Number(tab.key.replace('aksesuar-karti-yeni-', ''))
+      return <AksesuarKarti isNew selectedTipId={tipId} />
+    }
+    if (tab.key.startsWith('aksesuar-karti-')) {
+      return <AksesuarKarti kod={tab.key.replace('aksesuar-karti-', '')} />
     }
     return (
       <div className="!p-3">

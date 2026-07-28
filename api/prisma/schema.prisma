@@ -146,9 +146,14 @@ model Malzeme {
   kumasTuru         OzellikKodlama? @relation("KumasTuru", fields: [kumasTuruId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   numaratorId       Int?     @map("numarator_id")
   numarator         Numarator? @relation("MalzemeNumarator", fields: [numaratorId], references: [id])
+  aksesuarTipiId    Int?     @map("aksesuar_tipi_id")
+  aksesuarTipi      AksesuarTipi? @relation("AksesuarTipiMalzeme", fields: [aksesuarTipiId], references: [id])
   cinsi             String?  @db.VarChar(100)
-  grm2              Decimal? @db.Decimal(10, 2)
+  renk              String?  @db.VarChar(100)
   ebat              String?  @db.VarChar(100)
+  ozellik1          String?  @map("ozellik_1") @db.VarChar(200)
+  ozellik2          String?  @map("ozellik_2") @db.VarChar(200)
+  grm2              Decimal? @db.Decimal(10, 2)
   en                Decimal? @db.Decimal(10, 2)
   boy               Decimal? @db.Decimal(10, 2)
   iplikBoyali       Boolean? @default(false) @map("iplik_boyali")
@@ -175,6 +180,7 @@ model Malzeme {
   receteKalemler    ReceteKalem[] @relation("KalemMalzemeRef")
   malzemeBedenler   MalzemeBeden[] @relation("MalzemeBedenRef")
   malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupMalzeme")
+  ekler             MalzemeEk[] @relation("MalzemeEk")
 
   @@map("malzeme")
 }
@@ -708,4 +714,33 @@ model Gtip {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("gtip")
+}
+
+model AksesuarTipi {
+  id                Int      @id @default(autoincrement())
+  ad                String   @db.VarChar(200)
+  onEk              String?  @map("on_ek") @db.VarChar(20)
+  kullanimda        Boolean  @default(true)
+
+  malzemeler        Malzeme[] @relation("AksesuarTipiMalzeme")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("aksesuar_tipi")
+}
+
+model MalzemeEk {
+  id          Int      @id @default(autoincrement())
+  malzemeId   Int      @map("malzeme_id")
+  malzeme     Malzeme  @relation("MalzemeEk", fields: [malzemeId], references: [id], onDelete: Cascade)
+  dosyaAdi    String   @map("dosya_adi") @db.VarChar(500)
+  mimetype    String   @db.VarChar(100)
+  boyut       Int
+  data        Bytes
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([malzemeId])
+  @@map("malzeme_ek")
 }

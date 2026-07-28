@@ -8,6 +8,8 @@ import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import SearchableGrupSelect from '@/components/shared/SearchableGrupSelect'
 import { malzemeApi } from '@/lib/malzeme-api'
 import type { MalzemeFormData } from '@/lib/malzeme-api'
+import { malzemeEkApi } from '@/lib/malzeme-ek-api'
+import type { MalzemeEk } from '@/lib/malzeme-ek-api'
 
 const emptyData: MalzemeFormData = {
   kod: '',
@@ -70,7 +72,8 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dosyalar, setDosyalar] = useState<File[]>([])
-  const [selectedDosya, setSelectedDosya] = useState<File | null>(null)
+  const [ekList, setEkList] = useState<MalzemeEk[]>([])
+  const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDosyaSec = () => fileInputRef.current?.click()
@@ -78,13 +81,38 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
-      setDosyalar((prev) => [...prev, ...Array.from(files)])
+      const newFiles = Array.from(files)
+      setDosyalar((prev) => [...prev, ...newFiles])
+      setSelectedDosya({ type: 'pending', file: newFiles[0] })
     }
     e.target.value = ''
   }
 
-  const removeDosya = (index: number) => {
-    setDosyalar((prev) => prev.filter((_, i) => i !== index))
+  const removePendingDosya = (index: number) => {
+    setDosyalar((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      return next
+    })
+    setSelectedDosya((prev) => {
+      if (prev?.type === 'pending') {
+        const remaining = dosyalar.filter((_, i) => i !== index)
+        return remaining.length > 0 ? { type: 'pending', file: remaining[0] } : null
+      }
+      return prev
+    })
+  }
+
+  const removeExistingDosya = async (id: number) => {
+    try {
+      await malzemeEkApi.delete(id)
+      setEkList((prev) => prev.filter((e) => e.id !== id))
+      setSelectedDosya((prev) => {
+        if (prev?.type === 'existing' && prev.ek.id === id) return null
+        return prev
+      })
+    } catch {
+      message.error('Dosya silinirken hata oluştu')
+    }
   }
 
   useEffect(() => {
@@ -149,6 +177,14 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         hesapBirimi: data.hesapBirimi ?? '',
         barkod: data.barkod ?? '',
       })
+      try {
+        const ekData = await malzemeEkApi.list(data.id)
+        setEkList(ekData)
+      } catch {
+        setEkList([])
+      }
+      setDosyalar([])
+      setSelectedDosya(ekData.length > 0 ? { type: 'existing', ek: ekData[0] } : null)
     } catch {
       message.warning('Kod bulunamadı')
     } finally {
@@ -171,6 +207,9 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm(emptyData)
+    setEkList([])
+    setDosyalar([])
+    setSelectedDosya(null)
   }
 
   const handleKaydet = async () => {
@@ -184,13 +223,20 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
     }
     setSaving(true)
     try {
+      let currentId = id
       if (id) {
         await malzemeApi.update(id, form)
         message.success('Malzeme başarıyla güncellendi')
       } else {
         const created = await malzemeApi.create(form)
+        currentId = created.id
         setId(created.id)
         message.success('Malzeme başarıyla oluşturuldu')
+      }
+      if (dosyalar.length > 0 && currentId) {
+        const uploaded = await malzemeEkApi.upload(currentId, dosyalar)
+        setEkList((prev) => [...uploaded, ...prev])
+        setDosyalar([])
       }
     } catch (e: any) {
       if (e?.message) {
@@ -503,20 +549,39 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
                           </Button>
                           <input ref={fileInputRef} type="file" multiple className="!hidden" onChange={handleFileChange} />
                           <div className="!flex-1 !overflow-y-auto !space-y-1.5">
-                            {dosyalar.length === 0 ? (
+                            {ekList.length === 0 && dosyalar.length === 0 ? (
                               <span className="!text-[11px] !text-gray-400">Henüz dosya seçilmedi</span>
                             ) : (
-                              dosyalar.map((f, i) => (
-                                <div key={i} className="!flex !items-center !gap-2 !border !border-gray-100 !rounded !p-1.5 !bg-gray-50 !cursor-pointer !hover:bg-gray-100" onClick={() => setSelectedDosya(f)}>
-                                  {f.type.startsWith('image/') ? (
-                                    <img src={URL.createObjectURL(f)} alt={f.name} className="!w-12 !h-12 !object-cover !rounded !shrink-0" />
-                                  ) : (
-                                    <div className="!w-12 !h-12 !flex !items-center !justify-center !text-[26px] !text-gray-300 !shrink-0">📄</div>
-                                  )}
-                                  <span className="!text-[10px] !text-gray-600 !truncate !flex-1">{f.name}</span>
-                                  <DeleteOutlined className="!text-[11px] !text-red-400 !cursor-pointer !shrink-0" onClick={(e) => { e.stopPropagation(); removeDosya(i) }} />
-                                </div>
-                              ))
+                              <>
+                                {ekList.map((ek) => (
+                                  <div key={`ek-${ek.id}`} className={`!flex !items-center !gap-2 !border !rounded !p-1.5 !cursor-pointer ${selectedDosya?.type === 'existing' && selectedDosya.ek.id === ek.id ? '!border-blue-400 !bg-blue-50' : '!border-gray-100 !bg-gray-50 hover:!bg-gray-100'}`} onClick={() => setSelectedDosya({ type: 'existing', ek })}>
+                                    {ek.mimetype.startsWith('image/') ? (
+                                      <img src={malzemeEkApi.getDosyaUrl(ek.id)} alt={ek.dosyaAdi} className="!w-12 !h-12 !object-cover !rounded !shrink-0" />
+                                    ) : (
+                                      <div className="!w-12 !h-12 !flex !items-center !justify-center !text-[26px] !text-gray-300 !shrink-0">📄</div>
+                                    )}
+                                    <div className="!flex-1 !min-w-0">
+                                      <span className="!text-[10px] !text-gray-600 !truncate !block">{ek.dosyaAdi}</span>
+                                      <span className="!text-[9px] !text-gray-400">{(ek.boyut / 1024).toFixed(1)} KB</span>
+                                    </div>
+                                    <DeleteOutlined className="!text-[11px] !text-red-400 !cursor-pointer !shrink-0" onClick={(e) => { e.stopPropagation(); removeExistingDosya(ek.id) }} />
+                                  </div>
+                                ))}
+                                {dosyalar.map((f, i) => (
+                                  <div key={`pending-${i}`} className={`!flex !items-center !gap-2 !border !rounded !p-1.5 !cursor-pointer ${selectedDosya?.type === 'pending' && selectedDosya.file === f ? '!border-blue-400 !bg-blue-50' : '!border-gray-100 !bg-gray-50 hover:!bg-gray-100'}`} onClick={() => setSelectedDosya({ type: 'pending', file: f })}>
+                                    {f.type.startsWith('image/') ? (
+                                      <img src={URL.createObjectURL(f)} alt={f.name} className="!w-12 !h-12 !object-cover !rounded !shrink-0" />
+                                    ) : (
+                                      <div className="!w-12 !h-12 !flex !items-center !justify-center !text-[26px] !text-gray-300 !shrink-0">📄</div>
+                                    )}
+                                    <div className="!flex-1 !min-w-0">
+                                      <span className="!text-[10px] !text-gray-600 !truncate !block">{f.name}</span>
+                                      <span className="!text-[9px] !text-orange-400">Kaydedilmedi</span>
+                                    </div>
+                                    <DeleteOutlined className="!text-[11px] !text-red-400 !cursor-pointer !shrink-0" onClick={(e) => { e.stopPropagation(); removePendingDosya(i) }} />
+                                  </div>
+                                ))}
+                              </>
                             )}
                           </div>
                         </div>
@@ -524,10 +589,14 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
                       <Col span={18}>
                         <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !items-center !justify-center !overflow-hidden">
                           {selectedDosya ? (
-                            selectedDosya.type.startsWith('image/') ? (
-                              <img src={URL.createObjectURL(selectedDosya)} alt={selectedDosya.name} className="!max-w-full !max-h-full !object-contain" />
+                            selectedDosya.type === 'pending' && selectedDosya.file.type.startsWith('image/') ? (
+                              <img src={URL.createObjectURL(selectedDosya.file)} alt={selectedDosya.file.name} className="!max-w-full !max-h-full !object-contain" />
+                            ) : selectedDosya.type === 'existing' && selectedDosya.ek.mimetype.startsWith('image/') ? (
+                              <img src={malzemeEkApi.getDosyaUrl(selectedDosya.ek.id)} alt={selectedDosya.ek.dosyaAdi} className="!max-w-full !max-h-full !object-contain" />
                             ) : (
-                              <span className="!text-[11px] !text-gray-400">{selectedDosya.name}</span>
+                              <span className="!text-[11px] !text-gray-400">
+                                {selectedDosya.type === 'pending' ? selectedDosya.file.name : selectedDosya.ek.dosyaAdi}
+                              </span>
                             )
                           ) : (
                             <span className="!text-[11px] !text-gray-400">Bir dosya seçin</span>
