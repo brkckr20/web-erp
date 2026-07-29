@@ -1,6 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { MalzemeEkDto } from './dto/malzeme-ek.dto'
+import type { MalzemeEkDto } from './dto/malzeme-ek.dto'
+
+interface MulterFile {
+  fieldname: string
+  originalname: string
+  encoding: string
+  mimetype: string
+  buffer: Buffer
+  size: number
+}
 
 @Injectable()
 export class MalzemeEkService {
@@ -20,7 +29,7 @@ export class MalzemeEkService {
     return row
   }
 
-  async create(malzemeId: number, file: Express.Multer.File) {
+  async create(malzemeId: number, file: MulterFile) {
     return this.prisma.malzemeEk.create({
       data: {
         malzemeId,

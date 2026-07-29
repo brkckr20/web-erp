@@ -109,6 +109,7 @@ interface AksesuarRow {
   variant1: string
   islem: string
   bedenSecimi: string
+  miktarBolen: string
 }
 
 function createEmptyKumasKalem(): KumasRow {
@@ -274,7 +275,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
               : '',
           }
           if (k.tip === 4) {
-            aRows.push({ ...shared, malzemeId: k.malzemeId ?? undefined, aksesuarKodu: k.malzeme?.kod ?? '', aksesuarAdi: k.malzeme?.ad ?? '' })
+            aRows.push({ ...shared, malzemeId: k.malzemeId ?? undefined, aksesuarKodu: k.malzeme?.kod ?? '', aksesuarAdi: k.malzeme?.ad ?? '', miktarBolen: k.miktarBolen ? 'true' : 'false' })
           } else if (k.tip === 3) {
             iRows.push({ ...shared, malzemeId: k.malzemeId ?? undefined, iplikKodu: k.malzeme?.kod ?? '', iplikAdi: k.malzeme?.ad ?? '' })
           } else {
@@ -303,16 +304,18 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       } else {
         setGtipAd(null)
       }
+      let ekData: MalzemeEk[] = []
       try {
-        const ekData = await malzemeEkApi.list(malzeme.id)
+        ekData = await malzemeEkApi.list(malzeme.id)
         setEkList(ekData)
       } catch {
         setEkList([])
       }
       setDosyalar([])
       setSelectedDosya(ekData.length > 0 ? { type: 'existing', ek: ekData[0] } : null)
-    } catch {
-      message.warning('Kod bulunamadı')
+    } catch (err) {
+      console.error('Model yüklenirken hata:', err)
+      message.warning(err instanceof Error ? err.message : 'Kod bulunamadı')
     } finally {
       setLoading(false)
     }
@@ -449,6 +452,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       variant1: '',
       islem: '',
       bedenSecimi: '',
+      miktarBolen: 'false',
     }])
   }
 
@@ -459,24 +463,21 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   const updateAksesuarKalem = (key: string, patch: Partial<AksesuarRow>) =>
     setAksesuarKalemler((prev) => prev.map((k) => (k.key === key ? { ...k, ...patch } : k)))
 
-  const persistKalemField = (key: string, field: string, value: unknown) => {
-    const row = kumasKalemler.find((k) => k.key === key)
-    if (!row?.backendId) return
+  const persistKalemField = (backendId: number | undefined, field: string, value: unknown) => {
+    if (!backendId) return
     let v = value
     if (field === 'kesilecek' || field === 'tedarikHesaplanmayacak') v = value === 'true'
-    modelReceteApi.updateKalem(row.backendId, { [field]: v })
+    modelReceteApi.updateKalem(backendId, { [field]: v })
   }
 
-  const persistIplikKalemField = (key: string, field: string, value: unknown) => {
-    const row = iplikKalemler.find((k) => k.key === key)
-    if (!row?.backendId) return
-    modelReceteApi.updateKalem(row.backendId, { [field]: value })
+  const persistIplikKalemField = (backendId: number | undefined, field: string, value: unknown) => {
+    if (!backendId) return
+    modelReceteApi.updateKalem(backendId, { [field]: value })
   }
 
-  const persistAksesuarKalemField = (key: string, field: string, value: unknown) => {
-    const row = aksesuarKalemler.find((k) => k.key === key)
-    if (!row?.backendId) return
-    modelReceteApi.updateKalem(row.backendId, { [field]: value })
+  const persistAksesuarKalemField = (backendId: number | undefined, field: string, value: unknown) => {
+    if (!backendId) return
+    modelReceteApi.updateKalem(backendId, { [field]: value })
   }
 
   const openBedenModal = (rowKey: string, kalemler: KumasRow[] | IplikRow[] | AksesuarRow[]) => {
@@ -485,7 +486,10 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     if (row?.bedenSecimi) {
       try {
         const parsed = JSON.parse(row.bedenSecimi)
-        Object.entries(parsed).forEach(([k, v]) => { existing[Number(k)] = String(v) })
+        Object.entries(parsed).forEach(([k, v]) => {
+          const n = Number(v)
+          existing[Number(k)] = isNaN(n) ? String(v) : n.toFixed(3).replace('.', ',')
+        })
       } catch { /* ignore */ }
     }
     setBedenModalValues(existing)
@@ -529,7 +533,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
 
       const newValues: Record<number, number> = {}
       Object.entries(bedenModalValues).forEach(([k, v]) => {
-        const n = parseFloat(v)
+        const n = parseFloat(String(v).replace(',', '.'))
         if (!isNaN(n)) newValues[Number(k)] = n
       })
 
@@ -829,7 +833,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             value={p.data.islem || undefined}
             onChange={(v) => {
               updateKumasKalem(p.data.key, { islem: v ?? '' })
-              persistKalemField(p.data.key, 'islem', v ?? '')
+              persistKalemField(p.data.backendId, 'islem', v ?? '')
             }}
             className="!w-full !text-[11px]"
             variant="borderless"
@@ -853,7 +857,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             value={p.data.variant1 || undefined}
             onChange={(v) => {
               updateKumasKalem(p.data.key, { variant1: v ?? '' })
-              persistKalemField(p.data.key, 'variant1', v ?? '')
+              persistKalemField(p.data.backendId, 'variant1', v ?? '')
             }}
             className="!w-full !text-[11px]"
             variant="borderless"
@@ -885,11 +889,11 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           </span>
         ) : null,
     },
-    { headerName: 'Kesilecek', field: 'kesilecek', width: 100, cellRenderer: (p: any) => p.data ? <Switch size="small" checked={p.data.kesilecek === 'true'} onChange={(checked) => { updateKumasKalem(p.data.key, { kesilecek: checked ? 'true' : 'false' }); persistKalemField(p.data.key, 'kesilecek', checked ? 'true' : 'false') }} /> : null },
+    { headerName: 'Kesilecek', field: 'kesilecek', width: 100, cellRenderer: (p: any) => p.data ? <Switch size="small" checked={p.data.kesilecek === 'true'} onChange={(checked) => { updateKumasKalem(p.data.key, { kesilecek: checked ? 'true' : 'false' }); persistKalemField(p.data.backendId, 'kesilecek', checked ? 'true' : 'false') }} /> : null },
     { headerName: 'Ana Kumaş', field: 'anaKumas', width: 100, editable: true, cellEditor: 'agTextCellEditor' },
-    { headerName: 'Tedarik Hesaplanmayacak', field: 'tedarikHesaplanmayacak', width: 130, cellRenderer: (p: any) => p.data ? <Switch size="small" checked={p.data.tedarikHesaplanmayacak === 'true'} onChange={(checked) => { updateKumasKalem(p.data.key, { tedarikHesaplanmayacak: checked ? 'true' : 'false' }); persistKalemField(p.data.key, 'tedarikHesaplanmayacak', checked ? 'true' : 'false') }} /> : null },
+    { headerName: 'Tedarik Hesaplanmayacak', field: 'tedarikHesaplanmayacak', width: 130, cellRenderer: (p: any) => p.data ? <Switch size="small" checked={p.data.tedarikHesaplanmayacak === 'true'} onChange={(checked) => { updateKumasKalem(p.data.key, { tedarikHesaplanmayacak: checked ? 'true' : 'false' }); persistKalemField(p.data.backendId, 'tedarikHesaplanmayacak', checked ? 'true' : 'false') }} /> : null },
     { headerName: 'Kullanım Yeri', field: 'kullanimYeri', width: 120, editable: true, cellEditor: 'agTextCellEditor' },
-  ], [kumasGruplari])
+  ], [kumasGruplari, kumasKalemler])
 
   const iplikColDefs = useMemo<ColDef<IplikRow>[]>(() => [
     {
@@ -934,7 +938,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             value={p.data.islem || undefined}
             onChange={(v) => {
               updateIplikKalem(p.data.key, { islem: v ?? '' })
-              persistIplikKalemField(p.data.key, 'islem', v ?? '')
+              persistIplikKalemField(p.data.backendId, 'islem', v ?? '')
             }}
             className="!w-full !text-[11px]"
             variant="borderless"
@@ -955,7 +959,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             value={p.data.variant1 || undefined}
             onChange={(v) => {
               updateIplikKalem(p.data.key, { variant1: v ?? '' })
-              persistIplikKalemField(p.data.key, 'variant1', v ?? '')
+              persistIplikKalemField(p.data.backendId, 'variant1', v ?? '')
             }}
             className="!w-full !text-[11px]"
             variant="borderless"
@@ -986,7 +990,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           </span>
         ) : null,
     },
-  ], [kumasGruplari])
+  ], [kumasGruplari, iplikKalemler])
 
   const aksesuarColDefs = useMemo<ColDef<AksesuarRow>[]>(() => [
     {
@@ -1031,7 +1035,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             value={p.data.islem || undefined}
             onChange={(v) => {
               updateAksesuarKalem(p.data.key, { islem: v ?? '' })
-              persistAksesuarKalemField(p.data.key, 'islem', v ?? '')
+              persistAksesuarKalemField(p.data.backendId, 'islem', v ?? '')
             }}
             className="!w-full !text-[11px]"
             variant="borderless"
@@ -1052,7 +1056,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             value={p.data.variant1 || undefined}
             onChange={(v) => {
               updateAksesuarKalem(p.data.key, { variant1: v ?? '' })
-              persistAksesuarKalemField(p.data.key, 'variant1', v ?? '')
+              persistAksesuarKalemField(p.data.backendId, 'variant1', v ?? '')
             }}
             className="!w-full !text-[11px]"
             variant="borderless"
@@ -1083,7 +1087,27 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           </span>
         ) : null,
     },
-  ], [kumasGruplari])
+    {
+      headerName: 'Miktar Bölen', field: 'miktarBolen', width: 100,
+      cellRenderer: (p: any) =>
+        p.data ? (
+          <div className="!flex !items-center !justify-center" style={{ height: '100%' }}>
+            <Switch
+              size="small"
+              checked={p.data.miktarBolen === 'true'}
+              onChange={(v) => {
+                const val = v ? 'true' : 'false'
+                updateAksesuarKalem(p.data.key, { miktarBolen: val })
+                if (p.data.backendId) {
+                  modelReceteApi.updateKalem(p.data.backendId, { miktarBolen: v })
+                }
+              }}
+            />
+          </div>
+        ) : null,
+      sortable: false, resizable: false,
+    },
+  ], [kumasGruplari, aksesuarKalemler])
 
   const kumasContent = (
     <div className="!flex !flex-col !h-full">
@@ -1110,7 +1134,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           onCellValueChanged={(e) => {
             if (e.data && e.colDef.field) {
               updateKumasKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<KumasRow>)
-              persistKalemField(e.data.key, e.colDef.field, e.newValue)
+              persistKalemField(e.data.backendId, e.colDef.field, e.newValue)
             }
           }}
         />
@@ -1142,7 +1166,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           onCellValueChanged={(e) => {
             if (e.data && e.colDef.field) {
               updateIplikKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<IplikRow>)
-              persistIplikKalemField(e.data.key, e.colDef.field, e.newValue)
+              persistIplikKalemField(e.data.backendId, e.colDef.field, e.newValue)
             }
           }}
         />
@@ -1174,7 +1198,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           onCellValueChanged={(e) => {
             if (e.data && e.colDef.field) {
               updateAksesuarKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<AksesuarRow>)
-              persistAksesuarKalemField(e.data.key, e.colDef.field, e.newValue)
+              persistAksesuarKalemField(e.data.backendId, e.colDef.field, e.newValue)
             }
           }}
         />
@@ -1323,7 +1347,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
               <thead>
                 <tr className="!border-b !border-gray-200">
                   <th className="!text-left !font-semibold !text-[#333] !pb-1.5 !w-20">Beden</th>
-                  <th className="!text-left !font-semibold !text-[#333] !pb-1.5">Metraj</th>
+                  <th className="!text-left !font-semibold !text-[#333] !pb-1.5">Miktar</th>
                 </tr>
               </thead>
               <tbody>
@@ -1355,15 +1379,35 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
                             })
                             return
                           }
-                          setBedenModalValues((prev) => ({ ...prev, [b.bedenId]: num.toFixed(2).replace('.', ',') }))
+                          setBedenModalValues((prev) => ({ ...prev, [b.bedenId]: num.toFixed(3).replace('.', ',') }))
                         }}
-                        placeholder="0,00"
+                        placeholder="0,000"
                       />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+          {bedenler.length > 0 && (
+            <div className="!flex !justify-end !mt-2">
+              <button
+                type="button"
+                className="!text-[11px] !px-3 !py-1 !bg-blue-50 !text-blue-700 !border !border-blue-200 !rounded hover:!bg-blue-100 !cursor-pointer"
+                onClick={() => {
+                  setBedenModalValues((prev) => {
+                    const entries = Object.entries(prev)
+                    const firstVal = entries.length > 0 ? entries[0][1] : ''
+                    if (!firstVal) return prev
+                    const next: Record<number, string> = {}
+                    bedenler.forEach((b) => { next[b.bedenId] = firstVal })
+                    return next
+                  })
+                }}
+              >
+                Tümüne uygula
+              </button>
+            </div>
           )}
         </div>
       </Modal>

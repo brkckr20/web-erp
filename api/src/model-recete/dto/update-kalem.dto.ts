@@ -12,4 +12,5 @@ export class UpdateKalemDto {
   anaKumas?: string
   tedarikHesaplanmayacak?: boolean
   kullanimYeri?: string
+  miktarBolen?: boolean
 }

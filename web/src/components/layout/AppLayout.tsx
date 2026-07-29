@@ -52,6 +52,8 @@ import AksesuarTipiListesi from '@/components/pages/AksesuarTipiListesi'
 import AksesuarTipiKarti from '@/components/pages/AksesuarTipiKarti'
 import AksesuarListesi from '@/components/pages/AksesuarListesi'
 import AksesuarKarti from '@/components/pages/AksesuarKarti'
+import SiparisGirisi from '@/components/pages/SiparisGirisi'
+import SiparisKarti from '@/components/pages/SiparisKarti'
 
 const { Content } = Layout
 
@@ -538,6 +540,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
+  const openSiparisKarti = useCallback((id: number) => {
+    const key = 'siparis-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Sipariş Kartı - ' + id, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniSiparis = useCallback(() => {
+    const key = 'siparis-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Sipariş', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
   const openAksesuarKarti = useCallback((kod: string) => {
     const key = 'aksesuar-karti-' + kod
     setTabs((prev) => {
@@ -776,6 +800,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('aksesuar-karti-')) {
       return <AksesuarKarti kod={tab.key.replace('aksesuar-karti-', '')} />
+    }
+    if (tab.key === 'siparis-girisi') {
+      return <SiparisGirisi onSelect={openSiparisKarti} onNew={openYeniSiparis} />
+    }
+    if (tab.key === 'siparis-karti-yeni') {
+      return <SiparisKarti isNew />
+    }
+    if (tab.key.startsWith('siparis-karti-')) {
+      return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} />
     }
     return (
       <div className="!p-3">

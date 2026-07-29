@@ -80,6 +80,7 @@ export class ModelReceteService {
         anaKumas: dto.anaKumas ?? null,
         tedarikHesaplanmayacak: dto.tedarikHesaplanmayacak ?? null,
         kullanimYeri: dto.kullanimYeri ?? null,
+        miktarBolen: dto.miktarBolen ?? null,
       },
       include: { malzeme: true, olculer: { include: { beden: true } } },
     })
@@ -103,6 +104,7 @@ export class ModelReceteService {
         anaKumas: dto.anaKumas,
         tedarikHesaplanmayacak: dto.tedarikHesaplanmayacak,
         kullanimYeri: dto.kullanimYeri,
+        miktarBolen: dto.miktarBolen,
       },
       include: { malzeme: true, olculer: { include: { beden: true } } },
     })

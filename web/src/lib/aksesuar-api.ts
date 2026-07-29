@@ -22,6 +22,13 @@ export type AksesuarFormData = {
   markaId: number | null
   ozellik1: string | null
   ozellik2: string | null
+  ozellik3: string | null
+  ozellik4: string | null
+  derece: string | null
+  enOlcu: string | null
+  boyOlcu: string | null
+  kapak: string | null
+  micron: string | null
 }
 
 export const aksesuarApi = {

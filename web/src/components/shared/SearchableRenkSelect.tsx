@@ -26,23 +26,20 @@ export default function SearchableRenkSelect({
   const [loading, setLoading] = useState(false)
   const [selectedAd, setSelectedAd] = useState<string>('')
 
-  useEffect(() => {
-    let active = true
+  const load = async () => {
     setLoading(true)
-    renkApi
-      .list(tip)
-      .then((list) => {
-        if (active) setOptions(list)
-      })
-      .catch(() => {
-        if (active) setOptions([])
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
+    try {
+      const list = await renkApi.list(tip)
+      setOptions(list)
+    } catch {
+      setOptions([])
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    load()
   }, [tip])
 
   useEffect(() => {
@@ -65,6 +62,7 @@ export default function SearchableRenkSelect({
         placeholder={placeholder}
         suffixIcon={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
         className={`${widthClass} !text-[11px]`}
+        onOpenChange={(open) => { if (open) load() }}
         options={options.map((d) => ({
           label: d.kod,
           value: d.id,

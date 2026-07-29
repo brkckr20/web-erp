@@ -27,6 +27,13 @@ const emptyData: AksesuarFormData = {
   markaId: null,
   ozellik1: null,
   ozellik2: null,
+  ozellik3: null,
+  ozellik4: null,
+  derece: null,
+  enOlcu: null,
+  boyOlcu: null,
+  kapak: null,
+  micron: null,
 }
 
 interface AksesuarKartiProps {
@@ -48,12 +55,26 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
   const [ebatData, setEbatData] = useState<OzellikKodlama | null>(null)
   const [ozellik1Data, setOzellik1Data] = useState<OzellikKodlama | null>(null)
   const [ozellik2Data, setOzellik2Data] = useState<OzellikKodlama | null>(null)
+  const [ozellik3Data, setOzellik3Data] = useState<OzellikKodlama | null>(null)
+  const [ozellik4Data, setOzellik4Data] = useState<OzellikKodlama | null>(null)
+  const [dereceData, setDereceData] = useState<OzellikKodlama | null>(null)
   const [markaAd, setMarkaAd] = useState('')
   const [cinsiModalOpen, setCinsiModalOpen] = useState(false)
   const [renkModalOpen, setRenkModalOpen] = useState(false)
   const [ebatModalOpen, setEbatModalOpen] = useState(false)
   const [ozellik1ModalOpen, setOzellik1ModalOpen] = useState(false)
   const [ozellik2ModalOpen, setOzellik2ModalOpen] = useState(false)
+  const [ozellik3ModalOpen, setOzellik3ModalOpen] = useState(false)
+  const [ozellik4ModalOpen, setOzellik4ModalOpen] = useState(false)
+  const [dereceModalOpen, setDereceModalOpen] = useState(false)
+  const [enOlcuData, setEnOlcuData] = useState<OzellikKodlama | null>(null)
+  const [boyOlcuData, setBoyOlcuData] = useState<OzellikKodlama | null>(null)
+  const [kapakData, setKapakData] = useState<OzellikKodlama | null>(null)
+  const [micronData, setMicronData] = useState<OzellikKodlama | null>(null)
+  const [enOlcuModalOpen, setEnOlcuModalOpen] = useState(false)
+  const [boyOlcuModalOpen, setBoyOlcuModalOpen] = useState(false)
+  const [kapakModalOpen, setKapakModalOpen] = useState(false)
+  const [micronModalOpen, setMicronModalOpen] = useState(false)
 
   useEffect(() => {
     if (kod) {
@@ -81,9 +102,9 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
         } else {
           aksesuarApi.list().then((list) => {
             const last = list
-              .filter((x: any) => x.kod?.startsWith(tip.onEk))
-              .sort((a: any, b: any) => b.kod.localeCompare(a.kod))[0]
-            const nextNo = last ? parseInt(last.kod.replace(tip.onEk, ''), 10) + 1 : 1
+              .filter((x: any) => x.kod?.startsWith(tip.onEk ?? ''))
+              .sort((a: any, b: any) => (b.kod ?? '').localeCompare(a.kod ?? ''))[0]
+            const nextNo = last ? parseInt((last.kod ?? '').replace(tip.onEk ?? '', ''), 10) + 1 : 1
             set('kod', `${tip.onEk}${String(nextNo).padStart(3, '0')}`)
           })
         }
@@ -92,13 +113,13 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
   }, [selectedTipId, tipList, numaratorlar])
 
   useEffect(() => {
-    if (!id && (form.cinsi || form.renk || form.ebat || form.ureticiUrunKodu || markaAd || form.ozellik1 || form.ozellik2)) {
-      const parts = [tipAd, form.cinsi, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1, form.ozellik2].filter(Boolean)
+    if (!id && (form.cinsi || form.renk || form.ebat || form.ureticiUrunKodu || markaAd || form.ozellik1 || form.ozellik2 || form.ozellik3 || form.ozellik4 || form.derece || form.enOlcu || form.boyOlcu || form.kapak || form.micron)) {
+      const parts = [tipAd, form.cinsi, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1, form.ozellik2, form.ozellik3, form.ozellik4, form.derece, form.enOlcu, form.boyOlcu, form.kapak, form.micron].filter(Boolean)
       if (parts.length > 1) {
         set('ad', parts.join(' '))
       }
     }
-  }, [form.cinsi, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1])
+  }, [form.cinsi, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1, form.ozellik2, form.ozellik3, form.ozellik4, form.derece, form.enOlcu, form.boyOlcu, form.kapak, form.micron])
 
   const loadByKod = useCallback(async (k: string) => {
     setLoading(true)
@@ -120,6 +141,13 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
         markaId: data.markaId ?? null,
         ozellik1: (data as any).ozellik1 ?? null,
         ozellik2: (data as any).ozellik2 ?? null,
+        ozellik3: (data as any).ozellik3 ?? null,
+        ozellik4: (data as any).ozellik4 ?? null,
+        derece: (data as any).derece ?? null,
+        enOlcu: (data as any).enOlcu ?? null,
+        boyOlcu: (data as any).boyOlcu ?? null,
+        kapak: (data as any).kapak ?? null,
+        micron: (data as any).micron ?? null,
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -156,6 +184,41 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
     set('ozellik2', record?.ad ?? null)
   }
 
+  const handleOzellik3Change = (id: number | null, record?: OzellikKodlama) => {
+    setOzellik3Data(record ?? null)
+    set('ozellik3', record?.ad ?? null)
+  }
+
+  const handleOzellik4Change = (id: number | null, record?: OzellikKodlama) => {
+    setOzellik4Data(record ?? null)
+    set('ozellik4', record?.ad ?? null)
+  }
+
+  const handleDereceChange = (id: number | null, record?: OzellikKodlama) => {
+    setDereceData(record ?? null)
+    set('derece', record?.ad ?? null)
+  }
+
+  const handleEnOlcuChange = (id: number | null, record?: OzellikKodlama) => {
+    setEnOlcuData(record ?? null)
+    set('enOlcu', record?.ad ?? null)
+  }
+
+  const handleBoyOlcuChange = (id: number | null, record?: OzellikKodlama) => {
+    setBoyOlcuData(record ?? null)
+    set('boyOlcu', record?.ad ?? null)
+  }
+
+  const handleKapakChange = (id: number | null, record?: OzellikKodlama) => {
+    setKapakData(record ?? null)
+    set('kapak', record?.ad ?? null)
+  }
+
+  const handleMicronChange = (id: number | null, record?: OzellikKodlama) => {
+    setMicronData(record ?? null)
+    set('micron', record?.ad ?? null)
+  }
+
   const handleMarkaChange = (markaId: number | null, record?: Marka) => {
     set('markaId', markaId)
     setMarkaAd(record?.ad ?? '')
@@ -169,6 +232,13 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
     setEbatData(null)
     setOzellik1Data(null)
     setOzellik2Data(null)
+    setOzellik3Data(null)
+    setOzellik4Data(null)
+    setDereceData(null)
+    setEnOlcuData(null)
+    setBoyOlcuData(null)
+    setKapakData(null)
+    setMicronData(null)
     setMarkaAd('')
   }
 
@@ -248,6 +318,10 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
     'Ara Karton': ['cinsi', 'ebat', 'marka'],
     'Askı': ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'marka', 'ozellik1'],
     'Çıt Çıt': ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'ozellik1', 'ozellik2', 'marka'],
+    'Etiket': ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'derece', 'ozellik1', 'ozellik2', 'ozellik3', 'ozellik4'],
+    'Paket Kartı': ['cinsi', 'renk', 'ureticiKodu', 'ebat', 'ozellik1', 'ozellik2', 'ozellik3', 'ozellik4'],
+    'Kapaklı Poşet': ['cinsi', 'enOlcu', 'boyOlcu', 'kapak', 'micron', 'ozellik1', 'ozellik2'],
+    'Koli': ['ebat', 'ozellik1'],
   }
   const fields = tipFields[tipAd] ?? ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'marka', 'ozellik1']
 
@@ -275,19 +349,43 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
               {fields.includes('cinsi') && (
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20">Cinsi</label>
-                <Input size="small" value={cinsiData?.ad ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setCinsiModalOpen(true)} />} onClick={() => setCinsiModalOpen(true)} />
+                <Input size="small" value={form.cinsi ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setCinsiModalOpen(true)} />} onClick={() => setCinsiModalOpen(true)} />
+              </div>
+              )}
+              {fields.includes('enOlcu') && (
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20">En</label>
+                <Input size="small" value={form.enOlcu ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setEnOlcuModalOpen(true)} />} onClick={() => setEnOlcuModalOpen(true)} />
+              </div>
+              )}
+              {fields.includes('boyOlcu') && (
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20">Boy</label>
+                <Input size="small" value={form.boyOlcu ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setBoyOlcuModalOpen(true)} />} onClick={() => setBoyOlcuModalOpen(true)} />
+              </div>
+              )}
+              {fields.includes('kapak') && (
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20">Kapak</label>
+                <Input size="small" value={form.kapak ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setKapakModalOpen(true)} />} onClick={() => setKapakModalOpen(true)} />
+              </div>
+              )}
+              {fields.includes('micron') && (
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20">Micron</label>
+                <Input size="small" value={form.micron ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setMicronModalOpen(true)} />} onClick={() => setMicronModalOpen(true)} />
               </div>
               )}
               {fields.includes('renk') && (
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20">Renk</label>
-                <Input size="small" value={renkData?.ad ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setRenkModalOpen(true)} />} onClick={() => setRenkModalOpen(true)} />
+                <Input size="small" value={form.renk ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setRenkModalOpen(true)} />} onClick={() => setRenkModalOpen(true)} />
               </div>
               )}
               {fields.includes('ebat') && (
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20">Ebat</label>
-                <Input size="small" value={ebatData?.ad ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setEbatModalOpen(true)} />} onClick={() => setEbatModalOpen(true)} />
+                <Input size="small" value={form.ebat ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setEbatModalOpen(true)} />} onClick={() => setEbatModalOpen(true)} />
               </div>
               )}
               {fields.includes('ureticiKodu') && (
@@ -302,16 +400,34 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
                 <SearchableMarkaSelect value={form.markaId} onChange={handleMarkaChange} />
               </div>
               )}
+              {fields.includes('derece') && (
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20">Derece</label>
+                <Input size="small" value={form.derece ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setDereceModalOpen(true)} />} onClick={() => setDereceModalOpen(true)} />
+              </div>
+              )}
               {fields.includes('ozellik1') && (
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 1</label>
-                <Input size="small" value={ozellik1Data?.ad ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik1ModalOpen(true)} />} onClick={() => setOzellik1ModalOpen(true)} />
+                <Input size="small" value={form.ozellik1 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik1ModalOpen(true)} />} onClick={() => setOzellik1ModalOpen(true)} />
               </div>
               )}
               {fields.includes('ozellik2') && (
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 2</label>
-                <Input size="small" value={ozellik2Data?.ad ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik2ModalOpen(true)} />} onClick={() => setOzellik2ModalOpen(true)} />
+                <Input size="small" value={form.ozellik2 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik2ModalOpen(true)} />} onClick={() => setOzellik2ModalOpen(true)} />
+              </div>
+              )}
+              {fields.includes('ozellik3') && (
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 3</label>
+                <Input size="small" value={form.ozellik3 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik3ModalOpen(true)} />} onClick={() => setOzellik3ModalOpen(true)} />
+              </div>
+              )}
+              {fields.includes('ozellik4') && (
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 4</label>
+                <Input size="small" value={form.ozellik4 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik4ModalOpen(true)} />} onClick={() => setOzellik4ModalOpen(true)} />
               </div>
               )}
             </div>
@@ -324,6 +440,13 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
       <OzellikKodlamaModal open={ebatModalOpen} kategori={`Ebat_${tipAd}`} value={null} onChange={handleEbatChange} onClose={() => setEbatModalOpen(false)} />
       <OzellikKodlamaModal open={ozellik1ModalOpen} kategori={`Ozellik1_${tipAd}`} value={null} onChange={handleOzellik1Change} onClose={() => setOzellik1ModalOpen(false)} />
       <OzellikKodlamaModal open={ozellik2ModalOpen} kategori={`Ozellik2_${tipAd}`} value={null} onChange={handleOzellik2Change} onClose={() => setOzellik2ModalOpen(false)} />
+      <OzellikKodlamaModal open={ozellik3ModalOpen} kategori={`Ozellik3_${tipAd}`} value={null} onChange={handleOzellik3Change} onClose={() => setOzellik3ModalOpen(false)} />
+      <OzellikKodlamaModal open={ozellik4ModalOpen} kategori={`Ozellik4_${tipAd}`} value={null} onChange={handleOzellik4Change} onClose={() => setOzellik4ModalOpen(false)} />
+      <OzellikKodlamaModal open={dereceModalOpen} kategori={`Derece_${tipAd}`} value={null} onChange={handleDereceChange} onClose={() => setDereceModalOpen(false)} />
+      <OzellikKodlamaModal open={enOlcuModalOpen} kategori={`En_${tipAd}`} value={null} onChange={handleEnOlcuChange} onClose={() => setEnOlcuModalOpen(false)} />
+      <OzellikKodlamaModal open={boyOlcuModalOpen} kategori={`Boy_${tipAd}`} value={null} onChange={handleBoyOlcuChange} onClose={() => setBoyOlcuModalOpen(false)} />
+      <OzellikKodlamaModal open={kapakModalOpen} kategori={`Kapak_${tipAd}`} value={null} onChange={handleKapakChange} onClose={() => setKapakModalOpen(false)} />
+      <OzellikKodlamaModal open={micronModalOpen} kategori={`Micron_${tipAd}`} value={null} onChange={handleMicronChange} onClose={() => setMicronModalOpen(false)} />
     </div>
   )
 }

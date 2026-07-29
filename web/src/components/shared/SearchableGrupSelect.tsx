@@ -24,23 +24,20 @@ export default function SearchableGrupSelect({
   const [loading, setLoading] = useState(false)
   const [selectedAd, setSelectedAd] = useState<string>('')
 
-  useEffect(() => {
-    let active = true
+  const load = async () => {
     setLoading(true)
-    grupApi
-      .list()
-      .then((list) => {
-        if (active) setOptions(list)
-      })
-      .catch(() => {
-        if (active) setOptions([])
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
+    try {
+      const list = await grupApi.list()
+      setOptions(list)
+    } catch {
+      setOptions([])
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    load()
   }, [])
 
   useEffect(() => {
@@ -63,6 +60,7 @@ export default function SearchableGrupSelect({
         placeholder={placeholder}
         suffixIcon={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
         className={`${widthClass} !text-[11px]`}
+        onOpenChange={(open) => { if (open) load() }}
         options={options.map((d) => ({
           label: d.kod,
           value: d.id,

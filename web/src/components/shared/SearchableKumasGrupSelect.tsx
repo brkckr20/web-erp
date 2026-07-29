@@ -20,10 +20,20 @@ export default function SearchableKumasGrupSelect({ value, onChange, placeholder
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
 
+  const load = async () => {
+    setLoading(true)
+    try {
+      const list = await kumasGrupApi.list()
+      setOptions(list.filter((b) => b.kullanimda && !excludeIds.includes(b.id)))
+    } catch {
+      setOptions([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    kumasGrupApi.list()
-      .then((list) => setOptions(list.filter((b) => b.kullanimda && !excludeIds.includes(b.id))))
-      .catch(() => setOptions([]))
+    load()
   }, [excludeIds])
 
   const handleCreate = async () => {
@@ -53,6 +63,7 @@ export default function SearchableKumasGrupSelect({ value, onChange, placeholder
       placeholder={placeholder}
       suffixIcon={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
       className={`${widthClass} !text-[11px]`}
+      onOpenChange={(open) => { if (open) load() }}
       onSearch={(v) => setSearchText(v)}
       options={options.map((b) => ({ label: b.kod, value: b.id }))}
       onChange={(val: unknown) => {

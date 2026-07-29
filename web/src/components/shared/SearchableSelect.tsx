@@ -36,6 +36,18 @@ export default function SearchableSelect<T extends SearchableItem>({
   const [loading, setLoading] = useState(false)
   const [selectedAd, setSelectedAd] = useState<string>('')
 
+  const load = async () => {
+    setLoading(true)
+    try {
+      const list = await fetchList()
+      setOptions(list)
+    } catch {
+      setOptions([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -80,6 +92,7 @@ export default function SearchableSelect<T extends SearchableItem>({
           />
         }
         className={`${widthClass} !text-[11px]`}
+        onOpenChange={(open) => { if (open) load() }}
         options={options.map((d) => ({
           label: d.kod,
           value: d.kod,

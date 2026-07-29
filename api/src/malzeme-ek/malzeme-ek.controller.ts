@@ -1,7 +1,17 @@
-import { Controller, Get, Post, Delete, Param, ParseIntPipe, Res, UseInterceptors, UploadedFiles, Body, NotFoundException } from '@nestjs/common'
+import { Controller, Get, Post, Delete, Param, ParseIntPipe, Res, UseInterceptors, UploadedFiles } from '@nestjs/common'
 import { FilesInterceptor } from '@nestjs/platform-express'
 import type { Response } from 'express'
 import { MalzemeEkService } from './malzeme-ek.service'
+import type { MalzemeEkDto } from './dto/malzeme-ek.dto'
+
+interface MulterFile {
+  fieldname: string
+  originalname: string
+  encoding: string
+  mimetype: string
+  buffer: Buffer
+  size: number
+}
 
 @Controller('malzeme-ek')
 export class MalzemeEkController {
@@ -16,9 +26,9 @@ export class MalzemeEkController {
   @UseInterceptors(FilesInterceptor('dosyalar', 20, { limits: { fileSize: 10 * 1024 * 1024 } }))
   async upload(
     @Param('malzemeId', ParseIntPipe) malzemeId: number,
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFiles() files: MulterFile[],
   ) {
-    const created: any[] = []
+    const created: MalzemeEkDto[] = []
     for (const file of files) {
       created.push(await this.service.create(malzemeId, file))
     }

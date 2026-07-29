@@ -47,6 +47,13 @@ export interface Malzeme {
   ebat: string | null
   en: number | null
   boy: number | null
+  ozellik3: string | null
+  ozellik4: string | null
+  derece: string | null
+  enOlcu: string | null
+  boyOlcu: string | null
+  kapak: string | null
+  micron: string | null
   iplikBoyali: boolean | null
   ormeTipi: string | null
   kumasUretimTipi: string | null

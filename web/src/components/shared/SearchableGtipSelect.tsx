@@ -16,10 +16,20 @@ export default function SearchableGtipSelect({ value, onChange, placeholder = 'G
   const [options, setOptions] = useState<Gtip[]>([])
   const [loading, setLoading] = useState(false)
 
+  const load = async () => {
+    setLoading(true)
+    try {
+      const list = await gtipApi.list()
+      setOptions(list.filter((b) => b.kullanimda))
+    } catch {
+      setOptions([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    gtipApi.list()
-      .then((list) => setOptions(list.filter((b) => b.kullanimda)))
-      .catch(() => setOptions([]))
+    load()
   }, [])
 
   return (
@@ -32,6 +42,7 @@ export default function SearchableGtipSelect({ value, onChange, placeholder = 'G
       placeholder={placeholder}
       suffixIcon={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
       className={`${widthClass} !text-[11px]`}
+      onOpenChange={(open) => { if (open) load() }}
       options={options.map((b) => ({
         label: b.kod,
         value: b.kod,

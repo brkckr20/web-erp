@@ -41,6 +41,13 @@ export class UpdateMalzemeDto {
   ebat?: string
   ozellik1?: string
   ozellik2?: string
+  ozellik3?: string
+  ozellik4?: string
+  derece?: string
+  enOlcu?: string
+  boyOlcu?: string
+  kapak?: string
+  micron?: string
   en?: number
   boy?: number
   iplikBoyali?: boolean

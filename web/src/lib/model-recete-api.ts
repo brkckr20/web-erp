@@ -30,6 +30,7 @@ export interface ReceteKalem {
   anaKumas: string | null
   tedarikHesaplanmayacak: boolean | null
   kullanimYeri: string | null
+  miktarBolen: boolean | null
   malzeme?: { id: number; kod: string; ad: string; tip: number }
   olculer: ReceteOlcu[]
 }
@@ -56,6 +57,7 @@ export interface CreateKalem {
   anaKumas?: string
   tedarikHesaplanmayacak?: boolean
   kullanimYeri?: string
+  miktarBolen?: boolean
 }
 
 export interface CreateOlcu {

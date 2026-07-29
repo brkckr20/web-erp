@@ -13,4 +13,5 @@ export class CreateKalemDto {
   anaKumas?: string
   tedarikHesaplanmayacak?: boolean
   kullanimYeri?: string
+  miktarBolen?: boolean
 }

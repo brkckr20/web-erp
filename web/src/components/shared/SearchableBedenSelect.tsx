@@ -17,10 +17,20 @@ export default function SearchableBedenSelect({ value, onChange, placeholder = '
   const [options, setOptions] = useState<Beden[]>([])
   const [loading, setLoading] = useState(false)
 
+  const load = async () => {
+    setLoading(true)
+    try {
+      const list = await bedenApi.list()
+      setOptions(list.filter((b) => b.kullanimda && !excludeIds.includes(b.id)))
+    } catch {
+      setOptions([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    bedenApi.list()
-      .then((list) => setOptions(list.filter((b) => b.kullanimda && !excludeIds.includes(b.id))))
-      .catch(() => setOptions([]))
+    load()
   }, [excludeIds])
 
   return (
@@ -33,6 +43,7 @@ export default function SearchableBedenSelect({ value, onChange, placeholder = '
       placeholder={placeholder}
       suffixIcon={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
       className={`${widthClass} !text-[11px]`}
+      onOpenChange={(open) => { if (open) load() }}
       options={options.map((b) => ({
         label: b.kod,
         value: b.id,
