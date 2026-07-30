@@ -176,6 +176,12 @@ export const modules: Module[] = [
     icon: '💰',
     categories: [
       {
+        title: 'Tanımlamalar',
+        items: [
+          { key: 'doviz-tanimlari', label: 'Döviz Tanımları', isForm: true },
+        ],
+      },
+      {
         title: 'İşlemler',
         items: [
           { key: 'odeme-takip', label: 'Ödeme Takibi' },

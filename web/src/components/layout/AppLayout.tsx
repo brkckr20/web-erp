@@ -52,6 +52,8 @@ import AksesuarTipiListesi from '@/components/pages/AksesuarTipiListesi'
 import AksesuarTipiKarti from '@/components/pages/AksesuarTipiKarti'
 import AksesuarListesi from '@/components/pages/AksesuarListesi'
 import AksesuarKarti from '@/components/pages/AksesuarKarti'
+import DovizListesi from '@/components/pages/DovizListesi'
+import DovizKarti from '@/components/pages/DovizKarti'
 import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
 
@@ -379,6 +381,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'renk-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Renk Kartı', moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openDovizKarti = useCallback((kod: string) => {
+    const key = 'doviz-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Döviz Kartı - ' + kod, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniDoviz = useCallback(() => {
+    const key = 'doviz-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Döviz Kartı', moduleKey: 'muhasebe', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -724,6 +748,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('renk-karti-')) {
       return <RenkKarti kod={tab.key.replace('renk-karti-', '')} />
+    }
+    if (tab.key === 'doviz-tanimlari') {
+      return <DovizListesi onSelect={openDovizKarti} onNew={openYeniDoviz} />
+    }
+    if (tab.key === 'doviz-karti-yeni') {
+      return <DovizKarti isNew />
+    }
+    if (tab.key.startsWith('doviz-karti-')) {
+      return <DovizKarti kod={tab.key.replace('doviz-karti-', '')} />
     }
     if (tab.key === 'boyahane-renk-kartlari') {
       return <BoyahaneRenkListesi onSelect={openBoyahaneRenkKarti} onNew={openYeniBoyahaneRenk} />

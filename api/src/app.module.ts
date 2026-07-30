@@ -27,9 +27,11 @@ import { ModelKumasGrupModule } from './model-kumas-grup/model-kumas-grup.module
 import { GtipModule } from './gtip/gtip.module';
 import { AksesuarTipiModule } from './aksesuar-tipi/aksesuar-tipi.module';
 import { MalzemeEkModule } from './malzeme-ek/malzeme-ek.module';
+import { DovizModule } from './doviz/doviz.module';
+import { MalzemeFiyatModule } from './malzeme-fiyat/malzeme-fiyat.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule],
+  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule],
   controllers: [AppController],
   providers: [AppService],
 })

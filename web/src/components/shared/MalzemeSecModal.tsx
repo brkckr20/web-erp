@@ -33,9 +33,10 @@ interface MalzemeSecModalProps {
   open: boolean
   onClose: () => void
   onSelect: (kod: string, record: Malzeme) => void
+  tip?: number
 }
 
-export default function MalzemeSecModal({ open, onClose, onSelect }: MalzemeSecModalProps) {
+export default function MalzemeSecModal({ open, onClose, onSelect, tip }: MalzemeSecModalProps) {
   const [rows, setRows] = useState<Malzeme[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -44,11 +45,11 @@ export default function MalzemeSecModal({ open, onClose, onSelect }: MalzemeSecM
     if (!open) return
     setLoading(true)
     malzemeApi
-      .list()
+      .list(tip)
       .then((list) => setRows(list))
       .catch(() => setRows([]))
       .finally(() => setLoading(false))
-  }, [open])
+  }, [open, tip])
 
   useEffect(() => {
     if (!open) setSearch('')

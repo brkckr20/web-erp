@@ -185,6 +185,7 @@ model Malzeme {
   kkKalemler        KaliteKontrolKalem[] @relation("KKKalemMalzeme")
   receteler         ModelRecete[] @relation("ReceteMalzeme")
   receteKalemler    ReceteKalem[] @relation("KalemMalzemeRef")
+  fiyatlar          MalzemeFiyat[] @relation("MalzemeFiyat")
   malzemeBedenler   MalzemeBeden[] @relation("MalzemeBedenRef")
   malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupMalzeme")
   ekler             MalzemeEk[] @relation("MalzemeEk")
@@ -738,6 +739,28 @@ model AksesuarTipi {
   @@map("aksesuar_tipi")
 }
 
+model MalzemeFiyat {
+  id          Int      @id @default(autoincrement())
+  malzemeId   Int      @map("malzeme_id")
+  malzeme     Malzeme  @relation("MalzemeFiyat", fields: [malzemeId], references: [id], onDelete: Cascade)
+  kod         String?  @db.VarChar(50)
+  aciklama    String?  @db.VarChar(500)
+  tarih       DateTime? @db.Date
+  bedenId     Int?     @map("beden_id")
+  dovizCinsi  String?  @map("doviz_cinsi") @db.VarChar(10)
+  fiyat       Decimal? @db.Decimal(18, 6)
+  dovizKuru   Decimal? @map("doviz_kuru") @db.Decimal(18, 6)
+  baslangic   DateTime? @db.Date
+  bitis       DateTime? @db.Date
+  kullanimda  Boolean? @map("kullanimda")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([malzemeId])
+  @@map("malzeme_fiyat")
+}
+
 model MalzemeEk {
   id          Int      @id @default(autoincrement())
   malzemeId   Int      @map("malzeme_id")
@@ -751,4 +774,18 @@ model MalzemeEk {
 
   @@index([malzemeId])
   @@map("malzeme_ek")
+}
+
+model Doviz {
+  kod         String   @id @db.VarChar(10)
+  altKod      String?  @map("alt_kod") @db.VarChar(50)
+  ad          String   @db.VarChar(200)
+  sira        Int      @default(0)
+  resim       String?  @db.VarChar(500)
+  kullanimda  Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("doviz")
 }

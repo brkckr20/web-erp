@@ -38,6 +38,7 @@ export default function SearchableMalzemeSelect(props: SearchableMalzemeSelectPr
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSelect={(kod, rec) => props.onChange?.(kod, rec)}
+        tip={tip}
       />
     </>
   )
