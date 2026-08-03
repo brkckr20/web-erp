@@ -56,6 +56,9 @@ import DovizListesi from '@/components/pages/DovizListesi'
 import DovizKarti from '@/components/pages/DovizKarti'
 import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
+import SatisIrsaliyeListesi from '@/components/pages/SatisIrsaliyeListesi'
+import SatisIrsaliyeKarti from '@/components/pages/SatisIrsaliyeKarti'
+import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
 
 const { Content } = Layout
 
@@ -134,6 +137,62 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     '135': '135-Transfer Çıkış', '136': '136-Karma Koli Sarf', '137': '137-Karma Koli Bozma',
     '140': '140-Üretime Çıkış Fişi',
   }
+
+  const irsaliyeTipiLabelMap: Record<string, string> = {
+    '1': '1-Mal Alım İrsaliyesi',
+    '2': '2-Perakende Satış İade İrsaliyesi',
+    '3': '3-Toptan Satış İade İrsaliyesi',
+    '4': '4-Konsinye Çıkış İade İrsaliyesi',
+    '5': '5-Konsinye Giriş İrsaliyesi',
+    '6': '6-Fasona Giriş İrsaliyesi',
+    '7': '7-Alınan Fiyat Farkı İrsaliyesi',
+    '8': '8-Konsinye Satır İrsaliyesi',
+    '9': '9-Müstahsil İrsaliyesi',
+    '11': '11-Fasondan Giriş İrsaliyesi',
+    '12': '12-Fason Çıkış İade İrsaliyesi',
+    '22': '22-Alınan Hizmet İrsaliyesi',
+    '23': '23-Verilen Hizmet İadesi',
+    '92': '92-Serbest Meslek Makbuzu',
+    '120': '120-Toptan Satış İrsaliyesi',
+    '121': '121-Perakende Satır İrsaliyesi',
+    '122': '122-Mal Alım İade İrsaliyesi',
+    '123': '123-Konsinye Çıkış İrsaliyesi',
+    '124': '124-Konsinye Giriş İade İrsaliyesi',
+    '125': '125-Fason Giriş İrsaliyesi',
+    '126': '126-Verilen Fiyat Farkı İrsaliyesi',
+    '133': '133-Fasona Giriş İade İrsaliyesi',
+    '134': '134-Fasona Çıkış İrsaliyesi',
+    '138': '138-Verilen Hizmet İrsaliyesi',
+    '139': '139-Alınan Hizmet İadesi',
+    '192': '192-Serbest Meslek Makbuzu',
+  }
+
+  const openYeniSatisIrsaliye = useCallback((irsaliyeTipi: string, fasonTipiId?: number | null) => {
+    const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
+    const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [irsaliyeTipiLabelMap])
+
+  const openSatisIrsaliyeKarti = useCallback(
+    (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => {
+      const key = 'satis-irsaliye-karti-' + info.id
+      const label = (irsaliyeTipiLabelMap[info.irsaliyeTipi] || info.irsaliyeTipi) + '-' + info.irsaliyeNo
+      setTabs((prev) => {
+        const tab: Tab = { key, label, moduleKey: 'satis', isForm: true, irsaliyeTipi: info.irsaliyeTipi }
+        const exists = prev.find((t) => t.key === key)
+        if (!exists) return [...prev, tab]
+        return prev
+      })
+      setActiveTab(key)
+    },
+    [irsaliyeTipiLabelMap],
+  )
 
   const openYeniStokHareketFisi = useCallback((fisTipi: string) => {
     const label = fisTipiLabelMap[fisTipi] || 'Stok Hareket Fişi'
@@ -644,6 +703,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key.startsWith('kullanici-karti-')) {
       return <KullaniciKarti kod={tab.key.replace('kullanici-karti-', '')} />
     }
+    if (tab.key === 'malzeme-yonetim-parametreleri') {
+      return <MalzemeYonetimParametreleri />
+    }
     if (tab.key === 'stok-hareket-fisleri') {
       return <StokHareketFisiListesi onNew={openYeniStokHareketFisi} onSelect={openStokHareketFisiKarti} />
     }
@@ -842,6 +904,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('siparis-karti-')) {
       return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} />
+    }
+    if (tab.key === 'satis-irsaliyeleri') {
+      return <SatisIrsaliyeListesi onNew={openYeniSatisIrsaliye} onSelect={openSatisIrsaliyeKarti} />
+    }
+    if (tab.key === 'satinalma-irsaliyeleri') {
+      return <SatisIrsaliyeListesi mod="satinalma" onNew={openYeniSatisIrsaliye} onSelect={openSatisIrsaliyeKarti} />
+    }
+    if (tab.key.startsWith('satis-irsaliye-yeni-')) {
+      const match = tab.key.match(/^satis-irsaliye-yeni-(\d+)(?:-ft(\d+))?$/)
+      const irsaliyeTipi = match?.[1] ?? tab.key.replace('satis-irsaliye-yeni-', '')
+      const fasonTipiId = match?.[2] ? Number(match[2]) : null
+      return <SatisIrsaliyeKarti irsaliyeTipi={irsaliyeTipi} fasonTipiId={fasonTipiId} />
+    }
+    if (tab.key.startsWith('satis-irsaliye-karti-')) {
+      const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
+      return <SatisIrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} onDeleted={() => handleTabClose(tab.key)} />
     }
     return (
       <div className="!p-3">

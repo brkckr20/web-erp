@@ -62,7 +62,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
     message.success(exists ? 'Kısayollara eklendi' : 'Kısayollardan çıkarıldı')
   }, [userCode])
 
-  const renderItemRow = (item: { key: string; label: string; isForm?: boolean; isFavorite?: boolean }, modKey: string, width = '160px') => {
+  const renderItemRow = (item: { key: string; label: string; isForm?: boolean; isFavorite?: boolean }, modKey: string, width = '220px') => {
     const starred = userCode ? isShortcut(userCode, item.key) : !!item.isFavorite
     return (
       <div key={item.key} className="!flex !items-center !group" style={{ width }}>
@@ -94,7 +94,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
 
       <div
         className="!fixed !left-[178px] !top-0 !h-screen !z-40 !shadow-2xl animate-[slideInLeft_0.2s_ease-out]"
-        style={{ width: 'auto', minWidth: 200 }}
+        style={{ width: 'auto', minWidth: 260 }}
       >
         <div className="!h-10 !bg-[#1e2630] !flex !items-center !px-4 !gap-2">
           <span className="!text-sm">{module.key === 'kisayollar' ? '⭐' : module.icon}</span>
@@ -115,7 +115,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
             {module.key === 'kisayollar' ? (
               groupedShortcuts.length > 0 ? (
                 groupedShortcuts.map((group) => (
-                  <div key={group.modLabel} className="!w-[160px] !mb-2">
+                  <div key={group.modLabel} className="!w-[220px] !mb-2">
                     <div className="!w-full !bg-[#f0f1f3] !px-2 !py-1.5 !rounded-sm !mb-1">
                       <div className="!text-[10px] !font-bold !text-[#374151] !uppercase !tracking-wider !whitespace-nowrap">
                         {group.modLabel}
@@ -125,13 +125,13 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
                   </div>
                 ))
               ) : (
-                <div className="!w-[160px] !text-[11px] !text-[#9ca3af] !px-2 !py-4 !text-center">
+                <div className="!w-[220px] !text-[11px] !text-[#9ca3af] !px-2 !py-4 !text-center">
                   Henüz kısayol eklenmedi
                 </div>
               )
             ) : (
               module.categories.flatMap((cat) => [
-                <div key={cat.title + '-h'} className="!w-[160px] !bg-[#f0f1f3] !px-2 !py-1.5 !rounded-sm !mb-1 !mt-2 first:!mt-0">
+                <div key={cat.title + '-h'} className="!w-[220px] !bg-[#f0f1f3] !px-2 !py-1.5 !rounded-sm !mb-1 !mt-2 first:!mt-0">
                   <div className="!text-[10px] !font-bold !text-[#374151] !uppercase !tracking-wider !whitespace-nowrap">
                     {cat.title}
                   </div>

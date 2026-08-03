@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dayjs from 'dayjs'
-import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip } from 'antd'
+import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import DataGrid from '@/components/shared/DataGrid'
@@ -14,7 +14,7 @@ import { dovizApi } from '@/lib/doviz-api'
 import { modelBedenApi, type ModelBeden } from '@/lib/model-beden-api'
 import { modelKumasGrupApi, type ModelKumasGrup } from '@/lib/model-kumas-grup-api'
 import { useAuth } from '@/context/AuthContext'
-import type { ColDef, CellValueChangedEvent, RowClickedEvent } from 'ag-grid-community'
+import type { ColDef, CellValueChangedEvent, RowClickedEvent, CellDoubleClickedEvent } from 'ag-grid-community'
 
 const NUMARATOR_PREFIXES = ['IH', 'TR', 'KS', 'NS', 'MS'] as const
 type NumaratorPrefix = typeof NUMARATOR_PREFIXES[number]
@@ -42,6 +42,8 @@ interface RenkBedenRow {
   key: string
   renkler: Record<number, RenkBedenVaryant>
   fiyatlar: Record<number, string>
+  aciklamalar: Record<number, string>
+  barkodlar: Record<number, string>
   ozelKod: string
   musteriOrderNo: string
   partOrderNo: string
@@ -55,6 +57,13 @@ interface RenkBedenRow {
   toplam: string
   genelToplam: string
 }
+
+interface StickerModalState {
+  rowKey: string
+  bedenId: number
+}
+
+const STICKER_ADET = 10
 
 const STORAGE_KEY = 'siparis_counter'
 
@@ -114,6 +123,8 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
   const [modelBedenler, setModelBedenler] = useState<ModelBeden[]>([])
   const [kumasGruplari, setKumasGruplari] = useState<ModelKumasGrup[]>([])
   const [renkBedenRows, setRenkBedenRows] = useState<RenkBedenRow[]>([])
+  const [stickerData, setStickerData] = useState<Record<string, Record<number, string[]>>>({})
+  const [stickerModal, setStickerModal] = useState<StickerModalState | null>(null)
   const lastLoadedRef = useRef<{ key: string; malzemeId: number | undefined } | null>(null)
 
   const aciklamaTipleri = [
@@ -133,27 +144,37 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     for (const b of bedenler) {
       miktarlar[b.bedenId] = ''
     }
-    const fiyatlar: Record<number, string> = {}
-    for (const b of bedenler) {
-      fiyatlar[b.bedenId] = ''
-    }
-    return {
-      key: Date.now().toString() + Math.random().toString(36).slice(2),
-      renkler,
-      fiyatlar,
-      ozelKod: '',
-      musteriOrderNo: '',
-      partOrderNo: '',
-      aciklama: '',
-      istemeTarih: '',
-      fiyat: '',
-      kesimUretim: '',
-      lot: '',
-      miktarlar,
-      lotToplami: '',
-      toplam: '',
-      genelToplam: '',
-    }
+  const fiyatlar: Record<number, string> = {}
+  for (const b of bedenler) {
+    fiyatlar[b.bedenId] = ''
+  }
+  const aciklamalar: Record<number, string> = {}
+  for (const b of bedenler) {
+    aciklamalar[b.bedenId] = ''
+  }
+  const barkodlar: Record<number, string> = {}
+  for (const b of bedenler) {
+    barkodlar[b.bedenId] = ''
+  }
+  return {
+    key: Date.now().toString() + Math.random().toString(36).slice(2),
+    renkler,
+    fiyatlar,
+    aciklamalar,
+    barkodlar,
+    ozelKod: '',
+    musteriOrderNo: '',
+    partOrderNo: '',
+    aciklama: '',
+    istemeTarih: '',
+    fiyat: '',
+    kesimUretim: '',
+    lot: '',
+    miktarlar,
+    lotToplami: '',
+    toplam: '',
+    genelToplam: '',
+  }
   }
 
   const removeRow = (key: string) =>
@@ -389,41 +410,158 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     ]
   }, [kumasGruplari, modelBedenler])
 
-  const fiyatColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
-    const bedenFiyatCols: ColDef<RenkBedenRow>[] = modelBedenler.map((b) => ({
-      headerName: b.beden.kod,
-      field: `fiyatlar.${b.bedenId}`,
-      width: 90,
-      minWidth: 70,
-      editable: true,
-      cellDataType: 'numeric',
-    }))
+const fiyatColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
+  const bedenFiyatCols: ColDef<RenkBedenRow>[] = modelBedenler.map((b) => ({
+    headerName: b.beden.kod,
+    field: `fiyatlar.${b.bedenId}`,
+    width: 90,
+    minWidth: 70,
+    editable: true,
+    cellDataType: 'numeric',
+  }))
 
-    return [
-      {
-        headerName: 'Renk',
-        field: 'key',
-        width: 220,
-        minWidth: 180,
-        sortable: false,
-        filter: false,
-        cellClass: '!p-1 !font-medium',
-        cellRenderer: (p: { data: RenkBedenRow }) => {
-          const v = p.data.renkler[Object.keys(p.data.renkler)[0] as unknown as number] ?? { renkAd: '', renkHex: '' }
-          return (
-            <div className="!flex !items-center !gap-2 !h-full">
-              <span
-                className="!inline-block !w-3.5 !h-3.5 !rounded-sm !border !border-gray-300 !shrink-0"
-                style={{ backgroundColor: v.renkHex || '#fff' }}
-              />
-              <span className="!text-[11px] !text-[#333]">{v.renkAd || 'Renk seçilmedi'}</span>
-            </div>
-          )
-        },
+  return [
+    {
+      headerName: 'Renk',
+      field: 'key',
+      width: 220,
+      minWidth: 180,
+      sortable: false,
+      filter: false,
+      cellClass: '!p-1 !font-medium',
+      cellRenderer: (p: { data: RenkBedenRow }) => {
+        const v = p.data.renkler[Object.keys(p.data.renkler)[0] as unknown as number] ?? { renkAd: '', renkHex: '' }
+        return (
+          <div className="!flex !items-center !gap-2 !h-full">
+            <span
+              className="!inline-block !w-3.5 !h-3.5 !rounded-sm !border !border-gray-300 !shrink-0"
+              style={{ backgroundColor: v.renkHex || '#fff' }}
+            />
+            <span className="!text-[11px] !text-[#333]">{v.renkAd || 'Renk seçilmedi'}</span>
+          </div>
+        )
       },
-      ...bedenFiyatCols,
-    ]
-  }, [modelBedenler])
+    },
+    ...bedenFiyatCols,
+  ]
+}, [modelBedenler])
+
+const renkBedenAciklamaColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
+  const bedenAciklamaCols: ColDef<RenkBedenRow>[] = modelBedenler.map((b) => ({
+    headerName: b.beden.kod,
+    field: `aciklamalar.${b.bedenId}`,
+    width: 90,
+    minWidth: 70,
+    editable: true,
+  }))
+
+  return [
+    {
+      headerName: 'Renk',
+      field: 'key',
+      width: 220,
+      minWidth: 180,
+      sortable: false,
+      filter: false,
+      cellClass: '!p-1 !font-medium',
+      cellRenderer: (p: { data: RenkBedenRow }) => {
+        const v = p.data.renkler[Object.keys(p.data.renkler)[0] as unknown as number] ?? { renkAd: '', renkHex: '' }
+        return (
+          <div className="!flex !items-center !gap-2 !h-full">
+            <span
+              className="!inline-block !w-3.5 !h-3.5 !rounded-sm !border !border-gray-300 !shrink-0"
+              style={{ backgroundColor: v.renkHex || '#fff' }}
+            />
+            <span className="!text-[11px] !text-[#333]">{v.renkAd || 'Renk seçilmedi'}</span>
+          </div>
+        )
+      },
+    },
+    ...bedenAciklamaCols,
+  ]
+}, [modelBedenler])
+
+const renkBedenBarkodColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
+  const bedenBarkodCols: ColDef<RenkBedenRow>[] = modelBedenler.map((b) => ({
+    headerName: b.beden.kod,
+    field: `barkodlar.${b.bedenId}`,
+    width: 90,
+    minWidth: 70,
+    editable: true,
+  }))
+
+  return [
+    {
+      headerName: 'Renk',
+      field: 'key',
+      width: 220,
+      minWidth: 180,
+      sortable: false,
+      filter: false,
+      cellClass: '!p-1 !font-medium',
+      cellRenderer: (p: { data: RenkBedenRow }) => {
+        const v = p.data.renkler[Object.keys(p.data.renkler)[0] as unknown as number] ?? { renkAd: '', renkHex: '' }
+        return (
+          <div className="!flex !items-center !gap-2 !h-full">
+            <span
+              className="!inline-block !w-3.5 !h-3.5 !rounded-sm !border !border-gray-300 !shrink-0"
+              style={{ backgroundColor: v.renkHex || '#fff' }}
+            />
+            <span className="!text-[11px] !text-[#333]">{v.renkAd || 'Renk seçilmedi'}</span>
+          </div>
+        )
+      },
+    },
+    ...bedenBarkodCols,
+  ]
+}, [modelBedenler])
+
+const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
+  const bedenStickerCols: ColDef<RenkBedenRow>[] = modelBedenler.map((b) => ({
+    headerName: b.beden.kod,
+    field: `sticker.${b.bedenId}`,
+    width: 90,
+    minWidth: 70,
+    sortable: false,
+    filter: false,
+    cellClass: '!p-1 !cursor-pointer',
+    cellRenderer: (p: { data: RenkBedenRow }) => {
+      const values = stickerData[p.data.key]?.[b.bedenId]
+      const dolu = (values ?? []).filter((v) => v && v.trim() !== '').length
+      return (
+        <div className="!flex !items-center !justify-center !gap-1 !h-full">
+          <span className={`!inline-block !w-2 !h-2 !rounded-full ${dolu > 0 ? '!bg-[#FF9933]' : '!bg-gray-200'}`} />
+          <span className="!text-[11px] !text-gray-500">{dolu > 0 ? `${dolu}/10` : ''}</span>
+        </div>
+      )
+    },
+  }))
+
+  return [
+    {
+      headerName: 'Renk',
+      field: 'key',
+      width: 220,
+      minWidth: 180,
+      sortable: false,
+      filter: false,
+      cellClass: '!p-1 !font-medium',
+      cellRenderer: (p: { data: RenkBedenRow }) => {
+        const v = p.data.renkler[Object.keys(p.data.renkler)[0] as unknown as number] ?? { renkAd: '', renkHex: '' }
+        return (
+          <div className="!flex !items-center !gap-2 !h-full">
+            <span
+              className="!inline-block !w-3.5 !h-3.5 !rounded-sm !border !border-gray-300 !shrink-0"
+              style={{ backgroundColor: v.renkHex || '#fff' }}
+            />
+            <span className="!text-[11px] !text-[#333]">{v.renkAd || 'Renk seçilmedi'}</span>
+          </div>
+        )
+      },
+    },
+    ...bedenStickerCols,
+  ]
+}, [modelBedenler, stickerData])
 
   const selectedModel = rows.find((r) => r.key === selectedModelKey) ?? null
 
@@ -475,6 +613,8 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     if (!row) {
       setSelectedModelKey(null)
       setRenkBedenRows([])
+      setStickerData({})
+      setStickerModal(null)
       setModelBedenler([])
       setKumasGruplari([])
       lastLoadedRef.current = null
@@ -483,6 +623,8 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     if (row.key === selectedModelKey && lastLoadedRef.current?.malzemeId === row.malzemeId) return
     setSelectedModelKey(row.key)
     setRenkBedenRows([])
+    setStickerData({})
+    setStickerModal(null)
     setModelBedenler([])
     setKumasGruplari([])
     if (!row.malzemeId) {
@@ -518,8 +660,9 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     handleModelSelect(sel[0] ?? null)
   }
 
-  const updateRenkBedenRow = (key: string, patch: Partial<RenkBedenRow>) =>
-    setRenkBedenRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+ const updateRenkBedenRow = useCallback((key: string, patch: Partial<RenkBedenRow>) =>
+ setRenkBedenRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r))),
+[])
 
   const handleRenkBedenCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
     const field = e.colDef.field
@@ -537,6 +680,39 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     if (!field || !field.startsWith('fiyatlar.')) return
     const row = e.data
     updateRenkBedenRow(row.key, { fiyatlar: { ...row.fiyatlar } })
+  }
+
+  const handleAciklamaCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
+    const field = e.colDef.field
+    if (!field || !field.startsWith('aciklamalar.')) return
+    const row = e.data
+    updateRenkBedenRow(row.key, { aciklamalar: { ...row.aciklamalar } })
+  }
+
+  const handleBarkodCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
+    const field = e.colDef.field
+    if (!field || !field.startsWith('barkodlar.')) return
+    const row = e.data
+    updateRenkBedenRow(row.key, { barkodlar: { ...row.barkodlar } })
+  }
+
+  const handleStickerCellDoubleClicked = (e: CellDoubleClickedEvent<RenkBedenRow>) => {
+    const field = e.colDef.field
+    if (!field || !field.startsWith('sticker.')) return
+    const bedenId = Number(field.split('.')[1])
+    setStickerModal({ rowKey: e.data.key, bedenId })
+  }
+
+  const handleStickerValueChange = (index: number, value: string) => {
+    if (!stickerModal) return
+    const { rowKey, bedenId } = stickerModal
+    setStickerData((prev) => {
+      const bedenler = { ...(prev[rowKey] ?? {}) }
+      const values = [...(bedenler[bedenId] ?? Array<string>(STICKER_ADET).fill(''))]
+      values[index] = value
+      bedenler[bedenId] = values
+      return { ...prev, [rowKey]: bedenler }
+    })
   }
 
   const removeRenkBedenRow = (key: string) =>
@@ -643,7 +819,26 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
                     <div className="!mt-[2px]">
                       <div className="!border !border-gray-200 !rounded-sm !p-2">
                         <div className="!flex !items-center !justify-between !mb-2">
-                          <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Model Bilgileri</div>
+                          <div className="!flex !items-center !gap-2 !min-w-0 !flex-wrap">
+                            <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Model Bilgileri</div>
+                            {(modelBedenler.length > 0 || kumasGruplari.length > 0) && (
+                              <div className="!flex !items-center !gap-2 !flex-wrap">
+                                {kumasGruplari.length > 0 && (
+                                  <>
+                                    <span className="!text-[10px] !font-semibold !uppercase !text-[#333]">Varyant Grupları:</span>
+                                    <span className="!text-[11px] !text-gray-500">{kumasGruplari.map((g) => g.kumasGrup?.kod ?? `#${g.kumasGrupId}`).join(' / ')}</span>
+                                    <span className="!text-gray-300">|</span>
+                                  </>
+                                )}
+                                {modelBedenler.length > 0 && (
+                                  <>
+                                    <span className="!text-[10px] !font-semibold !uppercase !text-[#333]">Bedenler:</span>
+                                    <span className="!text-[11px] !text-gray-500">{modelBedenler.map((b) => b.beden.kod).join(' / ')}</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           <Button
                             size="small"
                             onClick={() =>
@@ -740,23 +935,6 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
                 label: 'Renk / Beden Detayları',
                 children: (
                   <div className="!h-full !min-w-0 !flex !flex-col !gap-[2px]">
-                    {(modelBedenler.length > 0 || kumasGruplari.length > 0) && (
-                      <div className="!border !border-gray-200 !rounded-sm !px-2 !py-1.5 !flex !items-center !gap-2 !flex-shrink-0 !flex-wrap">
-                        {kumasGruplari.length > 0 && (
-                          <>
-                            <span className="!text-[10px] !font-semibold !uppercase !text-[#333]">Varyant Grupları:</span>
-                            <span className="!text-[11px] !text-gray-500">{kumasGruplari.map((g) => g.kumasGrup?.kod ?? `#${g.kumasGrupId}`).join(' / ')}</span>
-                            <span className="!text-gray-300">|</span>
-                          </>
-                        )}
-                        {modelBedenler.length > 0 && (
-                          <>
-                            <span className="!text-[10px] !font-semibold !uppercase !text-[#333]">Bedenler:</span>
-                            <span className="!text-[11px] !text-gray-500">{modelBedenler.map((b) => b.beden.kod).join(' / ')}</span>
-                          </>
-                        )}
-                      </div>
-                    )}
                     <div className="!flex-1 !min-h-0 !min-w-0 !border !border-gray-200 !rounded-sm !p-2 !flex !flex-col">
                       <div className="!flex !items-center !justify-between !mb-2 !flex-shrink-0">
                         <span className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Renk / Beden Detayları</span>
@@ -794,39 +972,207 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
                   </div>
                 ),
               },
-              {
-                key: 'fiyat',
-                label: 'Fiyat',
-                children: (
-                  <div className="!h-full !min-w-0 !flex !flex-col !gap-[2px]">
-                    <div className="!flex-1 !min-h-0 !min-w-0 !border !border-gray-200 !rounded-sm !p-2 !flex !flex-col">
-                      <div className="!flex !items-center !justify-between !mb-2 !flex-shrink-0">
-                        <span className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Fiyat</span>
-                      </div>
-                      {selectedModel ? (
-                        <DataGrid
-                          rowData={renkBedenRows}
-                          columnDefs={fiyatColDefs}
-                          domLayout="normal"
-                          enableColumnChooser={false}
-                          enableExcelExport={false}
-                          height={260}
-                          wrapperClassName="!min-h-[260px]"
-                          onCellValueChanged={handleFiyatCellValueChanged}
-                        />
-                      ) : (
-                        <div className="!h-full !flex !items-center !justify-center !text-[11px] !text-gray-400">
-                          Model seçilmedi — üst tablodaki Model Bilgileri gridinden bir satır seçin
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ),
-              },
-            ]}
+  {
+    key: 'fiyat',
+    label: 'Fiyat',
+    children: (
+      <div className="!h-full !min-w-0 !flex !flex-col !gap-[2px]">
+        <div className="!flex-1 !min-h-0 !min-w-0 !border !border-gray-200 !rounded-sm !p-2 !flex !flex-col">
+          <div className="!flex !items-center !justify-between !mb-2 !flex-shrink-0">
+            <span className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Fiyat</span>
+          </div>
+          {selectedModel ? (
+            <DataGrid
+              rowData={renkBedenRows}
+              columnDefs={fiyatColDefs}
+              domLayout="normal"
+              enableColumnChooser={false}
+              enableExcelExport={false}
+              height={260}
+              wrapperClassName="!min-h-[260px]"
+              onCellValueChanged={handleFiyatCellValueChanged}
+            />
+          ) : (
+            <div className="!h-full !flex !items-center !justify-center !text-[11px] !text-gray-400">
+              Model seçilmedi — üst tablodaki Model Bilgileri gridinden bir satır seçin
+            </div>
+          )}
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: 'renkBedenAciklama',
+    label: 'Renk / Beden Açıklamaları',
+    children: (
+      <div className="!h-full !min-w-0 !flex !flex-col !gap-[2px]">
+        <div className="!flex-1 !min-h-0 !min-w-0 !border !border-gray-200 !rounded-sm !p-2 !flex !flex-col">
+          <div className="!flex !items-center !justify-between !mb-2 !flex-shrink-0">
+            <span className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Renk / Beden Açıklamaları</span>
+          </div>
+          {selectedModel ? (
+            <DataGrid
+              rowData={renkBedenRows}
+              columnDefs={renkBedenAciklamaColDefs}
+              domLayout="normal"
+              enableColumnChooser={false}
+              enableExcelExport={false}
+              height={260}
+              wrapperClassName="!min-h-[260px]"
+              onCellValueChanged={handleAciklamaCellValueChanged}
+            />
+          ) : (
+            <div className="!h-full !flex !items-center !justify-center !text-[11px] !text-gray-400">
+              Model seçilmedi — üst tablodaki Model Bilgileri gridinden bir satır seçin
+            </div>
+          )}
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: 'renkBedenBarkod',
+    label: 'Renk / Beden Barkod',
+    children: (
+      <div className="!h-full !min-w-0 !flex !flex-col !gap-[2px]">
+        <div className="!flex-1 !min-h-0 !min-w-0 !border !border-gray-200 !rounded-sm !p-2 !flex !flex-col">
+          <div className="!flex !items-center !justify-between !mb-2 !flex-shrink-0">
+            <span className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Renk / Beden Barkod</span>
+          </div>
+          {selectedModel ? (
+            <DataGrid
+              rowData={renkBedenRows}
+              columnDefs={renkBedenBarkodColDefs}
+              domLayout="normal"
+              enableColumnChooser={false}
+              enableExcelExport={false}
+              height={260}
+              wrapperClassName="!min-h-[260px]"
+              onCellValueChanged={handleBarkodCellValueChanged}
+            />
+          ) : (
+            <div className="!h-full !flex !items-center !justify-center !text-[11px] !text-gray-400">
+              Model seçilmedi — üst tablodaki Model Bilgileri gridinden bir satır seçin
+            </div>
+          )}
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: 'sticker',
+    label: 'Sticker Detayları',
+    children: (
+      <div className="!h-full !min-w-0 !flex !flex-col !gap-[2px]">
+        <div className="!flex-1 !min-h-0 !min-w-0 !border !border-gray-200 !rounded-sm !p-2 !flex !flex-col">
+          <div className="!flex !items-center !justify-between !mb-2 !flex-shrink-0">
+            <span className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Sticker Detayları</span>
+            <span className="!text-[10px] !text-gray-400">Hücreye çift tıklayarak sticker değerlerini girin</span>
+          </div>
+          {selectedModel ? (
+            <DataGrid
+              rowData={renkBedenRows}
+              columnDefs={stickerColDefs}
+              domLayout="normal"
+              enableColumnChooser={false}
+              enableExcelExport={false}
+              height={260}
+              wrapperClassName="!min-h-[260px]"
+              onCellDoubleClicked={handleStickerCellDoubleClicked}
+            />
+          ) : (
+            <div className="!h-full !flex !items-center !justify-center !text-[11px] !text-gray-400">
+              Model seçilmedi — üst tablodaki Model Bilgileri gridinden bir satır seçin
+            </div>
+          )}
+        </div>
+      </div>
+    ),
+  },
+]}
           />
         </Spin>
+        {stickerModal && <StickerModalComponent
+          open={!!stickerModal}
+          modal={stickerModal}
+          renkBedenRows={renkBedenRows}
+          modelBedenler={modelBedenler}
+          stickerData={stickerData}
+          onValueChange={handleStickerValueChange}
+          onClose={() => setStickerModal(null)}
+        />}
       </div>
     </div>
+  )
+}
+
+interface StickerModalComponentProps {
+  open: boolean
+  modal: StickerModalState
+  renkBedenRows: RenkBedenRow[]
+  modelBedenler: ModelBeden[]
+  stickerData: Record<string, Record<number, string[]>>
+  onValueChange: (index: number, value: string) => void
+  onClose: () => void
+}
+
+function StickerModalComponent({
+  open,
+  modal,
+  renkBedenRows,
+  modelBedenler,
+  stickerData,
+  onValueChange,
+  onClose,
+}: StickerModalComponentProps) {
+  const row = renkBedenRows.find((r) => r.key === modal.rowKey)
+  const v = row?.renkler[Object.keys(row.renkler)[0] as unknown as number]
+  const beden = modelBedenler.find((b) => b.bedenId === modal.bedenId)
+  const values = stickerData[modal.rowKey]?.[modal.bedenId] ?? Array<string>(STICKER_ADET).fill('')
+  const [lastEdited, setLastEdited] = useState(0)
+
+  const handleTumuneUygula = () => {
+    const deger = values[lastEdited] ?? ''
+    for (let i = 0; i < STICKER_ADET; i++) {
+      if (i !== lastEdited) onValueChange(i, deger)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      title={`Sticker Detayları — ${v?.renkAd || 'Renk seçilmedi'} / ${beden?.beden.kod ?? ''}`}
+      onCancel={onClose}
+      footer={[
+        <Button key="tumu" size="small" onClick={handleTumuneUygula} className="!text-[11px]">
+          Tümüne Uygula
+        </Button>,
+        <Button key="vazgec" size="small" onClick={onClose} className="!text-[11px]">
+          Vazgeç
+        </Button>,
+        <Button key="tamam" size="small" type="primary" onClick={onClose} className="!text-[11px]">
+          Tamam
+        </Button>,
+      ]}
+      width={480}
+    >
+      <div className="!flex !flex-col !gap-2 !max-h-[60vh] !overflow-auto">
+        {Array.from({ length: STICKER_ADET }, (_, i) => (
+          <div key={i} className="!flex !items-center !gap-3">
+            <span className="!w-24 !text-[11px] !font-semibold !text-[#333] !shrink-0">Sticker-{i + 1}</span>
+            <Input
+              size="small"
+              value={values[i] ?? ''}
+              onChange={(e) => {
+                setLastEdited(i)
+                onValueChange(i, e.target.value)
+              }}
+              className="!text-[11px]"
+              placeholder={`Sticker-${i + 1} değeri`}
+            />
+          </div>
+        ))}
+      </div>
+    </Modal>
   )
 }

@@ -22,6 +22,7 @@ export interface Tab {
   label: string
   moduleKey: string
   isForm?: boolean
+  irsaliyeTipi?: string
 }
 
 export const modules: Module[] = [
@@ -146,6 +147,15 @@ export const modules: Module[] = [
           { key: 'tedarikci-degerlendirme', label: 'Tedarikçi Değerlendirme' },
         ],
       },
+      {
+        title: 'İrsaliyeler',
+        items: [
+          { key: 'satinalma-kumas-irsaliyeleri', label: 'Kumaş İrsaliyeleri', isForm: true },
+          { key: 'satinalma-iplik-irsaliyeleri', label: 'İplik İrsaliyeleri', isForm: true },
+          { key: 'satinalma-aksesuar-irsaliyeleri', label: 'Aksesuar İrsaliyeleri', isForm: true },
+          { key: 'satinalma-irsaliyeleri', label: 'Satın Alma İrsaliyeleri', isForm: true },
+        ],
+      },
     ],
   },
   {
@@ -157,6 +167,15 @@ export const modules: Module[] = [
         title: 'Tanımlamalar',
         items: [
           { key: 'cari-hesap-karti', label: 'Cari Hesap Kartı', isForm: true },
+        ],
+      },
+      {
+        title: 'İrsaliyeler',
+        items: [
+          { key: 'kumas-irsaliyeleri', label: 'Kumaş İrsaliyeleri', isForm: true },
+          { key: 'iplik-irsaliyeleri', label: 'İplik İrsaliyeleri', isForm: true },
+          { key: 'aksesuar-irsaliyeleri', label: 'Aksesuar İrsaliyeleri', isForm: true },
+          { key: 'satis-irsaliyeleri', label: 'Satış İrsaliyeleri', isForm: true },
         ],
       },
       {
@@ -202,6 +221,12 @@ export const modules: Module[] = [
           { key: 'kullanici-tanimlari', label: 'Kullanıcı Tanımları', isForm: true },
           { key: 'genel-ayarlar', label: 'Genel Ayarlar', isForm: true },
           { key: 'veritabani-yedek', label: 'Veritabanı Yedek' },
+        ],
+      },
+      {
+        title: 'Parametreler',
+        items: [
+          { key: 'malzeme-yonetim-parametreleri', label: 'Malzeme Yönetim Parametreleri', isForm: true },
         ],
       },
     ],
