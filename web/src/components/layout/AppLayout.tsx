@@ -56,8 +56,8 @@ import DovizListesi from '@/components/pages/DovizListesi'
 import DovizKarti from '@/components/pages/DovizKarti'
 import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
-import SatisIrsaliyeListesi from '@/components/pages/SatisIrsaliyeListesi'
-import SatisIrsaliyeKarti from '@/components/pages/SatisIrsaliyeKarti'
+import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
+import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
 
 const { Content } = Layout
@@ -130,7 +130,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   const fisTipiLabelMap: Record<string, string> = {
-    '10': '10-Üretim Fişi', '16': '16-Sayım Fişi', '17': '17-Depo Transfer Fişi',
+    '10': '10-Üretim Fişi', '16': '16-Sayım Fişi', '17': '17-Depo Transfer Giriş',
     '18': '18-Özel Fiş (Giriş)', '20': '20-Karma Koli Üretim', '21': '21-Karma Koli Sarf Bozma',
     '40': '40-Üretimden İade', '99': '99-Sayım Farkı Noksanı', '101': '101-Sayım Farkı Fazlası',
     '130': '130-Sarf Fişi', '131': '131-Fire Fişi', '132': '132-Özel Fiş (Çıkış)',
@@ -167,7 +167,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     '192': '192-Serbest Meslek Makbuzu',
   }
 
-  const openYeniSatisIrsaliye = useCallback((irsaliyeTipi: string, fasonTipiId?: number | null) => {
+  const openYeniIrsaliye = useCallback((irsaliyeTipi: string, fasonTipiId?: number | null) => {
     const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
     const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
     setTabs((prev) => {
@@ -179,7 +179,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [irsaliyeTipiLabelMap])
 
-  const openSatisIrsaliyeKarti = useCallback(
+  const openIrsaliyeKarti = useCallback(
     (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => {
       const key = 'satis-irsaliye-karti-' + info.id
       const label = (irsaliyeTipiLabelMap[info.irsaliyeTipi] || info.irsaliyeTipi) + '-' + info.irsaliyeNo
@@ -906,20 +906,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} />
     }
     if (tab.key === 'satis-irsaliyeleri') {
-      return <SatisIrsaliyeListesi onNew={openYeniSatisIrsaliye} onSelect={openSatisIrsaliyeKarti} />
+      return <IrsaliyeListesi onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />
     }
     if (tab.key === 'satinalma-irsaliyeleri') {
-      return <SatisIrsaliyeListesi mod="satinalma" onNew={openYeniSatisIrsaliye} onSelect={openSatisIrsaliyeKarti} />
+      return <IrsaliyeListesi mod="satinalma" onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />
     }
     if (tab.key.startsWith('satis-irsaliye-yeni-')) {
       const match = tab.key.match(/^satis-irsaliye-yeni-(\d+)(?:-ft(\d+))?$/)
       const irsaliyeTipi = match?.[1] ?? tab.key.replace('satis-irsaliye-yeni-', '')
       const fasonTipiId = match?.[2] ? Number(match[2]) : null
-      return <SatisIrsaliyeKarti irsaliyeTipi={irsaliyeTipi} fasonTipiId={fasonTipiId} />
+      return <IrsaliyeKarti irsaliyeTipi={irsaliyeTipi} fasonTipiId={fasonTipiId} />
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <SatisIrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} onDeleted={() => handleTabClose(tab.key)} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} onDeleted={() => handleTabClose(tab.key)} />
     }
     return (
       <div className="!p-3">

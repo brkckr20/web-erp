@@ -98,7 +98,7 @@ const emptyKalem = (): KalemRow => ({
 const fisTipiMap: Record<string, string> = {
   '10': '10-Üretim Fişi',
   '16': '16-Sayım Fişi',
-  '17': '17-Depo Transfer Fişi',
+  '17': '17-Depo Transfer Giriş',
   '18': '18-Özel Fiş (Giriş)',
   '20': '20-Karma Koli Üretim',
   '21': '21-Karma Koli Sarf Bozma',
@@ -114,7 +114,7 @@ const fisTipiMap: Record<string, string> = {
   '140': '140-Üretime Çıkış Fişi',
 }
 
-const cikisTipleri = new Set(['130', '131', '132', '136', '137', '140', '99'])
+const cikisTipleri = new Set(['130', '131', '132', '135', '136', '137', '140', '99'])
 
 const formatTR = (v: number) => {
   if (v === 0) return ''

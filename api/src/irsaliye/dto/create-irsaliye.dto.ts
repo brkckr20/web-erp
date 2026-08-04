@@ -1,4 +1,4 @@
-export class CreateSatisIrsaliyeKalemDto {
+export class CreateIrsaliyeKalemDto {
   id?: number
   irsaliyeId?: number
   malzemeId?: number
@@ -19,9 +19,9 @@ export class CreateSatisIrsaliyeKalemDto {
   uuid?: string
 }
 
-export class UpdateSatisIrsaliyeKalemDto extends CreateSatisIrsaliyeKalemDto {}
+export class UpdateIrsaliyeKalemDto extends CreateIrsaliyeKalemDto {}
 
-export class CreateSatisIrsaliyeDto {
+export class CreateIrsaliyeDto {
   irsaliyeNo?: string
   irsaliyeTipi: string
   irsaliyeTarihi?: string
@@ -39,7 +39,7 @@ export class CreateSatisIrsaliyeDto {
   cariHesapId?: number
   depoId?: number
   fasonTipiId?: number
-  kalemler?: CreateSatisIrsaliyeKalemDto[]
+  kalemler?: CreateIrsaliyeKalemDto[]
 }
 
-export class UpdateSatisIrsaliyeDto extends CreateSatisIrsaliyeDto {}
+export class UpdateIrsaliyeDto extends CreateIrsaliyeDto {}

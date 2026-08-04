@@ -2,7 +2,7 @@
 
 import { api } from './api'
 
-export interface SatisIrsaliye {
+export interface Irsaliye {
   id: number
   irsaliyeNo: string
   irsaliyeTipi: string
@@ -24,10 +24,10 @@ export interface SatisIrsaliye {
   cariHesap?: { id: number; kod: string; ad: string } | null
   depo?: { id: number; kod: string; ad: string } | null
   fasonTipi?: { id: number; ad: string } | null
-  kalemler?: SatisIrsaliyeKalem[]
+  kalemler?: IrsaliyeKalem[]
 }
 
-export interface SatisIrsaliyeKalem {
+export interface IrsaliyeKalem {
   id?: number
   irsaliyeId?: number
   malzemeId: number | null
@@ -49,16 +49,16 @@ export interface SatisIrsaliyeKalem {
   malzeme?: { id: number; kod: string; ad: string } | null
 }
 
-export type SatisIrsaliyeFormData = Omit<SatisIrsaliye, 'id' | 'kalemler'>
+export type IrsaliyeFormData = Omit<Irsaliye, 'id' | 'kalemler'>
 
-export const satisIrsaliyeApi = {
+export const irsaliyeApi = {
   nextIrsaliyeNo: (irsaliyeTipi: string) =>
-    api.get<{ irsaliyeNo: string }>(`/satis-irsaliye/next-irsaliye-no?irsaliyeTipi=${encodeURIComponent(irsaliyeTipi)}`),
-  list: () => api.get<SatisIrsaliye[]>('/satis-irsaliye'),
-  get: (id: number) => api.get<SatisIrsaliye>(`/satis-irsaliye/${id}`),
-  create: (data: SatisIrsaliyeFormData & { kalemler?: SatisIrsaliyeKalem[] }) =>
-    api.post<SatisIrsaliye>('/satis-irsaliye', data),
-  update: (id: number, data: Partial<SatisIrsaliyeFormData> & { kalemler?: SatisIrsaliyeKalem[] }) =>
-    api.put<SatisIrsaliye>(`/satis-irsaliye/${id}`, data),
-  remove: (id: number) => api.delete<void>(`/satis-irsaliye/${id}`),
+    api.get<{ irsaliyeNo: string }>(`/irsaliye/next-irsaliye-no?irsaliyeTipi=${encodeURIComponent(irsaliyeTipi)}`),
+  list: () => api.get<Irsaliye[]>('/irsaliye'),
+  get: (id: number) => api.get<Irsaliye>(`/irsaliye/${id}`),
+  create: (data: IrsaliyeFormData & { kalemler?: IrsaliyeKalem[] }) =>
+    api.post<Irsaliye>('/irsaliye', data),
+  update: (id: number, data: Partial<IrsaliyeFormData> & { kalemler?: IrsaliyeKalem[] }) =>
+    api.put<Irsaliye>(`/irsaliye/${id}`, data),
+  remove: (id: number) => api.delete<void>(`/irsaliye/${id}`),
 }

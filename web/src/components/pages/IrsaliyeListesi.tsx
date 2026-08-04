@@ -6,7 +6,7 @@ import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined } from '@a
 import { useState, useMemo, useEffect } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
-import { satisIrsaliyeApi, type SatisIrsaliye } from '@/lib/satis-irsaliye-api'
+import { irsaliyeApi, type Irsaliye } from '@/lib/irsaliye-api'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
 
 interface IrsaliyeRow {
@@ -31,7 +31,7 @@ const formatTarih = (d: string | null) => {
   return dt.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const mapIrsaliye = (i: SatisIrsaliye): IrsaliyeRow => {
+const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
   const irsaliyeToplam = (i.kalemler ?? []).reduce((acc, k) => acc + (Number(k.satirTutari) || 0), 0)
   return {
     key: String(i.id),
@@ -82,10 +82,10 @@ const satinalmaIrsaliyeTipiMap: Record<string, string> = {
 }
 
 const irsaliyeTipiMap: Record<string, string> = { ...satisIrsaliyeTipiMap, ...satinalmaIrsaliyeTipiMap }
-const satisTipleri = Object.keys(satisIrsaliyeTipiMap)
+const satisTipleri = Object.keys(irsaliyeTipiMap)
 const satinalmaTipleri = Object.keys(satinalmaIrsaliyeTipiMap)
 
-interface SatisIrsaliyeListesiProps {
+interface IrsaliyeListesiProps {
   mod?: 'satis' | 'satinalma'
   onNew?: (irsaliyeTipi: string, fasonTipiId?: number | null) => void
   onSelect?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
@@ -96,7 +96,7 @@ const fasonFisTipleri = {
   satinalma: ['6', '11', '133'],
 }
 
-export default function SatisIrsaliyeListesi({ mod = 'satis', onNew, onSelect }: SatisIrsaliyeListesiProps) {
+export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: IrsaliyeListesiProps) {
   const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : satisTipleri
   const irsaliyeTipiOptions = gorselTipler.map((value) => ({ value, label: irsaliyeTipiMap[value] }))
   const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : 'Satış İrsaliyeleri'
@@ -131,7 +131,7 @@ export default function SatisIrsaliyeListesi({ mod = 'satis', onNew, onSelect }:
       cancelText: 'Vazgeç',
       onOk: async () => {
         try {
-          await satisIrsaliyeApi.remove(r.id)
+          await irsaliyeApi.remove(r.id)
           message.success('İrsaliye silindi')
           load()
          } catch (err: unknown) {
@@ -143,7 +143,7 @@ export default function SatisIrsaliyeListesi({ mod = 'satis', onNew, onSelect }:
 
   const load = () => {
     const tipler = new Set(mod === 'satinalma' ? satinalmaTipleri : satisTipleri)
-    satisIrsaliyeApi
+    irsaliyeApi
       .list()
       .then((res) => setData(res.filter((i) => tipler.has(String(i.irsaliyeTipi))).map(mapIrsaliye)))
       .catch(() => setData([]))
@@ -257,8 +257,8 @@ export default function SatisIrsaliyeListesi({ mod = 'satis', onNew, onSelect }:
                 rowData={data}
                 columnDefs={columns}
                 domLayout="normal"
-                exportFileName={mod === 'satinalma' ? 'satinalma-irsaliyeleri' : 'satis-irsaliyeleri'}
-                storageKey={mod === 'satinalma' ? 'satinalmaIrsaliye' : 'satisIrsaliye'}
+                exportFileName={mod === 'satinalma' ? 'satinalma-irsaliyeleri' : 'irsaliyeleri'}
+                storageKey={mod === 'satinalma' ? 'satinalmaIrsaliye' : 'irsaliye'}
                 rowSelection="single"
                 onCellDoubleClicked={(e: CellDoubleClickedEvent<IrsaliyeRow>) => {
                   const row = e.data as IrsaliyeRow | undefined

@@ -1,6 +1,7 @@
 'use client'
 
-import { Input, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal } from 'antd'
+import { Input, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
@@ -11,7 +12,7 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
-import { satisIrsaliyeApi, type SatisIrsaliye, type SatisIrsaliyeKalem } from '@/lib/satis-irsaliye-api'
+import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem } from '@/lib/irsaliye-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
@@ -202,7 +203,7 @@ function CellTextInput({
   )
 }
 
-export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, onDeleted }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, onDeleted }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -226,7 +227,7 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
   useEffect(() => {
     let cancelled = false
     if (id) {
-      satisIrsaliyeApi
+      irsaliyeApi
         .get(id)
         .then((i) => {
           if (cancelled) return
@@ -235,25 +236,25 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
           if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
           setBelgeNo(i.sevkNo ?? '')
           setAciklama(i.aciklama ?? '')
-          setFasonTipiKayit((i as SatisIrsaliye).fasonTipiId ?? null)
-          setFasonTipiAd((i as SatisIrsaliye).fasonTipi?.ad ?? '')
-          setCariKod((i as SatisIrsaliye).cariHesap?.kod ?? String((i as SatisIrsaliye).cariHesapId ?? ''))
-          setDepoKod((i as SatisIrsaliye).depo?.kod ?? String((i as SatisIrsaliye).depoId ?? ''))
-          const kalemList = (i as SatisIrsaliye).kalemler ?? []
+          setFasonTipiKayit((i as Irsaliye).fasonTipiId ?? null)
+          setFasonTipiAd((i as Irsaliye).fasonTipi?.ad ?? '')
+          setCariKod((i as Irsaliye).cariHesap?.kod ?? String((i as Irsaliye).cariHesapId ?? ''))
+          setDepoKod((i as Irsaliye).depo?.kod ?? String((i as Irsaliye).depoId ?? ''))
+          const kalemList = (i as Irsaliye).kalemler ?? []
           const rows: KalemRow[] = kalemList.map((k) => ({
             key: Math.random().toString(36).slice(2),
-            tip: (k as SatisIrsaliyeKalem).tip ?? 'Malzeme',
-            malzemeKod: (k as SatisIrsaliyeKalem).malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
-            malzemeAd: (k as SatisIrsaliyeKalem).malzeme?.ad ?? '',
-            barkod: (k as SatisIrsaliyeKalem).takipNo ?? (k as SatisIrsaliyeKalem).malzeme?.barkod ?? '',
-            brutKg: Number((k as SatisIrsaliyeKalem).brutAgirlik) || 0,
-            kg: Number((k as SatisIrsaliyeKalem).netAgirlik) || 0,
-            brutMt: Number((k as SatisIrsaliyeKalem).brutMetre) || 0,
-            mt: Number((k as SatisIrsaliyeKalem).netMetre) || 0,
-            adet: Number((k as SatisIrsaliyeKalem).adet) || 0,
-            hesapBirimi: (k as SatisIrsaliyeKalem).olcuBirimi || 'kg',
+            tip: (k as IrsaliyeKalem).tip ?? 'Malzeme',
+            malzemeKod: (k as IrsaliyeKalem).malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
+            malzemeAd: (k as IrsaliyeKalem).malzeme?.ad ?? '',
+            barkod: (k as IrsaliyeKalem).takipNo ?? (k as IrsaliyeKalem).malzeme?.barkod ?? '',
+            brutKg: Number((k as IrsaliyeKalem).brutAgirlik) || 0,
+            kg: Number((k as IrsaliyeKalem).netAgirlik) || 0,
+            brutMt: Number((k as IrsaliyeKalem).brutMetre) || 0,
+            mt: Number((k as IrsaliyeKalem).netMetre) || 0,
+            adet: Number((k as IrsaliyeKalem).adet) || 0,
+            hesapBirimi: (k as IrsaliyeKalem).olcuBirimi || 'kg',
             birimFiyat: Number(k.birimFiyat) || 0,
-            doviz: (k as SatisIrsaliyeKalem).doviz || 'TL',
+            doviz: (k as IrsaliyeKalem).doviz || 'TL',
             kdv: Number(k.kdv) || 0,
             satirTutari: Number(k.satirTutari) || 0,
             aciklama: k.aciklama ?? '',
@@ -263,7 +264,7 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
         .catch((err) => message.error('İrsaliye yüklenemedi: ' + (err?.message || err)))
         .finally(() => { if (!cancelled) setLoading(false) })
     } else {
-      satisIrsaliyeApi
+      irsaliyeApi
         .nextIrsaliyeNo(irsaliyeTipi)
         .then((res) => setIrsaliyeNo(res.irsaliyeNo))
         .catch(() => setIrsaliyeNo('00000001'))
@@ -358,7 +359,7 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
       }))
 
       if (id) {
-        await satisIrsaliyeApi.update(id, {
+        await irsaliyeApi.update(id, {
           irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
           sevkNo: belgeNo || null,
@@ -368,10 +369,10 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
           fasonTipiId: fasonTipiKayit,
           guncelleyen: kayitYapan,
           kalemler: kalemPayload,
-         } as SatisIrsaliye)
+         } as Irsaliye)
       message.success('İrsaliye güncellendi')
     } else {
-      await satisIrsaliyeApi.create({
+      await irsaliyeApi.create({
         irsaliyeNo,
         irsaliyeTipi,
         irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
@@ -406,7 +407,7 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
       cancelText: 'Vazgeç',
       onOk: async () => {
         try {
-          await satisIrsaliyeApi.remove(id)
+          await irsaliyeApi.remove(id)
           message.success('İrsaliye silindi')
           onDeleted?.(irsaliyeTipi)
          } catch (err: unknown) {
@@ -637,7 +638,7 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
     },
   ], [kalemler.length])
 
-  const storageKey = 'satisIrsaliyeKarti_' + irsaliyeTipi
+  const storageKey = 'irsaliyeKarti_' + irsaliyeTipi
   const kolonLayoutKey = useCallback(
     () => `kolon_layout_${kullanici?.id ?? 'anonim'}_${storageKey}`,
     [kullanici?.id, storageKey],
@@ -745,10 +746,10 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
   }, [persistKolonlar])
 
   const [fasonGidenlerOpen, setFasonGidenlerOpen] = useState(false)
-  const [fasonGidenlerData, setFasonGidenlerData] = useState<SatisIrsaliye[]>([])
+  const [fasonGidenlerData, setFasonGidenlerData] = useState<Irsaliye[]>([])
   const [fasonGidenlerYukleniyor, setFasonGidenlerYukleniyor] = useState(false)
-  const [seciliFasonGiden, setSeciliFasonGiden] = useState<SatisIrsaliye | null>(null)
-  const [fasonGidenKalemler, setFasonGidenKalemler] = useState<SatisIrsaliyeKalem[]>([])
+  const [seciliFasonGiden, setSeciliFasonGiden] = useState<Irsaliye | null>(null)
+  const [fasonGidenKalemler, setFasonGidenKalemler] = useState<IrsaliyeKalem[]>([])
   const [fasonGidenArama, setFasonGidenArama] = useState('')
   const fasonGidenListeGridRef = useRef<GridApi>(null)
   const fasonGidenKalemGridRef = useRef<GridApi>(null)
@@ -758,18 +759,23 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
     setFasonGidenlerYukleniyor(true)
     setSeciliFasonGiden(null)
     setFasonGidenKalemler([])
-    satisIrsaliyeApi
+    irsaliyeApi
       .list()
       .then((res) => setFasonGidenlerData(res.filter((i) => String(i.irsaliyeTipi) === '134')))
       .catch(() => setFasonGidenlerData([]))
       .finally(() => setFasonGidenlerYukleniyor(false))
   }
 
-  const fasonGidenSec = (i: SatisIrsaliye) => {
+  const contextMenuItems: MenuProps['items'] =
+    irsaliyeTipi === '11'
+      ? [{ key: 'fason-gidenler', label: 'Fason Gidenler (134)...', onClick: () => openFasonGidenler() }]
+      : []
+
+  const fasonGidenSec = (i: Irsaliye) => {
     setSeciliFasonGiden(i)
     setFasonGidenKalemler(i.kalemler ?? [])
     if (!i.kalemler?.length) {
-      satisIrsaliyeApi
+      irsaliyeApi
         .get(i.id)
         .then((d) => setFasonGidenKalemler(d.kalemler ?? []))
         .catch(() => {})
@@ -782,7 +788,7 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
       message.warning('İçe aktarılacak kalem seçiniz')
       return
     }
-    const yeniKalemler: KalemRow[] = secili.map((k: SatisIrsaliyeKalem) => ({
+    const yeniKalemler: KalemRow[] = secili.map((k: IrsaliyeKalem) => ({
       key: Math.random().toString(36).slice(2),
       tip: k.tip ?? 'Malzeme',
       malzemeKod: k.malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
@@ -968,37 +974,31 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
               </div>
             </div>
             <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
-              <AgGridReact
-                rowData={kalemler}
-                columnDefs={colDefs}
-                theme={antTheme}
-                headerHeight={32}
-                rowHeight={30}
-                rowSelection="single"
-                getRowId={(p) => p.data.key}
-                localeText={agGridLocaleTR}
-                defaultColDef={{ resizable: true, sortable: true }}
-                getContextMenuItems={() =>
-                  irsaliyeTipi === '11'
-                    ? [
-                        {
-                          name: 'Fason Gidenler (134)...',
-                          action: () => openFasonGidenler(),
-                        },
-                      ]
-                    : []
-                }
-                onGridReady={(e) => {
-                  gridApiRef.current = e.api
-                  tryLoadKolonFromDb(e.api)
-                }}
-                onCellFocused={(e: CellFocusedEvent) => {
-                  const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
-                  if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
-                    focusCellEditor(colId, e.rowIndex)
-                  }
-                }}
-              />
+              <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
+                <div style={{ height: '100%', width: '100%' }}>
+                  <AgGridReact
+                    rowData={kalemler}
+                    columnDefs={colDefs}
+                    theme={antTheme}
+                    headerHeight={32}
+                    rowHeight={30}
+                    rowSelection="single"
+                    getRowId={(p) => p.data.key}
+                    localeText={agGridLocaleTR}
+                    defaultColDef={{ resizable: true, sortable: true }}
+                    onGridReady={(e) => {
+                      gridApiRef.current = e.api
+                      tryLoadKolonFromDb(e.api)
+                    }}
+                    onCellFocused={(e: CellFocusedEvent) => {
+                      const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
+                      if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
+                        focusCellEditor(colId, e.rowIndex)
+                      }
+                    }}
+                  />
+                </div>
+              </Dropdown>
             </div>
             <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
               <div className="!flex !items-center !gap-4">
@@ -1065,7 +1065,7 @@ export default function SatisIrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, 
                 defaultColDef={{ resizable: true, sortable: true }}
                 onGridReady={(e) => { fasonGidenListeGridRef.current = e.api }}
                 onSelectionChanged={(e) => {
-                  const row = e.api.getSelectedRows()[0] as SatisIrsaliye | undefined
+                  const row = e.api.getSelectedRows()[0] as Irsaliye | undefined
                   if (row) fasonGidenSec(row)
                 }}
               />

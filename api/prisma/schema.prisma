@@ -62,7 +62,7 @@ model Depo {
 
   fisler            StokHareketFisi[] @relation("FisDepo")
   kaliteKontrolFisler KaliteKontrol[] @relation("KKFisDepo")
-  irsaliyeler       SatisIrsaliye[] @relation("IrsaliyeDepo")
+  irsaliyeler       Irsaliye[] @relation("IrsaliyeDepo")
 
   @@map("depo")
 }
@@ -190,7 +190,7 @@ model Malzeme {
   malzemeBedenler   MalzemeBeden[] @relation("MalzemeBedenRef")
   malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupMalzeme")
   ekler             MalzemeEk[] @relation("MalzemeEk")
-  irsaliyeKalemler  SatisIrsaliyeKalem[] @relation("IrsaliyeKalemMalzeme")
+  irsaliyeKalemler  IrsaliyeKalem[] @relation("IrsaliyeKalemMalzeme")
 
   @@map("malzeme")
 }
@@ -340,7 +340,7 @@ model CariHesap {
   fisler            StokHareketFisi[] @relation("FisCariHesap")
   kkFisler          KaliteKontrol[] @relation("KKFisCariHesap")
   renkler           Renk[] @relation("RenkCariHesap")
-  irsaliyeler       SatisIrsaliye[] @relation("IrsaliyeCariHesap")
+  irsaliyeler       Irsaliye[] @relation("IrsaliyeCariHesap")
 
   @@map("cari_hesap")
 }
@@ -437,7 +437,7 @@ model StokHareketFisiKalem {
   @@map("stok_hareket_fisi_kalem")
 }
 
-model SatisIrsaliye {
+model Irsaliye {
   id                Int      @id @default(autoincrement())
   irsaliyeNo        String   @map("irsaliye_no") @db.VarChar(50)
   irsaliyeTipi      String   @map("irsaliye_tipi") @db.VarChar(20)
@@ -462,7 +462,7 @@ model SatisIrsaliye {
   fasonTipiId       Int?     @map("fason_tipi_id")
   fasonTipi         FasonTipi? @relation("IrsaliyeFasonTipi", fields: [fasonTipiId], references: [id])
 
-  kalemler          SatisIrsaliyeKalem[] @relation("IrsaliyeKalemleri")
+  kalemler          IrsaliyeKalem[] @relation("IrsaliyeKalemleri")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -471,10 +471,10 @@ model SatisIrsaliye {
   @@map("irsaliye")
 }
 
-model SatisIrsaliyeKalem {
+model IrsaliyeKalem {
   id                Int      @id @default(autoincrement())
   irsaliyeId        Int      @map("irsaliye_id")
-  irsaliye          SatisIrsaliye @relation("IrsaliyeKalemleri", fields: [irsaliyeId], references: [id])
+  irsaliye          Irsaliye @relation("IrsaliyeKalemleri", fields: [irsaliyeId], references: [id])
 
   malzemeId         Int?     @map("malzeme_id")
   malzeme           Malzeme? @relation("IrsaliyeKalemMalzeme", fields: [malzemeId], references: [id])
@@ -811,7 +811,7 @@ model FasonTipi {
   ad                String   @db.VarChar(200)
   kullanimda        Boolean  @default(true)
 
-  satisIrsaliyeler   SatisIrsaliye[] @relation("IrsaliyeFasonTipi")
+  fasonIrsaliyeler   Irsaliye[] @relation("IrsaliyeFasonTipi")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

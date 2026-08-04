@@ -9,15 +9,15 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common'
-import { SatisIrsaliyeService } from './satis-irsaliye.service'
-import { CreateSatisIrsaliyeDto } from './dto/create-satis-irsaliye.dto'
-import { UpdateSatisIrsaliyeDto } from './dto/create-satis-irsaliye.dto'
-import { CreateSatisIrsaliyeKalemDto } from './dto/create-satis-irsaliye.dto'
-import { UpdateSatisIrsaliyeKalemDto } from './dto/create-satis-irsaliye.dto'
+import { IrsaliyeService } from './irsaliye.service'
+import { CreateIrsaliyeDto } from './dto/create-irsaliye.dto'
+import { UpdateIrsaliyeDto } from './dto/create-irsaliye.dto'
+import { CreateIrsaliyeKalemDto } from './dto/create-irsaliye.dto'
+import { UpdateIrsaliyeKalemDto } from './dto/create-irsaliye.dto'
 
-@Controller('satis-irsaliye')
-export class SatisIrsaliyeController {
-  constructor(private readonly service: SatisIrsaliyeService) {}
+@Controller('irsaliye')
+export class IrsaliyeController {
+  constructor(private readonly service: IrsaliyeService) {}
 
   @Get('next-irsaliye-no')
   nextIrsaliyeNo(@Query('irsaliyeTipi') irsaliyeTipi: string) {
@@ -35,12 +35,12 @@ export class SatisIrsaliyeController {
   }
 
   @Post()
-  create(@Body() dto: CreateSatisIrsaliyeDto) {
+  create(@Body() dto: CreateIrsaliyeDto) {
     return this.service.create(dto)
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSatisIrsaliyeDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateIrsaliyeDto) {
     return this.service.update(id, dto)
   }
 
@@ -55,12 +55,12 @@ export class SatisIrsaliyeController {
   }
 
   @Post('kalem')
-  createKalem(@Body() dto: CreateSatisIrsaliyeKalemDto) {
+  createKalem(@Body() dto: CreateIrsaliyeKalemDto) {
     return this.service.createKalem(dto)
   }
 
   @Put('kalem/:id')
-  updateKalem(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSatisIrsaliyeKalemDto) {
+  updateKalem(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateIrsaliyeKalemDto) {
     return this.service.updateKalem(id, dto)
   }
 

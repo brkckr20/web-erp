@@ -29,11 +29,11 @@ import { AksesuarTipiModule } from './aksesuar-tipi/aksesuar-tipi.module';
 import { MalzemeEkModule } from './malzeme-ek/malzeme-ek.module';
 import { DovizModule } from './doviz/doviz.module';
 import { MalzemeFiyatModule } from './malzeme-fiyat/malzeme-fiyat.module';
-import { SatisIrsaliyeModule } from './satis-irsaliye/satis-irsaliye.module';
+import { IrsaliyeModule } from './irsaliye/irsaliye.module';
 import { FasonTipiModule } from './fason-tipi/fason-tipi.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, SatisIrsaliyeModule, FasonTipiModule],
+  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule],
   controllers: [AppController],
   providers: [AppService],
 })
