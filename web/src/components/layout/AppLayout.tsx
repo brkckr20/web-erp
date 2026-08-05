@@ -59,6 +59,7 @@ import SiparisKarti from '@/components/pages/SiparisKarti'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
+import FormTasarimi from '@/components/pages/FormTasarimi'
 
 const { Content } = Layout
 
@@ -705,6 +706,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'malzeme-yonetim-parametreleri') {
       return <MalzemeYonetimParametreleri />
+    }
+    if (tab.key === 'form-tasarimi') {
+      return <FormTasarimi />
     }
     if (tab.key === 'stok-hareket-fisleri') {
       return <StokHareketFisiListesi onNew={openYeniStokHareketFisi} onSelect={openStokHareketFisiKarti} />
