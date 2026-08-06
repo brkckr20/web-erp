@@ -869,3 +869,17 @@ model Doviz {
 
   @@map("doviz")
 }
+
+model FormSabloni {
+  id          Int      @id @default(autoincrement())
+  kod         String   @unique @db.NVarChar(50)
+  ad          String   @db.NVarChar(200)
+  ekranTuru   String   @map("ekran_turu") @db.NVarChar(100)
+  layoutJson  String   @map("layout_json") @db.NVarChar(MAX)
+  aktif       Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("form_sablonlari")
+}

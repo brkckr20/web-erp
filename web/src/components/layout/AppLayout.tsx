@@ -59,7 +59,9 @@ import SiparisKarti from '@/components/pages/SiparisKarti'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
+import FormListesi from '@/components/pages/FormListesi'
 import FormTasarimi from '@/components/pages/FormTasarimi'
+import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
 
 const { Content } = Layout
 
@@ -68,6 +70,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
+  const [formEditorForm, setFormEditorForm] = useState<FormTasarimDraft | null>(null)
+
+  const openFormEditor = useCallback((form: FormTasarimDraft | null) => {
+    setFormEditorForm(form)
+    const key = 'form-tasarim-editor'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Form Tasarım Editörü', moduleKey: 'ayarlar', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
 
   const handleModuleSelect = (mod: Module) => {
     setSelectedModule((prev) => (prev?.key === mod.key ? null : mod))
@@ -708,7 +723,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <MalzemeYonetimParametreleri />
     }
     if (tab.key === 'form-tasarimi') {
-      return <FormTasarimi />
+      return <FormListesi onSelect={(f) => openFormEditor(f)} onNew={() => openFormEditor(null)} />
+    }
+    if (tab.key === 'form-tasarim-editor') {
+      return <FormTasarimi baslangicForm={formEditorForm ?? undefined} />
     }
     if (tab.key === 'stok-hareket-fisleri') {
       return <StokHareketFisiListesi onNew={openYeniStokHareketFisi} onSelect={openStokHareketFisiKarti} />

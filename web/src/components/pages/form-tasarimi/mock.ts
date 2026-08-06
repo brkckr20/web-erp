@@ -1,4 +1,4 @@
-import type { Band, BandHucre, BandSatir, BandTipi, FormSorguDraft, FormTasarimDraft } from './types'
+import type { Band, BandHucre, BandTipi, FormSorguDraft, FormTasarimDraft } from './types'
 
 let uid = 0
 export const uidYeni = () => `id-${++uid}-${Date.now().toString(36)}`
@@ -63,30 +63,14 @@ export const bandTipiAdlari: Record<BandTipi, string> = {
 
 export const bandTipiSirasi: BandTipi[] = ['ust-bilgi', 'alanlar', 'kalem-tablo', 'toplamlar', 'imza']
 
-function hucre(alan?: string, etiket?: string): BandHucre {
-  return { id: uidYeni(), alan, etiket }
-}
-
-function satir(hucreler: BandHucre[]): BandSatir {
-  return { id: uidYeni(), hucreler }
+function eleman(x: number, y: number, genislik: number, yukseklik: number, alan?: string, etiket?: string): BandHucre {
+  return { id: uidYeni(), x, y, genislik, yukseklik, alan, etiket }
 }
 
 export function yeniBand(tip: BandTipi): Band {
-  const band: Band = { id: uidYeni(), tip, ad: bandTipiAdlari[tip], kolonSayisi: 2, satirlar: [] }
-  if (tip === 'ust-bilgi') {
-    band.kolonSayisi = 2
-    band.satirlar = [satir([hucre('S1.fis_no', 'Fiş No'), hucre('S1.fis_tarihi', 'Fiş Tarihi')])]
-  } else if (tip === 'alanlar') {
-    band.kolonSayisi = 2
-    band.satirlar = [satir([hucre('S1.cari_hesap', 'Cari Hesap'), hucre('S1.depo', 'Depo')])]
-  } else if (tip === 'kalem-tablo') {
+  const band: Band = { id: uidYeni(), tip, ad: bandTipiAdlari[tip], elemanlar: [] }
+  if (tip === 'kalem-tablo') {
     band.tabloKolonlari = []
-  } else if (tip === 'toplamlar') {
-    band.kolonSayisi = 2
-    band.satirlar = [satir([hucre('S2.tutar', 'Toplam'), hucre()])]
-  } else {
-    band.kolonSayisi = 2
-    band.satirlar = [satir([hucre(undefined, 'Teslim Alan'), hucre(undefined, 'Kaşe')])]
   }
   return band
 }
@@ -103,7 +87,7 @@ export function bosForm(ad = 'Yeni Form'): FormTasarimDraft {
   return {
     id: uidYeni(),
     ad,
-    ekranTuru: 'stok-hareket-fisi',
+    ekranTuru: 'Stok Hareket Fişleri',
     sorgular,
     layout: bandTipiSirasi.map(yeniBand),
     sayfa: { boyut: 'A4', yon: 'dikey', kenarUst: 8, kenarAlt: 8, kenarSol: 10, kenarSag: 10 },
@@ -112,7 +96,7 @@ export function bosForm(ad = 'Yeni Form'): FormTasarimDraft {
 
 function ornekStokFisi(): FormTasarimDraft {
   const form = bosForm('Stok Hareket Fişi')
-  form.ekranTuru = 'stok-hareket-fisi'
+  form.ekranTuru = 'Stok Hareket Fişleri'
 
   const s1: FormSorguDraft = { id: uidYeni(), sirano: 1, ad: 'Fiş Başlığı', sorguMetni: 'SELECT * FROM stok_hareket_fisi WHERE id = :id', kolonlar: [], satirlar: [] }
   const s2: FormSorguDraft = { id: uidYeni(), sirano: 2, ad: 'Fiş Kalemleri', sorguMetni: 'SELECT * FROM stok_hareket_fisi_kalem WHERE fis_id = :id', kolonlar: [], satirlar: [] }
@@ -131,13 +115,18 @@ function ornekStokFisi(): FormTasarimDraft {
   form.sorgular = [s1, s2]
 
   const ust = form.layout.find((b) => b.tip === 'ust-bilgi')!
-  ust.satirlar = [satir([hucre('S1.fis_no', 'Fiş No'), hucre('S1.fis_tarihi', 'Tarih'), hucre('S1.fis_tipi', 'Fiş Tipi'), hucre()])]
+  ust.elemanlar = [
+    eleman(0, 0, 60, 8, 'S1.fis_no', 'Fiş No'),
+    eleman(70, 0, 60, 8, 'S1.fis_tarihi', 'Tarih'),
+    eleman(140, 0, 70, 8, 'S1.fis_tipi', 'Fiş Tipi'),
+  ]
 
   const alan = form.layout.find((b) => b.tip === 'alanlar')!
-  alan.kolonSayisi = 2
-  alan.satirlar = [
-    satir([hucre('S1.cari_hesap', 'Cari Hesap'), hucre('S1.depo', 'Depo')]),
-    satir([hucre('S1.kayit_yapan', 'Kayıt Eden'), hucre('S1.sevk_tarihi', 'Sevk Tarihi')]),
+  alan.elemanlar = [
+    eleman(0, 0, 105, 8, 'S1.cari_hesap', 'Cari Hesap'),
+    eleman(0, 12, 105, 8, 'S1.depo', 'Depo'),
+    eleman(115, 0, 95, 8, 'S1.kayit_yapan', 'Kayıt Eden'),
+    eleman(115, 12, 95, 8, 'S1.sevk_tarihi', 'Sevk Tarihi'),
   ]
 
   const kalem = form.layout.find((b) => b.tip === 'kalem-tablo')!
@@ -148,7 +137,7 @@ function ornekStokFisi(): FormTasarimDraft {
   }))
 
   const top = form.layout.find((b) => b.tip === 'toplamlar')!
-  top.satirlar = [satir([hucre('S2.tutar', 'Genel Toplam'), hucre()])]
+  top.elemanlar = [eleman(120, 0, 90, 8, 'S2.tutar', 'Genel Toplam')]
 
   return form
 }

@@ -11,7 +11,21 @@ export interface FormSorguDraft {
 
 export type BandTipi = 'ust-bilgi' | 'alanlar' | 'kalem-tablo' | 'toplamlar' | 'imza'
 
+export type TabloBaslikArkaPlan = 'gri' | 'yok'
+
+export type TabloCizgiStili = 'yatay' | 'kareli' | 'yok'
+
 export type Hizalama = 'sol' | 'orta' | 'sag'
+
+export type HucreFormat =
+  | 'otomatik'
+  | 'tarih-gun-ay-yil'
+  | 'tarih-yil-ay-gun'
+  | 'tarih-gun-ay-yil-saat'
+  | 'sayi-0'
+  | 'sayi-1'
+  | 'sayi-2'
+  | 'sayi-3'
 
 export interface HucreStil {
   fontBoyutu?: number
@@ -19,18 +33,22 @@ export interface HucreStil {
   hizalama?: Hizalama
   arkaPlan?: string
   kenarlik?: boolean
+  format?: HucreFormat
 }
+
+export type BilesenTipi = 'veri' | 'metin' | 'checkbox' | 'resim' | 'tablo'
 
 export interface BandHucre {
   id: string
+  x: number
+  y: number
+  genislik: number
+  yukseklik: number
+  bilesen?: BilesenTipi
   alan?: string
   etiket?: string
+  deger?: string
   stil?: HucreStil
-}
-
-export interface BandSatir {
-  id: string
-  hucreler: BandHucre[]
 }
 
 export interface TabloKolon {
@@ -39,16 +57,19 @@ export interface TabloKolon {
   baslik?: string
   genislik?: number
   hizalama?: Hizalama
+  format?: HucreFormat
 }
 
 export interface Band {
   id: string
   tip: BandTipi
   ad: string
-  kolonSayisi: number
-  satirlar: BandSatir[]
+  elemanlar: BandHucre[]
+  yukseklik?: number
   sorguId?: string
   tabloKolonlari?: TabloKolon[]
+  baslikArkaPlan?: TabloBaslikArkaPlan
+  cizgiStili?: TabloCizgiStili
 }
 
 export interface SayfaAyari {
@@ -67,11 +88,13 @@ export interface FormTasarimDraft {
   sorgular: FormSorguDraft[]
   layout: Band[]
   sayfa: SayfaAyari
+  sablonId?: number
+  kod?: string
 }
 
 export type AlanRef = string
 
 export type Secim =
   | { tur: 'band'; bandId: string }
-  | { tur: 'hucre'; bandId: string; satirId: string; hucreId: string }
+  | { tur: 'hucre'; bandId: string; hucreId: string }
   | { tur: 'kolon'; bandId: string; kolonId: string }

@@ -19,7 +19,10 @@ import type { KKSelectRow } from '@/components/shared/KKSecimModal'
 import type { DepoBazliStokSatir } from '@/lib/depo-bazli-stok-api'
 import { stokHareketFisiApi } from '@/lib/stok-hareket-fisi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
-import { stokHareketFisiOnizle, stokHareketFisiPdfAl, stokHareketFisiTasarimlari, type FisRaporData } from '@/lib/reports/stok-hareket-fisi.report'
+import { formSabloniApi } from '@/lib/form-sabloni-api'
+import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
+import { generatePdf, previewPdf } from '@/lib/reports/pdf-common'
+import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { useAuth } from '@/context/AuthContext'
@@ -220,6 +223,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [raporModalAcik, setRaporModalAcik] = useState(false)
+  const [sablonSecenekleri, setSablonSecenekleri] = useState<{ id: number; ad: string }[]>([])
   const [stokSecimiModalAcik, setStokSecimiModalAcik] = useState(false)
   const [kkSecimModalAcik, setKkSecimModalAcik] = useState(false)
   const isCikis = cikisTipleri.has(fisTipi)
@@ -388,31 +392,78 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     }
   }
 
-  const raporVerisiUret = (): FisRaporData => ({
-    fisTipi: fisTipiLabel,
-    fisNo,
-    fisTarihi: fisTarihi.format('YYYY-MM-DD'),
-    sevkTarihi: sevkTarihi.format('YYYY-MM-DD'),
-    belgeNo,
-    cariHesap: cariKod || undefined,
-    depo: depoKod || undefined,
-    kayitYapan: kayitYapan ?? undefined,
-    kalemler: kalemler
-      .filter((k) => k.malzemeKod)
-      .map((k) => ({
-        malzemeKod: k.malzemeKod,
-        malzemeAd: k.malzemeAd,
-        kg: k.kg,
-        birimFiyat: k.birimFiyat,
-        doviz: k.doviz,
-        kdv: k.kdv,
-        satirTutari: k.satirTutari,
-        aciklama: k.aciklama,
-      })),
-    toplamMatrah,
-    toplamKdv,
-    toplam,
-  })
+  const raporVerisiTopla = async (sablonId: number, fisId: number) => {
+    const d = await formSabloniApi.getById(sablonId)
+    const draft: FormTasarimDraft = {
+      id: String(d.id),
+      ad: d.ad,
+      ekranTuru: d.ekranTuru,
+      sorgular: (d.sorgular as FormTasarimDraft['sorgular']) ?? [],
+      layout: (d.layout as FormTasarimDraft['layout']) ?? [],
+      sayfa: (d.sayfa as FormTasarimDraft['sayfa']) ?? { boyut: 'A4', yon: 'dikey', kenarUst: 8, kenarAlt: 8, kenarSol: 10, kenarSag: 10 },
+      sablonId: d.id,
+      kod: d.kod,
+    }
+    const veri: Record<number, Record<string, unknown>[]> = {}
+    for (const s of draft.sorgular) {
+      if (!s.sorguMetni?.trim()) continue
+      try {
+        const sonuc = await formSabloniApi.sorguTest({ sorguMetni: s.sorguMetni, parametreler: { id: fisId } })
+        veri[s.sirano] = sonuc.satirlar
+      } catch {
+        veri[s.sirano] = []
+      }
+    }
+    return { draft, veri }
+  }
+
+  const handleRapor = async () => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'Fişi yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const list = await formSabloniApi.listByEkranTuru('Stok Hareket Fişleri')
+      if (list.length === 0) {
+        modal.info({
+          title: 'Form tasarımı yok',
+          content:
+            'Bu ekran için form tasarımı bulunamadı. Form Tasarımı ekranından "Stok Hareket Fişleri" için bir form hazırlayıp kaydedin.',
+        })
+        return
+      }
+      setSablonSecenekleri(list.map((f) => ({ id: f.id, ad: f.ad })))
+      setRaporModalAcik(true)
+    } catch {
+      message.error('Form şablonları yüklenemedi')
+    }
+  }
+
+  const handleSabloniOnizle = async (sablonId: number) => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'Fişi yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const { draft, veri } = await raporVerisiTopla(sablonId, id)
+      await previewPdf(formTasarimDoc(draft, veri))
+    } catch (e) {
+      message.error('Rapor hazırlanamadı: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
+    }
+  }
+
+  const handleSabloniIndir = async (sablonId: number) => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'Fişi yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const { draft, veri } = await raporVerisiTopla(sablonId, id)
+      await generatePdf(formTasarimDoc(draft, veri), `stok-hareket-fisi-${fisNo || 'yeni'}.pdf`)
+    } catch (e) {
+      message.error('Rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
+    }
+  }
 
   const handleStokSecimi = () => {
     if (!depoKod) {
@@ -468,18 +519,6 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
       return
     }
     setKalemler((prev) => [...prev, ...eklenecek])
-  }
-
-  const handleRapor = () => {
-    setRaporModalAcik(true)
-  }
-
-  const handleRaporOnizle = async (tasarimId: string) => {
-    await stokHareketFisiOnizle(raporVerisiUret(), tasarimId)
-  }
-
-  const handleRaporIndir = async (tasarimId: string) => {
-    await stokHareketFisiPdfAl(raporVerisiUret(), tasarimId)
   }
 
   const handleSil = () => {
@@ -898,10 +937,14 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
           <RaporSecimModal
             open={raporModalAcik}
             baslik={fisTipiLabel}
-            tasarimlar={stokHareketFisiTasarimlari.map((t) => ({ id: t.id, label: t.label, aciklama: t.aciklama }))}
+            tasarimlar={sablonSecenekleri.map((s) => ({
+              id: String(s.id),
+              label: s.ad,
+              aciklama: 'Form tasarım editöründe hazırlandı',
+            }))}
             onCancel={() => setRaporModalAcik(false)}
-            onOnizle={(id) => handleRaporOnizle(id)}
-            onIndir={(id) => handleRaporIndir(id)}
+            onOnizle={(id) => handleSabloniOnizle(Number(id))}
+            onIndir={(id) => handleSabloniIndir(Number(id))}
           />
           <StokSecimiModal
             open={stokSecimiModalAcik}
