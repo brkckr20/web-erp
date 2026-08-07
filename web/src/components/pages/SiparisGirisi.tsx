@@ -1,11 +1,12 @@
 'use client'
 
-import { Dropdown, Button, Spin } from 'antd'
+import { Dropdown, Button, Spin, App } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
+import { siparisApi, type Siparis } from '@/lib/siparis-api'
 
 interface SiparisRow {
   key: string
@@ -25,16 +26,42 @@ interface SiparisGirisiProps {
 }
 
 export default function SiparisGirisi({ onSelect, onNew }: SiparisGirisiProps) {
+  const { message } = App.useApp()
   const [data, setData] = useState<SiparisRow[]>([])
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const formatTarih = (t: string | null | undefined) => {
+    if (!t) return ''
+    const d = new Date(t)
+    if (isNaN(d.getTime())) return ''
+    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+  }
+
+  const toRow = (s: Siparis): SiparisRow => {
+    const ilkKalem = s.kalemler?.[0]
+    const genel = s.aciklamalar?.find((a) => a.tip === 'genel')?.metin ?? ''
+    return {
+      key: String(s.id),
+      id: s.id,
+      siparisNo: s.siparisNo,
+      tarih: formatTarih(s.tarih),
+      cariKod: s.cariHesap?.kod ?? '',
+      cariAd: s.cariHesap?.ad ?? '',
+      modelKod: ilkKalem?.malzeme?.kod ?? '',
+      modelAd: ilkKalem?.malzeme?.ad ?? '',
+      aciklama: genel,
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     try {
-      setData([])
+      const list = await siparisApi.list()
+      setData(list.map(toRow))
     } catch {
       setData([])
+      message.warning('Sipariş listesi yüklenemedi')
     } finally {
       setLoading(false)
     }

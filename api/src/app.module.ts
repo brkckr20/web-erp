@@ -32,9 +32,10 @@ import { MalzemeFiyatModule } from './malzeme-fiyat/malzeme-fiyat.module';
 import { IrsaliyeModule } from './irsaliye/irsaliye.module';
 import { FasonTipiModule } from './fason-tipi/fason-tipi.module';
 import { FormSabloniModule } from './form-sabloni/form-sabloni.module';
+import { SiparisModule } from './siparis/siparis.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, FormSabloniModule],
+  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, FormSabloniModule, SiparisModule],
   controllers: [AppController],
   providers: [AppService],
 })

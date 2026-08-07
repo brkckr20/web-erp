@@ -13,11 +13,10 @@ import { malzemeFiyatApi } from '@/lib/malzeme-fiyat-api'
 import { dovizApi } from '@/lib/doviz-api'
 import { modelBedenApi, type ModelBeden } from '@/lib/model-beden-api'
 import { modelKumasGrupApi, type ModelKumasGrup } from '@/lib/model-kumas-grup-api'
+import { numaratorApi } from '@/lib/numarator-api'
+import { siparisApi, type SiparisKalem, type SiparisRenk } from '@/lib/siparis-api'
 import { useAuth } from '@/context/AuthContext'
 import type { ColDef, CellValueChangedEvent, RowClickedEvent, CellDoubleClickedEvent } from 'ag-grid-community'
-
-const NUMARATOR_PREFIXES = ['IH', 'TR', 'KS', 'NS', 'MS'] as const
-type NumaratorPrefix = typeof NUMARATOR_PREFIXES[number]
 
 interface ModelRow {
   key: string
@@ -65,41 +64,33 @@ interface StickerModalState {
 
 const STICKER_ADET = 10
 
-const STORAGE_KEY = 'siparis_counter'
-
-function getNextSiparisNo(prefix: NumaratorPrefix): string {
-  const year = new Date().getFullYear().toString().slice(-2)
-  const key = `${prefix}-${year}`
-  const raw = localStorage.getItem(STORAGE_KEY)
-  const counters: Record<string, number> = raw ? JSON.parse(raw) : {}
-  const next = (counters[key] ?? 0) + 1
-  counters[key] = next
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(counters))
-  return `${prefix}${year}-${String(next).padStart(4, '0')}`
-}
-
 interface SiparisFormData {
   siparisNo: string
   musteriOrderNo: string
-  prefix: NumaratorPrefix | null
+  numaratorId: number | null
   tarih: string
   cariKod: string
+  cariHesapId?: number
   istemeTarih: string
   mIstemeTarih: string
   kesimFazlasi: string
   musteriTemsilcisi: string
+  toplamTutar: string
+  toplamDoviz: string
 }
 
 const emptyData: SiparisFormData = {
   siparisNo: '',
   musteriOrderNo: '',
-  prefix: null,
+  numaratorId: null,
   tarih: new Date().toISOString().slice(0, 10),
   cariKod: '',
   istemeTarih: new Date().toISOString().slice(0, 10),
   mIstemeTarih: new Date().toISOString().slice(0, 10),
   kesimFazlasi: '',
   musteriTemsilcisi: '',
+  toplamTutar: '',
+  toplamDoviz: '',
 }
 
 interface SiparisKartiProps {
@@ -123,8 +114,10 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
   const [modelBedenler, setModelBedenler] = useState<ModelBeden[]>([])
   const [kumasGruplari, setKumasGruplari] = useState<ModelKumasGrup[]>([])
   const [renkBedenRows, setRenkBedenRows] = useState<RenkBedenRow[]>([])
+  const [renkBedenCache, setRenkBedenCache] = useState<Record<string, RenkBedenRow[]>>({})
   const [stickerData, setStickerData] = useState<Record<string, Record<number, string[]>>>({})
   const [stickerModal, setStickerModal] = useState<StickerModalState | null>(null)
+  const [numaratorOptions, setNumaratorOptions] = useState<{ value: number; label: string }[]>([])
   const lastLoadedRef = useRef<{ key: string; malzemeId: number | undefined } | null>(null)
 
   const aciklamaTipleri = [
@@ -196,6 +189,13 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
   }, [])
 
   useEffect(() => {
+    numaratorApi.list().then((list) => {
+      const active = list.filter((n) => n.kullanimda)
+      setNumaratorOptions(active.map((n) => ({ value: n.id, label: `${n.onEk}${n.ad ? ' - ' + n.ad : ''}` })))
+    }).catch(() => setNumaratorOptions([]))
+  }, [])
+
+  useEffect(() => {
     if (id && !isNew) {
       loadById(id)
     } else {
@@ -203,10 +203,116 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     }
   }, [id, isNew])
 
+  useEffect(() => {
+    if (selectedModelKey) {
+      setRenkBedenCache((prev) => ({ ...prev, [selectedModelKey]: renkBedenRows }))
+    }
+  }, [renkBedenRows, selectedModelKey])
+
+  const numOrNull = (v?: string | number | null): number | null => {
+    if (v === undefined || v === null || v === '') return null
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+
   const loadById = async (_id: number) => {
     setLoading(true)
     try {
-      setForm(emptyData)
+      const s = await siparisApi.get(_id)
+      setForm({
+        siparisNo: s.siparisNo,
+        numaratorId: s.numaratorId ?? null,
+        musteriOrderNo: s.musteriOrderNo ?? '',
+        tarih: (s.tarih ?? '').slice(0, 10),
+        cariKod: s.cariHesap?.kod ?? '',
+        cariHesapId: s.cariHesapId ?? undefined,
+        istemeTarih: s.istemeTarihi ? s.istemeTarihi.slice(0, 10) : '',
+        mIstemeTarih: s.mIstemeTarihi ? s.mIstemeTarihi.slice(0, 10) : '',
+        kesimFazlasi: s.kesimFazlasi ?? '',
+        musteriTemsilcisi: s.musteriTemsilcisi ?? '',
+        toplamTutar: s.toplamTutar?.toString() ?? '',
+        toplamDoviz: s.toplamDoviz ?? '',
+      })
+
+      const modelRows: ModelRow[] = (s.kalemler ?? []).map((k, i) => ({
+        key: k.id ? `k-${k.id}` : `n-${i}`,
+        malzemeId: k.malzemeId ?? undefined,
+        modelKod: k.malzeme?.kod ?? '',
+        modelAd: k.malzeme?.ad ?? '',
+        aciklama: k.aciklama ?? '',
+        ozelKod: k.ozelKod ?? '',
+        dovizCinsi: k.dovizCinsi ?? '',
+        dovizFiyat: k.dovizFiyati?.toString() ?? '',
+        dovizKuru: k.dovizKuru?.toString() ?? '',
+        fiyat: k.fiyat?.toString() ?? '',
+      }))
+      setRows(modelRows)
+
+      const cache: Record<string, RenkBedenRow[]> = {}
+      const stickers: Record<string, Record<number, string[]>> = {}
+      ;(s.kalemler ?? []).forEach((k, i) => {
+        const modelKey = modelRows[i]?.key
+        if (!modelKey) return
+        cache[modelKey] = (k.renkler ?? []).map((r, ri) => {
+          const renkler: Record<number, RenkBedenVaryant> = {}
+          for (const g of r.kumasGruplari ?? []) {
+            renkler[g.kumasGrupId] = { renkId: g.renkId ?? null, renkAd: g.renk ? `${g.renk.kod} - ${g.renk.ad}` : '', renkHex: g.renk?.renk ?? '' }
+          }
+          const miktarlar: Record<number, string> = {}
+          const fiyatlar: Record<number, string> = {}
+          const aciklamalar: Record<number, string> = {}
+          const barkodlar: Record<number, string> = {}
+          const bedenSticker: Record<number, string[]> = {}
+          for (const b of r.bedenler ?? []) {
+            miktarlar[b.bedenId] = b.miktar?.toString() ?? ''
+            fiyatlar[b.bedenId] = b.fiyat?.toString() ?? ''
+            aciklamalar[b.bedenId] = b.aciklama ?? ''
+            barkodlar[b.bedenId] = b.barkod ?? ''
+            bedenSticker[b.bedenId] = Array.from({ length: STICKER_ADET }, (_, si) =>
+              b.stickerler?.find((st) => st.sira === si + 1)?.deger ?? '',
+            )
+          }
+          const renkKey = r.id ? `r-${r.id}` : `nr-${i}-${ri}`
+          stickers[renkKey] = bedenSticker
+          return {
+            key: renkKey,
+            renkler,
+            fiyatlar,
+            aciklamalar,
+            barkodlar,
+            ozelKod: r.ozelKod ?? '',
+            musteriOrderNo: r.musteriOrderNo ?? '',
+            partOrderNo: r.partOrderNo ?? '',
+            aciklama: r.aciklama ?? '',
+            istemeTarih: r.istemeTarihi ? r.istemeTarihi.slice(0, 10) : '',
+            fiyat: r.fiyat?.toString() ?? '',
+            kesimUretim: r.kesimUretim ?? '',
+            lot: r.lot?.toString() ?? '',
+            miktarlar,
+            lotToplami: r.lotToplami?.toString() ?? '',
+            toplam: r.toplam?.toString() ?? '',
+            genelToplam: r.genelToplam?.toString() ?? '',
+          }
+        })
+      })
+      setRenkBedenCache(cache)
+      setStickerData(stickers)
+
+      const genelAciklama = s.aciklamalar?.find((a) => a.tip === 'genel')
+      const ilkAciklama = s.aciklamalar?.[0]
+      const acik = genelAciklama ?? ilkAciklama
+      setAciklamaTip(acik?.tip ?? 'genel')
+      setAciklamaMetin(acik?.metin ?? '')
+
+      if (modelRows.length > 0) {
+        handleModelSelect(modelRows[0], cache)
+      } else {
+        setSelectedModelKey(null)
+        setRenkBedenRows([])
+        setModelBedenler([])
+        setKumasGruplari([])
+        lastLoadedRef.current = null
+      }
     } catch {
       message.warning('Sipariş bulunamadı')
     } finally {
@@ -214,14 +320,18 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     }
   }
 
-  const handlePrefixChange = (prefix: NumaratorPrefix) => {
-    const siparisNo = getNextSiparisNo(prefix)
-    setForm((prev) => ({ ...prev, prefix, siparisNo }))
-    setIsDirty(true)
+  const handleNumaratorChange = async (numaratorId: number) => {
+    try {
+      const { siparisNo } = await siparisApi.nextNo(numaratorId)
+      setForm((prev) => ({ ...prev, numaratorId, siparisNo }))
+      setIsDirty(true)
+    } catch {
+      message.warning('Numaratörden sıra alınamadı')
+    }
   }
 
-  const handleCariChange = (kod: string) => {
-    setForm((prev) => ({ ...prev, cariKod: kod }))
+  const handleCariChange = (kod: string, rec?: { id: number }) => {
+    setForm((prev) => ({ ...prev, cariKod: kod, cariHesapId: rec?.id }))
     setIsDirty(true)
   }
 
@@ -568,13 +678,90 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   const handleYeni = () => {
     setForm({ ...emptyData, musteriTemsilcisi: kayitYapan })
     setRows([])
+    setRenkBedenRows([])
+    setRenkBedenCache({})
+    setStickerData({})
+    setStickerModal(null)
+    setSelectedModelKey(null)
+    setModelBedenler([])
+    setKumasGruplari([])
+    setAciklamaTip('genel')
+    setAciklamaMetin('')
     setIsDirty(false)
   }
+
+  const buildKalemler = (): SiparisKalem[] =>
+    rows.map((row, i) => {
+      const renkRows = renkBedenCache[row.key] ?? []
+      return {
+        malzemeId: row.malzemeId ?? null,
+        aciklama: row.aciklama || null,
+        ozelKod: row.ozelKod || null,
+        dovizCinsi: row.dovizCinsi || null,
+        dovizFiyati: numOrNull(row.dovizFiyat),
+        dovizKuru: numOrNull(row.dovizKuru),
+        fiyat: numOrNull(row.fiyat),
+        sira: i,
+        renkler: renkRows.map((r, ri): SiparisRenk => ({
+          ozelKod: r.ozelKod || null,
+          musteriOrderNo: r.musteriOrderNo || null,
+          partOrderNo: r.partOrderNo || null,
+          aciklama: r.aciklama || null,
+          istemeTarihi: r.istemeTarih || null,
+          fiyat: numOrNull(r.fiyat),
+          kesimUretim: r.kesimUretim || null,
+          lot: numOrNull(r.lot),
+          lotToplami: numOrNull(r.lotToplami),
+          toplam: numOrNull(r.toplam),
+          genelToplam: numOrNull(r.genelToplam),
+          sira: ri,
+          kumasGruplari: Object.entries(r.renkler).map(([gid, v]) => ({
+            kumasGrupId: Number(gid),
+            renkId: v.renkId ?? null,
+          })),
+          bedenler: Object.entries(r.miktarlar).map(([bedenIdStr, _m], bi) => {
+            const bedenId = Number(bedenIdStr)
+            return {
+              bedenId,
+              miktar: numOrNull(r.miktarlar[bedenId]),
+              fiyat: numOrNull(r.fiyatlar[bedenId]),
+              aciklama: r.aciklamalar[bedenId] || null,
+              barkod: r.barkodlar[bedenId] || null,
+              sira: bi,
+              stickerler: (stickerData[r.key]?.[bedenId] ?? []).map((deger, si) => ({
+                sira: si + 1,
+                deger: deger || null,
+              })),
+            }
+          }),
+        })),
+      }
+    })
 
   const handleKaydet = async () => {
     setSaving(true)
     try {
-      message.success('Demo kayıt başarılı')
+      const payload = {
+        numaratorId: form.numaratorId ?? undefined,
+        musteriOrderNo: form.musteriOrderNo || null,
+        tarih: form.tarih || new Date().toISOString().slice(0, 10),
+        istemeTarihi: form.istemeTarih || null,
+        mIstemeTarihi: form.mIstemeTarih || null,
+        kesimFazlasi: form.kesimFazlasi || null,
+        musteriTemsilcisi: form.musteriTemsilcisi || null,
+        toplamTutar: numOrNull(form.toplamTutar),
+        toplamDoviz: form.toplamDoviz || null,
+        cariHesapId: form.cariHesapId ?? null,
+        kalemler: buildKalemler(),
+        aciklamalar: [{ tip: aciklamaTip, metin: aciklamaMetin || null }],
+      }
+      if (id && !isNew) {
+        await siparisApi.update(id, { ...payload, guncelleyen: kayitYapan || null })
+        message.success('Sipariş güncellendi')
+      } else {
+        await siparisApi.create({ ...payload, kayitYapan: kayitYapan || null })
+        message.success('Sipariş kaydedildi')
+      }
       setIsDirty(false)
     } catch {
       message.error('Kayıt sırasında hata oluştu')
@@ -586,9 +773,18 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   const handlePrevious = () => message.info('İlk kayıttasınız')
   const handleNext = () => message.info('Son kayıttasınız')
 
-  const handleSil = () => {
-    message.success('Demo silme başarılı')
-    handleYeni()
+  const handleSil = async () => {
+    if (!id || isNew) {
+      message.warning('Silinecek kayıt seçili değil')
+      return
+    }
+    try {
+      await siparisApi.remove(id)
+      message.success('Sipariş silindi')
+      handleYeni()
+    } catch {
+      message.error('Silme sırasında hata oluştu')
+    }
   }
 
   const handleCellValueChanged = (e: CellValueChangedEvent<ModelRow>) => {
@@ -609,11 +805,10 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     setIsDirty(true)
   }
 
-  const handleModelSelect = (row: ModelRow | null) => {
+  const handleModelSelect = (row: ModelRow | null, rowsOverride?: Record<string, RenkBedenRow[]>) => {
     if (!row) {
       setSelectedModelKey(null)
       setRenkBedenRows([])
-      setStickerData({})
       setStickerModal(null)
       setModelBedenler([])
       setKumasGruplari([])
@@ -622,13 +817,18 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     }
     if (row.key === selectedModelKey && lastLoadedRef.current?.malzemeId === row.malzemeId) return
     setSelectedModelKey(row.key)
-    setRenkBedenRows([])
-    setStickerData({})
     setStickerModal(null)
     setModelBedenler([])
     setKumasGruplari([])
+    const overrideRows = rowsOverride?.[row.key]
+    const cachedRows = renkBedenCache[row.key]
+    const initialRows = overrideRows?.length
+      ? overrideRows
+      : cachedRows?.length
+        ? cachedRows
+        : []
     if (!row.malzemeId) {
-      setRenkBedenRows([emptyRenkBedenRow([], [])])
+      setRenkBedenRows(initialRows.length ? initialRows : [emptyRenkBedenRow([], [])])
       lastLoadedRef.current = { key: row.key, malzemeId: undefined }
       return
     }
@@ -640,12 +840,12 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       .then(([bedenler, gruplar]) => {
         setModelBedenler(bedenler)
         setKumasGruplari(gruplar)
-        setRenkBedenRows([emptyRenkBedenRow(gruplar, bedenler)])
+        setRenkBedenRows(initialRows.length ? initialRows : [emptyRenkBedenRow(gruplar, bedenler)])
         lastLoadedRef.current = { key: row.key, malzemeId: row.malzemeId }
       })
       .catch(() => {
         message.warning('Model varyant/beden bilgileri yüklenemedi')
-        setRenkBedenRows([emptyRenkBedenRow([], [])])
+        setRenkBedenRows(initialRows.length ? initialRows : [emptyRenkBedenRow([], [])])
         lastLoadedRef.current = { key: row.key, malzemeId: row.malzemeId }
       })
       .finally(() => setLoading(false))
@@ -749,10 +949,10 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                         <Select
                           size="small"
                           placeholder="Seçiniz"
-                          value={form.prefix}
-                          onChange={handlePrefixChange}
+                          value={form.numaratorId ?? undefined}
+                          onChange={handleNumaratorChange}
                           className="!w-32 !text-[11px]"
-                          options={NUMARATOR_PREFIXES.map((p) => ({ label: p, value: p }))}
+                          options={numaratorOptions}
                         />
                         <Input
                           size="small"
@@ -809,7 +1009,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                         <label className="!text-[10px] !font-semibold !uppercase !w-19 !text-left !shrink-0">Toplam Tutar</label>
                         <Input
                           size="small"
-                          value="22.500,36 EUR"
+                          value={form.toplamTutar ? `${form.toplamTutar}${form.toplamDoviz ? ' ' + form.toplamDoviz : ''}` : ''}
                           readOnly
                           className="!w-32 !text-[11px] !font-semibold !text-red-600 !bg-gray-50"
                         />

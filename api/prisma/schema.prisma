@@ -191,6 +191,7 @@ model Malzeme {
   malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupMalzeme")
   ekler             MalzemeEk[] @relation("MalzemeEk")
   irsaliyeKalemler  IrsaliyeKalem[] @relation("IrsaliyeKalemMalzeme")
+  siparisKalemler   SiparisKalem[] @relation("SiparisKalemMalzeme")
 
   @@map("malzeme")
 }
@@ -235,6 +236,7 @@ model Numarator {
   kullanimda        Boolean  @default(true)
 
   malzemeler        Malzeme[] @relation("MalzemeNumarator")
+  siparisler        Siparis[] @relation("SiparisNumarator")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -341,6 +343,7 @@ model CariHesap {
   kkFisler          KaliteKontrol[] @relation("KKFisCariHesap")
   renkler           Renk[] @relation("RenkCariHesap")
   irsaliyeler       Irsaliye[] @relation("IrsaliyeCariHesap")
+  siparisler        Siparis[] @relation("SiparisCariHesap")
 
   @@map("cari_hesap")
 }
@@ -658,6 +661,7 @@ model Renk {
   cariHesap         CariHesap? @relation("RenkCariHesap", fields: [cariKodu], references: [kod])
   parentRenk        Renk?      @relation("RenkParent", fields: [parentRenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   childRenkler      Renk[]     @relation("RenkParent")
+  siparisRenkler    SiparisRenkKumasGrup[] @relation("SiparisRenkRenkRef")
 
   @@map("renk")
 }
@@ -673,6 +677,7 @@ model Beden {
 
   olculer           ReceteOlcu[] @relation("OlcuBeden")
   malzemeBedenler   MalzemeBeden[] @relation("BedenMalzeme")
+  siparisRenkBedenler SiparisRenkBeden[] @relation("SiparisRenkBedenRef")
 
   @@map("beden")
 }
@@ -762,6 +767,7 @@ model KumasGrup {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupRef")
+  siparisRenkKumasGruplar SiparisRenkKumasGrup[] @relation("SiparisRenkKumasGrupRef")
 
   @@map("kumas_grup")
 }
@@ -882,4 +888,152 @@ model FormSabloni {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("form_sablonlari")
+}
+
+model Siparis {
+  id                Int      @id @default(autoincrement())
+  siparisNo         String   @unique @map("siparis_no") @db.VarChar(50)
+  numaratorId       Int?     @map("numarator_id")
+  numarator         Numarator? @relation("SiparisNumarator", fields: [numaratorId], references: [id])
+  musteriOrderNo    String?  @map("musteri_order_no") @db.VarChar(50)
+  tarih             DateTime @map("tarih")
+  istemeTarihi      DateTime? @map("isteme_tarihi")
+  mIstemeTarihi     DateTime? @map("m_isteme_tarihi")
+  kesimFazlasi      String?  @map("kesim_fazlasi") @db.VarChar(50)
+  musteriTemsilcisi String?  @map("musteri_temsilcisi") @db.VarChar(200)
+  toplamTutar       Decimal? @map("toplam_tutar") @db.Decimal(18, 2)
+  toplamDoviz       String?  @map("toplam_doviz") @db.VarChar(10)
+  onaylandi         Boolean  @default(false)
+  durum             String   @default("acik") @db.VarChar(20)
+  kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
+  kayitTarihi       DateTime? @map("kayit_tarihi")
+  guncelleyen       String?  @db.VarChar(100)
+  guncellemeTarihi  DateTime? @map("guncelleme_tarihi")
+
+  cariHesapId       Int?     @map("cari_hesap_id")
+  cariHesap         CariHesap? @relation("SiparisCariHesap", fields: [cariHesapId], references: [id])
+
+  kalemler          SiparisKalem[] @relation("SiparisKalemler")
+  aciklamalar       SiparisAciklama[] @relation("SiparisAciklamalar")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("siparis")
+}
+
+model SiparisKalem {
+  id                Int      @id @default(autoincrement())
+  siparisId         Int      @map("siparis_id")
+  siparis           Siparis  @relation("SiparisKalemler", fields: [siparisId], references: [id], onDelete: Cascade)
+
+  malzemeId         Int?     @map("malzeme_id")
+  malzeme           Malzeme? @relation("SiparisKalemMalzeme", fields: [malzemeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  aciklama          String?  @db.NVarChar(1000)
+  ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
+  dovizCinsi        String?  @map("doviz_cinsi") @db.VarChar(10)
+  dovizFiyati       Decimal? @map("doviz_fiyati") @db.Decimal(18, 6)
+  dovizKuru         Decimal? @map("doviz_kuru") @db.Decimal(18, 6)
+  fiyat             Decimal? @db.Decimal(18, 6)
+  sira              Int      @default(0)
+
+  renkler           SiparisRenk[] @relation("SiparisRenkler")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([siparisId])
+  @@map("siparis_kalem")
+}
+
+model SiparisRenk {
+  id                Int      @id @default(autoincrement())
+  siparisKalemId    Int      @map("siparis_kalem_id")
+  siparisKalem      SiparisKalem @relation("SiparisRenkler", fields: [siparisKalemId], references: [id], onDelete: Cascade)
+
+  ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
+  musteriOrderNo    String?  @map("musteri_order_no") @db.VarChar(50)
+  partOrderNo       String?  @map("part_order_no") @db.VarChar(50)
+  aciklama          String?  @db.NVarChar(1000)
+  istemeTarihi      DateTime? @map("isteme_tarihi")
+  fiyat             Decimal? @db.Decimal(18, 6)
+  kesimUretim       String?  @map("kesim_uretim") @db.VarChar(100)
+  lot               Decimal? @db.Decimal(18, 6)
+  lotToplami        Decimal? @map("lot_toplami") @db.Decimal(18, 6)
+  toplam            Decimal? @db.Decimal(18, 6)
+  genelToplam       Decimal? @map("genel_toplam") @db.Decimal(18, 6)
+  sira              Int      @default(0)
+
+  kumasGruplari     SiparisRenkKumasGrup[] @relation("SiparisRenkKumasGruplar")
+  bedenler          SiparisRenkBeden[] @relation("SiparisRenkBedenler")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([siparisKalemId])
+  @@map("siparis_renk")
+}
+
+model SiparisRenkKumasGrup {
+  id                Int      @id @default(autoincrement())
+  siparisRenkId     Int      @map("siparis_renk_id")
+  siparisRenk       SiparisRenk @relation("SiparisRenkKumasGruplar", fields: [siparisRenkId], references: [id], onDelete: Cascade)
+  kumasGrupId       Int      @map("kumas_grup_id")
+  kumasGrup         KumasGrup? @relation("SiparisRenkKumasGrupRef", fields: [kumasGrupId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  renkId            Int?     @map("renk_id")
+  renk              Renk?    @relation("SiparisRenkRenkRef", fields: [renkId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([siparisRenkId, kumasGrupId])
+  @@map("siparis_renk_kumas_grup")
+}
+
+model SiparisRenkBeden {
+  id                Int      @id @default(autoincrement())
+  siparisRenkId     Int      @map("siparis_renk_id")
+  siparisRenk       SiparisRenk @relation("SiparisRenkBedenler", fields: [siparisRenkId], references: [id], onDelete: Cascade)
+  bedenId           Int      @map("beden_id")
+  beden             Beden?   @relation("SiparisRenkBedenRef", fields: [bedenId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  miktar            Decimal? @db.Decimal(18, 6)
+  fiyat             Decimal? @db.Decimal(18, 6)
+  aciklama          String?  @db.NVarChar(1000)
+  barkod            String?  @db.VarChar(100)
+  sira              Int      @default(0)
+
+  stickerler        SiparisSticker[] @relation("SiparisStickerler")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([siparisRenkId, bedenId])
+  @@index([siparisRenkId])
+  @@map("siparis_renk_beden")
+}
+
+model SiparisSticker {
+  id                Int      @id @default(autoincrement())
+  siparisRenkBedenId Int     @map("siparis_renk_beden_id")
+  siparisRenkBeden  SiparisRenkBeden @relation("SiparisStickerler", fields: [siparisRenkBedenId], references: [id], onDelete: Cascade)
+  sira              Int
+  deger             String?  @db.NVarChar(200)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([siparisRenkBedenId, sira])
+  @@map("siparis_sticker")
+}
+
+model SiparisAciklama {
+  id                Int      @id @default(autoincrement())
+  siparisId         Int      @map("siparis_id")
+  siparis           Siparis  @relation("SiparisAciklamalar", fields: [siparisId], references: [id], onDelete: Cascade)
+  tip               String   @db.VarChar(20)
+  metin             String?  @db.NVarChar(MAX)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([siparisId, tip])
+  @@map("siparis_aciklama")
 }
