@@ -94,8 +94,8 @@ export default function MalzemeListesi({ onSelect, onNew }: MalzemeListesiProps)
 
   return (
     <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
-      <div className="!p-3">
-        <div className="!flex !items-center !justify-between !mb-3">
+      <div className="!p-3 !h-full !flex !flex-col">
+        <div className="!flex !items-center !justify-between !mb-3 !flex-shrink-0">
           <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
             Malzeme Kartları Listesi
           </div>
@@ -118,8 +118,8 @@ export default function MalzemeListesi({ onSelect, onNew }: MalzemeListesiProps)
           </div>
         </div>
 
-        <div className="!bg-white !rounded-sm">
-          <Spin spinning={loading}>
+        <div className="!bg-white !rounded-sm !flex-1 !min-h-0 !overflow-y-auto" style={{ minHeight: 300 }}>
+          <Spin spinning={loading} classNames={{ root: '!h-full [&_.ant-spin-container]:!h-full' }}>
           <Table
             columns={columns}
             dataSource={data}

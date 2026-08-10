@@ -37,8 +37,8 @@ interface ModelKartiProps {
 
 const tabClass =
   '!px-3 !pt-2 !flex-1 !flex !flex-col !min-h-0 ' +
-  '[&_.ant-tabs-content-holder]:!flex [&_.ant-tabs-content-holder]:!flex-col [&_.ant-tabs-content-holder]:!flex-1 [&_.ant-tabs-content-holder]:!min-h-0 ' +
-  '[&_.ant-tabs-content]:!flex-1 [&_.ant-tabs-content]:!min-h-0 [&_.ant-tabs-tabpane]:!h-full ' +
+  '[&_.ant-tabs-body-holder]:!flex [&_.ant-tabs-body-holder]:!flex-col [&_.ant-tabs-body-holder]:!flex-1 [&_.ant-tabs-body-holder]:!min-h-0 ' +
+  '[&_.ant-tabs-body]:!flex-1 [&_.ant-tabs-body]:!min-h-0 [&_.ant-tabs-tabpane]:!h-full ' +
   '[&_.ant-tabs-nav]:!mb-2 [&_.ant-tabs-nav]:!border-b [&_.ant-tabs-nav]:!border-gray-200 [&_.ant-tabs-nav]:!flex-shrink-0 ' +
   '[&_.ant-tabs-tab]:!text-[11px] [&_.ant-tabs-tab]:!px-2 [&_.ant-tabs-tab]:!py-1 [&_.ant-tabs-tab]:!bg-[#E0E0E0] [&_.ant-tabs-tab]:!border [&_.ant-tabs-tab]:!border-gray-200 [&_.ant-tabs-tab]:!text-[#333] ' +
   '[&_.ant-tabs-tab-active]:!bg-white [&_.ant-tabs-tab-active]:!border-t-2 [&_.ant-tabs-tab-active]:!border-t-[#FF9933] [&_.ant-tabs-tab-active]:!text-[#FF9933] ' +
@@ -46,8 +46,8 @@ const tabClass =
 
 const innerTabClass =
   '!flex-1 !flex !flex-col !min-h-0 ' +
-  '[&_.ant-tabs-content-holder]:!flex [&_.ant-tabs-content-holder]:!flex-col [&_.ant-tabs-content-holder]:!flex-1 [&_.ant-tabs-content-holder]:!min-h-0 ' +
-  '[&_.ant-tabs-content]:!flex-1 [&_.ant-tabs-content]:!min-h-0 [&_.ant-tabs-tabpane]:!h-full ' +
+  '[&_.ant-tabs-body-holder]:!flex [&_.ant-tabs-body-holder]:!flex-col [&_.ant-tabs-body-holder]:!flex-1 [&_.ant-tabs-body-holder]:!min-h-0 ' +
+  '[&_.ant-tabs-body]:!flex-1 [&_.ant-tabs-body]:!min-h-0 [&_.ant-tabs-tabpane]:!h-full ' +
   '[&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!border-b [&_.ant-tabs-nav]:!border-gray-200 [&_.ant-tabs-nav]:!flex-shrink-0 ' +
   '[&_.ant-tabs-tab]:!text-[11px] [&_.ant-tabs-tab]:!px-2 [&_.ant-tabs-tab]:!py-1 [&_.ant-tabs-tab]:!bg-[#E0E0E0] [&_.ant-tabs-tab]:!border [&_.ant-tabs-tab]:!border-gray-200 [&_.ant-tabs-tab]:!text-[#333] ' +
   '[&_.ant-tabs-tab-active]:!bg-white [&_.ant-tabs-tab-active]:!border-t-2 [&_.ant-tabs-tab-active]:!border-t-[#FF9933] [&_.ant-tabs-tab-active]:!text-[#FF9933] ' +
@@ -764,7 +764,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   )
 
   const olcuContent = (
-    <div>
+    <div className="!h-full !overflow-y-auto">
       <div className="!border !border-gray-200 !rounded-sm !p-4 !w-[550px]">
         <div className="!flex !flex-col !gap-3">
           <FormField label="Beden Ekle">
@@ -1579,7 +1579,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     <div className="!h-full !flex !flex-col">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
         <CardToolbar buttons={toolbarButtons} />
-        <Spin spinning={loading}>
+        <Spin spinning={loading} className="!flex-1 !flex !flex-col !min-h-0 [&_.ant-spin-container]:!flex-1 [&_.ant-spin-container]:!flex [&_.ant-spin-container]:!flex-col [&_.ant-spin-container]:!min-h-0">
             <div className="!flex !items-center !gap-4 !px-3 !py-2 !border-b !border-gray-200 !flex-shrink-0">
               <div className="!flex !items-center !gap-1.5">
                 <label className="!text-[11px] !font-semibold !text-[#333] !uppercase !w-12">Kodu</label>
