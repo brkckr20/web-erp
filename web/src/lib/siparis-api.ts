@@ -55,6 +55,8 @@ export interface SiparisKalem {
   dovizFiyati?: number | null
   dovizKuru?: number | null
   fiyat?: number | null
+  miktar?: number | null
+  tutar?: number | null
   sira?: number
   renkler?: SiparisRenk[]
 }

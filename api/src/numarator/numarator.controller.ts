@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, ParseIntPipe } from '@nestjs/common'
 import { NumaratorService } from './numarator.service'
 import { CreateNumaratorDto } from './dto/create-numarator.dto'
 import { UpdateNumaratorDto } from './dto/update-numarator.dto'
@@ -8,8 +8,8 @@ export class NumaratorController {
   constructor(private readonly numaratorService: NumaratorService) {}
 
   @Get()
-  findAll() {
-    return this.numaratorService.findAll()
+  findAll(@Query('tip') tip?: string) {
+    return this.numaratorService.findAll(tip)
   }
 
   @Get(':id')

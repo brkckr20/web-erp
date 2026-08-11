@@ -234,6 +234,7 @@ model Numarator {
   onEk              String   @map("on_ek") @db.VarChar(20)
   sonNo             Int      @default(0) @map("son_no")
   kullanimda        Boolean  @default(true)
+  tip               String   @default("kumas") @db.VarChar(20)
 
   malzemeler        Malzeme[] @relation("MalzemeNumarator")
   siparisler        Siparis[] @relation("SiparisNumarator")
@@ -935,6 +936,8 @@ model SiparisKalem {
   dovizFiyati       Decimal? @map("doviz_fiyati") @db.Decimal(18, 6)
   dovizKuru         Decimal? @map("doviz_kuru") @db.Decimal(18, 6)
   fiyat             Decimal? @db.Decimal(18, 6)
+  miktar            Decimal? @db.Decimal(18, 2)
+  tutar             Decimal? @db.Decimal(18, 2)
   sira              Int      @default(0)
 
   renkler           SiparisRenk[] @relation("SiparisRenkler")

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Input, Switch, App, Spin } from 'antd'
+import { Input, Select, Switch, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { numaratorApi } from '@/lib/numarator-api'
@@ -11,6 +11,7 @@ interface FormData {
   onEk: string
   sonNo: number
   kullanimda: boolean
+  tip: string
 }
 
 const emptyData: FormData = {
@@ -18,7 +19,13 @@ const emptyData: FormData = {
   onEk: '',
   sonNo: 0,
   kullanimda: true,
+  tip: 'kumas',
 }
+
+const TIP_OPTIONS = [
+  { value: 'kumas', label: 'Kumaş' },
+  { value: 'siparis', label: 'Sipariş' },
+]
 
 interface NumaratorKartiProps {
   isNew?: boolean
@@ -51,6 +58,7 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
         onEk: data.onEk,
         sonNo: data.sonNo,
         kullanimda: data.kullanimda,
+        tip: data.tip,
       })
     } catch {
       message.warning('Kayıt bulunamadı')
@@ -143,6 +151,16 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20 !text-right">Ad</label>
                 <Input size="small" value={form.ad} onChange={(e) => set('ad', e.target.value)} className="!text-[11px]" />
+              </div>
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20 !text-right">Tip</label>
+                <Select
+                  size="small"
+                  value={form.tip}
+                  onChange={(v) => set('tip', v)}
+                  options={TIP_OPTIONS}
+                  className="!w-28 !text-[11px]"
+                />
               </div>
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20 !text-right">Ön Ek</label>

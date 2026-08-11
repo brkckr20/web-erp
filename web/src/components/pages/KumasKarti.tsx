@@ -84,7 +84,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
   }, [kod])
 
   useEffect(() => {
-    numaratorApi.list().then(setNumaratorlar).catch(() => {})
+    numaratorApi.list('kumas').then(setNumaratorlar).catch(() => {})
   }, [])
 
   const loadByKod = useCallback(async (k: string) => {
@@ -203,7 +203,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
         }
         if (!payload.kod.trim()) { message.warning('Kod alanı zorunludur'); setSaving(false); return }
         const created = await malzemeApi.create(payload)
-        numaratorApi.list().then(setNumaratorlar).catch(() => {})
+    numaratorApi.list('kumas').then(setNumaratorlar).catch(() => {})
         setId(created.id)
         setForm((prev) => ({ ...prev, kod: created.kod }))
         message.success('Kumaş başarıyla oluşturuldu')

@@ -14,6 +14,7 @@ interface NumaratorRow {
   onEk: string
   sonNo: number
   kullanimda: boolean
+  tip: string
 }
 
 interface NumaratorListesiProps {
@@ -38,6 +39,7 @@ export default function NumaratorListesi({ onSelect, onNew }: NumaratorListesiPr
           onEk: d.onEk,
           sonNo: d.sonNo,
           kullanimda: d.kullanimda,
+          tip: d.tip,
         })),
       )
     } catch {
@@ -70,6 +72,17 @@ export default function NumaratorListesi({ onSelect, onNew }: NumaratorListesiPr
       key: 'onEk',
       width: 100,
       render: (text) => <span className="!text-[11px]">{text}</span>,
+    },
+    {
+      title: 'Tip',
+      dataIndex: 'tip',
+      key: 'tip',
+      width: 100,
+      render: (val: string) => (
+        <Tag color={val === 'siparis' ? 'blue' : 'orange'} className="!text-[10px]">
+          {val === 'siparis' ? 'Sipariş' : 'Kumaş'}
+        </Tag>
+      ),
     },
     {
       title: 'Son No',

@@ -87,7 +87,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
 
   useEffect(() => {
     aksesuarTipiApi.list().then(setTipList).catch(() => {})
-    numaratorApi.list().then(setNumaratorlar).catch(() => {})
+    numaratorApi.list('kumas').then(setNumaratorlar).catch(() => {})
   }, [])
 
   useEffect(() => {

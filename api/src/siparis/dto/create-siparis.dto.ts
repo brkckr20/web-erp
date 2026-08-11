@@ -47,6 +47,8 @@ export class SiparisKalemDto {
   dovizFiyati?: number;
   dovizKuru?: number;
   fiyat?: number;
+  miktar?: number;
+  tutar?: number;
   sira?: number;
   renkler?: SiparisRenkDto[];
 }

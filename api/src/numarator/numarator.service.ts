@@ -7,8 +7,11 @@ import { UpdateNumaratorDto } from './dto/update-numarator.dto'
 export class NumaratorService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.numarator.findMany({ orderBy: { ad: 'asc' } })
+  findAll(tip?: string) {
+    return this.prisma.numarator.findMany({
+      where: tip ? { tip } : undefined,
+      orderBy: { ad: 'asc' },
+    })
   }
 
   async findOne(id: number) {

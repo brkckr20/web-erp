@@ -56,6 +56,7 @@ import DovizListesi from '@/components/pages/DovizListesi'
 import DovizKarti from '@/components/pages/DovizKarti'
 import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
+import TedarikEkrani from '@/components/pages/TedarikEkrani'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
@@ -920,6 +921,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'siparis-girisi') {
       return <SiparisGirisi onSelect={openSiparisKarti} onNew={openYeniSiparis} />
+    }
+    if (tab.key === 'kumas-tedarik') {
+      return <TedarikEkrani tip="kumas" />
+    }
+    if (tab.key === 'iplik-tedarik') {
+      return <TedarikEkrani tip="iplik" />
+    }
+    if (tab.key === 'aksesuar-tedarik') {
+      return <TedarikEkrani tip="aksesuar" />
     }
     if (tab.key === 'siparis-karti-yeni') {
       return <SiparisKarti isNew />

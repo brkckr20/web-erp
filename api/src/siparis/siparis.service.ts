@@ -105,6 +105,7 @@ export class SiparisService {
       await tx.siparis.update({ where: { id }, data });
       if (Array.isArray(kalemler)) {
         await tx.siparisKalem.deleteMany({ where: { siparisId: id } });
+        await tx.siparisAciklama.deleteMany({ where: { siparisId: id } });
         await this.createChildren(tx, id, kalemler, aciklamalar);
       }
       return this.findOneTx(tx, id);

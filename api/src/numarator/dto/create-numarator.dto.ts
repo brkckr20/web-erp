@@ -3,4 +3,5 @@ export class CreateNumaratorDto {
   onEk: string
   sonNo?: number
   kullanimda?: boolean
+  tip?: string
 }

@@ -107,8 +107,9 @@ export default function RenkKarti({ isNew, kod, tip = 1 }: RenkKartiProps) {
     }
     setSaving(true)
     try {
+      const { cariAdi, ...restForm } = form
       const payload = {
-        ...form,
+        ...restForm,
         talepTarihi: form.talepTarihi || null,
         okeyTarihi: form.okeyTarihi || null,
       }

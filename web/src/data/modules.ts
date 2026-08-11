@@ -98,6 +98,9 @@ export const modules: Module[] = [
         title: 'Hareketler',
         items: [
           { key: 'siparis-girisi', label: 'Sipariş Girişi', isFavorite: true, isForm: true },
+          { key: 'kumas-tedarik', label: 'Kumaş Tedarik' },
+          { key: 'iplik-tedarik', label: 'İplik Tedarik' },
+          { key: 'aksesuar-tedarik', label: 'Aksesuar Tedarik' },
           { key: 'fason-hareket', label: 'Fason Hareket Fişleri', isFavorite: true, isForm: true },
           { key: 'uretim-hareket', label: 'Üretim Hareket Fişleri', isForm: true },
         ],
