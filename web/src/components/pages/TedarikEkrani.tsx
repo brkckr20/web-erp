@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Select, Button, App, Spin } from 'antd'
 import { CalculatorOutlined } from '@ant-design/icons'
 import DataGrid from '@/components/shared/DataGrid'
 import { siparisApi, type Siparis, type SiparisKalem } from '@/lib/siparis-api'
+import { tedarikApi, type HesaplaSonuc } from '@/lib/tedarik-api'
 import type { ColDef } from 'ag-grid-community'
 
 export type TedarikTipi = 'kumas' | 'iplik' | 'aksesuar'
@@ -24,18 +25,52 @@ interface SiparisOption {
   label: string
 }
 
+interface KumasDetaySatir {
+  kumasKod: string
+  kumasAdi: string
+  varyant: string
+  renk: string
+  adet: number
+  birim: string
+  netMetraj: number
+  kfMetraj: number
+}
+
+interface KumasIhtiyacSatir {
+  kumasKod: string
+  kumasAdi: string
+  adet: number
+  birim: string
+  netMetraj: number
+  kfMetraj: number
+}
+
+const fmt = (v: number | null | undefined, basamak = 2): string => {
+  if (v === null || v === undefined || isNaN(v)) return ''
+  return v.toLocaleString('tr-TR', { minimumFractionDigits: basamak, maximumFractionDigits: basamak })
+}
+
+const kesimFazlasiYuzde = (siparis: Siparis | null): number => {
+  if (!siparis?.kesimFazlasi) return 0
+  const n = parseFloat(String(siparis.kesimFazlasi).replace('%', '').replace(',', '.'))
+  return isNaN(n) ? 0 : n
+}
+
 export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
   const { message } = App.useApp()
   const [siparisler, setSiparisler] = useState<SiparisOption[]>([])
-  const [siparislerLoading, setSiparislerLoading] = useState(false)
+  const [siparislerLoading, setSiparislerLoading] = useState(true)
   const [siparisId, setSiparisId] = useState<number | null>(null)
   const [siparis, setSiparis] = useState<Siparis | null>(null)
   const [siparisLoading, setSiparisLoading] = useState(false)
   const [modelKey, setModelKey] = useState<string | null>(null)
+  const [hesaplamaLoading, setHesaplamaLoading] = useState(false)
+  const [detaySatirlar, setDetaySatirlar] = useState<KumasDetaySatir[]>([])
+  const [ihtiyacSatirlar, setIhtiyacSatirlar] = useState<KumasIhtiyacSatir[]>([])
+  const [durum, setDurum] = useState('')
 
   useEffect(() => {
     let active = true
-    setSiparislerLoading(true)
     siparisApi
       .list()
       .then((list) => {
@@ -61,6 +96,9 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
   const loadSiparis = async (id: number) => {
     setSiparisLoading(true)
     setModelKey(null)
+    setDetaySatirlar([])
+    setIhtiyacSatirlar([])
+    setDurum('')
     try {
       const s = await siparisApi.get(id)
       setSiparis(s)
@@ -89,31 +127,131 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
     [modeller, modelKey],
   )
 
-  const ustGridKolonlar = useMemo<ColDef[]>(
-    () => [
-      { headerName: 'Malzeme Kodu', field: 'malzemeKodu', width: 140 },
-      { headerName: 'Malzeme Adı', field: 'malzemeAdi', flex: 1, minWidth: 160 },
-      { headerName: 'Miktar', field: 'miktar', width: 100 },
-      { headerName: 'Birim', field: 'birim', width: 80 },
-    ],
-    [],
-  )
+  const kfYuzde = useMemo(() => kesimFazlasiYuzde(siparis), [siparis])
 
-  const altGridKolonlar = useMemo<ColDef[]>(
-    () => [
-      { headerName: 'Açıklama', field: 'aciklama', flex: 1, minWidth: 120 },
-      { headerName: 'Tutar', field: 'tutar', width: 110 },
-    ],
-    [],
+  const hesaplaKumas = useCallback(
+    async (kalem: SiparisKalem | null) => {
+      if (!kalem?.malzeme) {
+        setDetaySatirlar([])
+        setIhtiyacSatirlar([])
+        setDurum('')
+        return
+      }
+      if (!siparisId) {
+        message.warning('Sipariş ID eksik')
+        setDetaySatirlar([])
+        setIhtiyacSatirlar([])
+        setDurum('')
+        return
+      }
+      setHesaplamaLoading(true)
+      setDurum('')
+      try {
+        const sonuc: HesaplaSonuc = await tedarikApi.hesapla(siparisId, kalem.id ?? null)
+        const satirlar = sonuc.satirlar
+
+        const detayList: KumasDetaySatir[] = satirlar
+          .map((s): KumasDetaySatir => ({
+            kumasKod: s.malzemeKod,
+            kumasAdi: s.malzemeAd,
+            varyant: s.kumasGrupKod,
+            renk: s.renkKod ? `${s.renkKod} - ${s.renkAd ?? ''}`.trim() : s.renkAd ?? '',
+            adet: 0,
+            birim: s.birim,
+            netMetraj: Number(s.brutMiktar) || 0,
+            kfMetraj: Number(s.netMiktar) || 0,
+          }))
+          .sort((a, b) => a.kumasKod.localeCompare(b.kumasKod) || a.renk.localeCompare(b.renk))
+        setDetaySatirlar(detayList)
+
+        const ihtiyacTopla = new Map<string, KumasIhtiyacSatir>()
+        for (const s of satirlar) {
+          const key = s.malzemeKod
+          const mevcut = ihtiyacTopla.get(key)
+          if (mevcut) {
+            mevcut.netMetraj += Number(s.brutMiktar) || 0
+            mevcut.kfMetraj += Number(s.netMiktar) || 0
+          } else {
+            ihtiyacTopla.set(key, {
+              kumasKod: s.malzemeKod,
+              kumasAdi: s.malzemeAd,
+              adet: 0,
+              birim: s.birim,
+              netMetraj: Number(s.brutMiktar) || 0,
+              kfMetraj: Number(s.netMiktar) || 0,
+            })
+          }
+        }
+        setIhtiyacSatirlar([...ihtiyacTopla.values()].sort((a, b) => a.kumasKod.localeCompare(b.kumasKod)))
+
+        if (detayList.length === 0) {
+          setDurum('Seçili model için hesaplanacak veri bulunamadı (reçete miktarı veya sipariş beden adedi kontrol edin)')
+        } else {
+          setDurum(`${ihtiyacTopla.size} kumaş için ${detayList.length} satır hesaplandı; veritabanına kaydedildi`)
+        }
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : 'Hesaplama sırasında hata oluştu')
+        setDetaySatirlar([])
+        setIhtiyacSatirlar([])
+        setDurum('')
+      } finally {
+        setHesaplamaLoading(false)
+      }
+    },
+    [message, siparisId],
   )
 
   const handleHesapla = () => {
+    if (tip !== 'kumas') {
+      message.info('Bu tip için hesaplama henüz uygulanmadı')
+      return
+    }
+    if (!siparisId) {
+      message.warning('Önce Order No seçin')
+      return
+    }
     if (!seciliKalem) {
       message.warning('Önce bir model seçin')
       return
     }
-    message.info('Hesaplama henüz uygulanmadı')
+    hesaplaKumas(seciliKalem)
   }
+
+  const detayGridKolonlar = useMemo<ColDef[]>(() => {
+    if (tip !== 'kumas') {
+      return [
+        { headerName: 'Malzeme Kodu', field: 'malzemeKodu', width: 140 },
+        { headerName: 'Malzeme Adı', field: 'malzemeAdi', flex: 1, minWidth: 160 },
+        { headerName: 'Miktar', field: 'miktar', width: 100 },
+        { headerName: 'Birim', field: 'birim', width: 80 },
+      ]
+    }
+    return [
+      { headerName: 'Kumaş Kodu', field: 'kumasKod', width: 130 },
+      { headerName: 'Kumaş Adı', field: 'kumasAdi', flex: 1, minWidth: 140 },
+      { headerName: 'Varyant-1', field: 'varyant', width: 90 },
+      { headerName: 'Renk', field: 'renk', width: 150 },
+      { headerName: 'Miktar', field: 'netMetraj', width: 120, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
+      { headerName: 'Birim', field: 'birim', width: 80 },
+      { headerName: 'KF Dahil (mt)', field: 'kfMetraj', width: 120, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
+    ]
+  }, [tip])
+
+  const ihtiyacGridKolonlar = useMemo<ColDef[]>(() => {
+    if (tip !== 'kumas') {
+      return [
+        { headerName: 'Açıklama', field: 'aciklama', flex: 1, minWidth: 120 },
+        { headerName: 'Tutar', field: 'tutar', width: 110 },
+      ]
+    }
+    return [
+      { headerName: 'Kumaş Kodu', field: 'kumasKod', width: 130 },
+      { headerName: 'Kumaş Adı', field: 'kumasAdi', flex: 1, minWidth: 140 },
+      { headerName: 'Miktar', field: 'netMetraj', width: 130, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
+      { headerName: 'Birim', field: 'birim', width: 80 },
+      { headerName: 'KF Dahil (mt)', field: 'kfMetraj', width: 130, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
+    ]
+  }, [tip])
 
   return (
     <div className="!h-full !flex !flex-col !p-3">
@@ -154,36 +292,42 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
               />
             </div>
           </div>
+          {tip === 'kumas' && (
+            <div className="!flex !items-center !gap-3 !mt-2 !text-[11px]">
+              <span className={durum ? '!text-[#b45309]' : '!text-[#9ca3af]'}>{durum || 'Hesaplama için model seçin'}</span>
+              {kfYuzde > 0 && <span className="!text-[#9ca3af]">Kesim fazlası: %{kfYuzde} uygulandı</span>}
+            </div>
+          )}
         </div>
 
         <Spin spinning={siparisLoading}>
           <div className="!flex-1 !flex !flex-col !min-h-0 !p-3 !gap-3">
-            <div className="!h-[70%] !min-h-0 !border !border-gray-200 !rounded-sm !p-2">
+            <div className="!h-[60%] !min-h-[300px] !border !border-gray-200 !rounded-sm !p-2">
               <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-2">
                 Tedarik Detayları
               </div>
               <DataGrid
-                rowData={[]}
-                columnDefs={ustGridKolonlar}
+                rowData={detaySatirlar}
+                columnDefs={detayGridKolonlar}
                 domLayout="normal"
                 enableColumnChooser={false}
                 enableExcelExport={false}
-                height={260}
-                wrapperClassName="!min-h-[260px]"
+                height={300}
+                wrapperClassName="!min-h-[300px]"
               />
             </div>
-            <div className="!h-[30%] !min-h-0 !border !border-gray-200 !rounded-sm !p-2">
+            <div className="!h-[40%] !min-h-[180px] !border !border-gray-200 !rounded-sm !p-2">
               <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-2">
                 Hesaplanan İhtiyaç
               </div>
               <DataGrid
-                rowData={[]}
-                columnDefs={altGridKolonlar}
+                rowData={ihtiyacSatirlar}
+                columnDefs={ihtiyacGridKolonlar}
                 domLayout="normal"
                 enableColumnChooser={false}
                 enableExcelExport={false}
-                height={160}
-                wrapperClassName="!min-h-[160px]"
+                height={180}
+                wrapperClassName="!min-h-[180px]"
               />
             </div>
           </div>
@@ -194,6 +338,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
             type="primary"
             size="small"
             icon={<CalculatorOutlined />}
+            loading={hesaplamaLoading}
             onClick={handleHesapla}
             className="!text-[11px]"
           >

@@ -235,6 +235,7 @@ model Numarator {
   sonNo             Int      @default(0) @map("son_no")
   kullanimda        Boolean  @default(true)
   tip               String   @default("kumas") @db.VarChar(20)
+  grupKodu          String?  @map("grup_kodu") @db.NVarChar(50)
 
   malzemeler        Malzeme[] @relation("MalzemeNumarator")
   siparisler        Siparis[] @relation("SiparisNumarator")
@@ -1039,4 +1040,34 @@ model SiparisAciklama {
 
   @@unique([siparisId, tip])
   @@map("siparis_aciklama")
+}
+
+model TedarikIhtiyac {
+  id              Int      @id @default(autoincrement()) @db.Int
+  siparisId       Int      @map("siparis_id")
+  siparisKalemId  Int      @map("siparis_kalem_id")
+  receteKalemId   Int?     @map("recete_kalem_id")
+  malzemeId       Int      @map("malzeme_id")
+  malzemeKod      String   @map("malzeme_kod") @db.NVarChar(50)
+  malzemeAd       String   @map("malzeme_ad") @db.NVarChar(200)
+  kumasGrupId     Int      @map("kumas_grup_id")
+  kumasGrupKod    String   @map("kumas_grup_kod") @db.NVarChar(50)
+  renkId          Int      @map("renk_id")
+  renkKod         String   @map("renk_kod") @db.NVarChar(50)
+  renkAd          String   @map("renk_ad") @db.NVarChar(200)
+  brutMiktar      Decimal  @map("brut_miktar") @db.Decimal(18, 6)
+  netMiktar       Decimal  @map("net_miktar") @db.Decimal(18, 6)
+  birim           String   @default("mt") @db.NVarChar(20)
+  tip             String   @default("kumas") @db.NVarChar(20)
+  durum           String   @default("hesaplandi") @db.NVarChar(20)
+  aciklama        String?  @db.NVarChar(MAX)
+  kayitYapan      String?  @map("kayit_yapan") @db.NVarChar(100)
+  kayitTarihi     DateTime @default(now()) @map("kayit_tarihi")
+  guncelleyen     String?  @map("guncelleyen") @db.NVarChar(100)
+  guncellemeTarihi DateTime? @updatedAt @map("guncelleme_tarihi")
+
+  @@index([siparisId], map: "IX_tedarik_ihtiyac_siparis")
+  @@index([siparisKalemId], map: "IX_tedarik_ihtiyac_sip_kalem")
+  @@index([malzemeId], map: "IX_tedarik_ihtiyac_malzeme")
+  @@map("tedarik_ihtiyac")
 }

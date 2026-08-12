@@ -12,6 +12,7 @@ interface FormData {
   sonNo: number
   kullanimda: boolean
   tip: string
+  grupKodu: string
 }
 
 const emptyData: FormData = {
@@ -20,6 +21,7 @@ const emptyData: FormData = {
   sonNo: 0,
   kullanimda: true,
   tip: 'kumas',
+  grupKodu: '',
 }
 
 const TIP_OPTIONS = [
@@ -59,6 +61,7 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
         sonNo: data.sonNo,
         kullanimda: data.kullanimda,
         tip: data.tip,
+        grupKodu: data.grupKodu ?? '',
       })
     } catch {
       message.warning('Kayıt bulunamadı')
@@ -161,6 +164,10 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
                   options={TIP_OPTIONS}
                   className="!w-28 !text-[11px]"
                 />
+              </div>
+              <div className="!flex !items-center !gap-2">
+                <label className="!text-[10px] !font-semibold !uppercase !w-20 !text-right">Grup Kodu</label>
+                <Input size="small" value={form.grupKodu} onChange={(e) => set('grupKodu', e.target.value)} className="!text-[11px] !w-40" />
               </div>
               <div className="!flex !items-center !gap-2">
                 <label className="!text-[10px] !font-semibold !uppercase !w-20 !text-right">Ön Ek</label>

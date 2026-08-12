@@ -9,6 +9,7 @@ export interface Numarator {
   sonNo: number
   kullanimda: boolean
   tip: string
+  grupKodu: string | null
 }
 
 export type NumaratorFormData = Omit<Numarator, 'id'>

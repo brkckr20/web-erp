@@ -4,4 +4,5 @@ export class CreateNumaratorDto {
   sonNo?: number
   kullanimda?: boolean
   tip?: string
+  grupKodu?: string | null
 }

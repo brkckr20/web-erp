@@ -503,7 +503,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         const parsed = JSON.parse(row.bedenSecimi)
         Object.entries(parsed).forEach(([k, v]) => {
           const n = Number(v)
-          existing[Number(k)] = isNaN(n) ? String(v) : n.toFixed(3).replace('.', ',')
+          existing[Number(k)] = isNaN(n) ? String(v) : n.toFixed(4).replace('.', ',')
         })
       } catch { /* ignore */ }
     }
@@ -1658,7 +1658,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
                             })
                             return
                           }
-                          setBedenModalValues((prev) => ({ ...prev, [b.bedenId]: num.toFixed(3).replace('.', ',') }))
+                          setBedenModalValues((prev) => ({ ...prev, [b.bedenId]: num.toFixed(4).replace('.', ',') }))
                         }}
                         placeholder="0,000"
                       />

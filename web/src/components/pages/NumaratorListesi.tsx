@@ -12,6 +12,7 @@ interface NumaratorRow {
   id: number
   ad: string
   onEk: string
+  grupKodu: string
   sonNo: number
   kullanimda: boolean
   tip: string
@@ -38,6 +39,7 @@ export default function NumaratorListesi({ onSelect, onNew }: NumaratorListesiPr
           ad: d.ad,
           onEk: d.onEk,
           sonNo: d.sonNo,
+          grupKodu: d.grupKodu ?? '',
           kullanimda: d.kullanimda,
           tip: d.tip,
         })),
@@ -65,6 +67,13 @@ export default function NumaratorListesi({ onSelect, onNew }: NumaratorListesiPr
       dataIndex: 'ad',
       key: 'ad',
       render: (text) => <span className="!text-[11px] !font-medium !text-[#f57c00]">{text}</span>,
+    },
+    {
+      title: 'Grup Kodu',
+      dataIndex: 'grupKodu',
+      key: 'grupKodu',
+      width: 100,
+      render: (text: string) => <span className="!text-[11px]">{text || '-'}</span>,
     },
     {
       title: 'Ön Ek',
