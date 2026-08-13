@@ -50,6 +50,21 @@ export interface TedarikIhtiyac {
   guncellemeTarihi: string | null
 }
 
+export interface KumasPlanlamaSatir {
+  siparisNo: string
+  modelKod: string | null
+  modelAd: string | null
+  siparisMiktar: number
+  musteriAd: string | null
+  malzemeKod: string
+  malzemeAd: string
+  islem: string | null
+  varyant1: string
+  varyant1Aciklama: string
+  gerekenMiktar: number
+  birim: string
+}
+
 export const tedarikApi = {
   hesapla: (siparisId: number, kalemId?: number | null) =>
     api.post<HesaplaSonuc>(
@@ -57,4 +72,5 @@ export const tedarikApi = {
     ),
   list: (siparisId: number) => api.get<TedarikIhtiyac[]>(`/tedarik?siparisId=${siparisId}`),
   get: (id: number) => api.get<TedarikIhtiyac>(`/tedarik/${id}`),
+  planlamaKumas: () => api.get<KumasPlanlamaSatir[]>('/tedarik/planlama/kumas'),
 }

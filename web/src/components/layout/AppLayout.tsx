@@ -57,6 +57,7 @@ import DovizKarti from '@/components/pages/DovizKarti'
 import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
 import TedarikEkrani from '@/components/pages/TedarikEkrani'
+import KumasPlanlama from '@/components/pages/KumasPlanlama'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
@@ -930,6 +931,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'aksesuar-tedarik') {
       return <TedarikEkrani tip="aksesuar" />
+    }
+    if (tab.key === 'kumas-planlama') {
+      return <KumasPlanlama />
     }
     if (tab.key === 'siparis-karti-yeni') {
       return <SiparisKarti isNew />

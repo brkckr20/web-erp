@@ -120,6 +120,66 @@ export class TedarikService {
     return { satirlar: rows, toplamNet }
   }
 
+  async planlamaKumas() {
+    const rows = await this.prisma.$queryRaw<
+      {
+        siparisNo: string
+        modelKod: string | null
+        modelAd: string | null
+        siparisMiktar: unknown
+        musteriAd: string | null
+        malzemeKod: string
+        malzemeAd: string
+        islem: string | null
+        varyant1: string
+        varyant1Aciklama: string
+        gerekenMiktar: unknown
+        birim: string
+      }[]
+    >`
+      SELECT
+        s.siparis_no        AS siparisNo,
+        mm.kod              AS modelKod,
+        mm.ad               AS modelAd,
+        sk.miktar           AS siparisMiktar,
+        ch.ad               AS musteriAd,
+        ti.malzeme_kod      AS malzemeKod,
+        ti.malzeme_ad       AS malzemeAd,
+        rk.islem            AS islem,
+        ti.renk_kod         AS varyant1,
+        ti.renk_ad          AS varyant1Aciklama,
+        SUM(ti.net_miktar)  AS gerekenMiktar,
+        MIN(ti.birim)       AS birim
+      FROM tedarik_ihtiyac ti
+      JOIN siparis s          ON s.id = ti.siparis_id
+      LEFT JOIN cari_hesap ch ON ch.id = s.cari_hesap_id
+      JOIN siparis_kalem sk   ON sk.id = ti.siparis_kalem_id
+      LEFT JOIN malzeme mm    ON mm.id = sk.malzeme_id
+      LEFT JOIN recete_kalem rk ON rk.id = ti.recete_kalem_id
+      WHERE ti.tip = N'kumas'
+      GROUP BY
+        s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad,
+        ti.malzeme_kod, ti.malzeme_ad, rk.islem,
+        ti.renk_kod, ti.renk_ad
+      ORDER BY s.siparis_no, mm.kod, ti.malzeme_kod, ti.renk_kod
+    `
+
+    return rows.map((r) => ({
+      siparisNo: r.siparisNo,
+      modelKod: r.modelKod,
+      modelAd: r.modelAd,
+      siparisMiktar: Number(r.siparisMiktar) || 0,
+      musteriAd: r.musteriAd,
+      malzemeKod: r.malzemeKod,
+      malzemeAd: r.malzemeAd,
+      islem: r.islem,
+      varyant1: r.varyant1,
+      varyant1Aciklama: r.varyant1Aciklama,
+      gerekenMiktar: Number(r.gerekenMiktar) || 0,
+      birim: r.birim,
+    }))
+  }
+
   async findBySiparis(siparisId: number) {
     return this.prisma.tedarikIhtiyac.findMany({
       where: { siparisId },

@@ -55,6 +55,8 @@ interface DataGridProps<T> extends Omit<GridOptions<T>, 'theme' | 'localeText'> 
   height?: number | string
   /** Kolon tercihlerini (gizli/genişlik/sıra/sıralama) localStorage'da kullanıcı+ekran bazlı saklar. */
   storageKey?: string
+  /** Çoklu satır seçimini aç (Ctrl+click ile). Varsayılan: kapalı. */
+  enableRowSelection?: boolean
 }
 
 function DataGridInner<T>(
@@ -70,6 +72,7 @@ function DataGridInner<T>(
     rowHeight = 30,
     defaultColDef,
     storageKey,
+    enableRowSelection = false,
     ...rest
   }: DataGridProps<T>,
   ref: React.Ref<DataGridHandle>,
@@ -337,6 +340,7 @@ function DataGridInner<T>(
             rest.onGridReady?.(e)
           }}
           defaultColDef={{ sortable: true, filter: true, resizable: true, ...defaultColDef }}
+          rowSelection={enableRowSelection ? { mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true } : undefined}
           {...rest}
         />
       </div>

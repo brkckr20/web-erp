@@ -89,8 +89,6 @@ export const modules: Module[] = [
       {
         title: 'Kesim İşlemleri',
         items: [
-          { key: 'iplik-planlama', label: 'İplik Planlama', isFavorite: true },
-          { key: 'kumas-planlama', label: 'Kumaş Planlama', isFavorite: true },
           { key: 'kesim-emri', label: 'Kesim Emri', isForm: true },
         ],
       },
@@ -101,6 +99,9 @@ export const modules: Module[] = [
           { key: 'kumas-tedarik', label: 'Kumaş Tedarik' },
           { key: 'iplik-tedarik', label: 'İplik Tedarik' },
           { key: 'aksesuar-tedarik', label: 'Aksesuar Tedarik' },
+          { key: 'kumas-planlama', label: 'Kumaş Planlama', isFavorite: true },
+          { key: 'iplik-planlama', label: 'İplik Planlama', isFavorite: true },
+          { key: 'aksesuar-planlama', label: 'Aksesuar Planlama' },
           { key: 'fason-hareket', label: 'Fason Hareket Fişleri', isFavorite: true, isForm: true },
           { key: 'uretim-hareket', label: 'Üretim Hareket Fişleri', isForm: true },
         ],

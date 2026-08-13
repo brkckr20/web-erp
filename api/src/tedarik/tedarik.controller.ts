@@ -30,6 +30,11 @@ export class TedarikController {
     return this.service.hesapla(params)
   }
 
+  @Get('planlama/kumas')
+  planlamaKumas() {
+    return this.service.planlamaKumas()
+  }
+
   @Get()
   findBySiparis(@Query('siparisId', ParseIntPipe) siparisId: number) {
     return this.service.findBySiparis(siparisId)
