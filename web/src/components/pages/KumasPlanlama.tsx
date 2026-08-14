@@ -1,9 +1,19 @@
 'use client'
 
-import { Input, App } from 'antd'
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { Input, App, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
+import {
+  ReloadOutlined,
+  SearchOutlined,
+  ShoppingCartOutlined,
+  InboxOutlined,
+  ApartmentOutlined,
+  ExportOutlined,
+  ProfileOutlined,
+  BgColorsOutlined,
+} from '@ant-design/icons'
 import { useCallback, useState, useMemo, useEffect } from 'react'
-import type { ColDef } from 'ag-grid-community'
+import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { tedarikApi, type KumasPlanlamaSatir } from '@/lib/tedarik-api'
 
@@ -79,54 +89,74 @@ export default function KumasPlanlama() {
 
   const sorguMetni = arama.trim() ? ` - "${arama.trim()}"` : ''
 
-  return (
-    <div className="!p-3 !flex !flex-col !h-full">
-      <div className="!flex !items-center !justify-between !mb-3">
-        <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
-          Kumaş Planlama
-        </div>
-        <div className="!flex !items-center !gap-1.5">
-          <Input
-            size="small"
-            placeholder="Sipariş / Model / Müşteri / Malzeme ara..."
-            allowClear
-            prefix={<SearchOutlined style={{ fontSize: 12, color: '#9ca3af' }} />}
-            value={arama}
-            onChange={(e) => setArama(e.target.value)}
-            className="!w-64 !text-[12px]"
-          />
-          <button
-            type="button"
-            onClick={load}
-            className="!text-[12px] !h-7 !px-2 !border !border-gray-300 !rounded !bg-white hover:!bg-gray-50 !flex !items-center !gap-1"
-          >
-            <ReloadOutlined /> Yenile
-          </button>
-        </div>
-      </div>
+  const contextMenuItems: MenuProps['items'] = [
+    { key: 'satinalma-talimat', label: 'Satın Alma Talimatı Oluştur', icon: <ShoppingCartOutlined /> },
+    { key: 'mal-alim-irsaliye', label: 'Mal Alım İrsaliyesi Oluştur', icon: <InboxOutlined /> },
+    {
+      key: 'fason',
+      label: 'Fason İşlemleri',
+      icon: <ApartmentOutlined />,
+      children: [{ key: 'fason-test', label: 'Test' }],
+    },
+    { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
+    { type: 'divider' },
+    { key: 'hareket-detaylari', label: 'Hareket Detayları', icon: <ProfileOutlined /> },
+    { key: 'renkler', label: 'Renkler', icon: <BgColorsOutlined /> },
+  ]
 
-      <div className="!flex-1 !min-h-0" style={{ minHeight: 300 }}>
-        <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
-          <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
-            <DataGrid
-              rowData={filtrelenmis}
-              columnDefs={columns}
-              domLayout="normal"
-              storageKey="kumas-planlama"
-              exportFileName="kumas-planlama"
-              enableRowSelection
-            />
+  return (
+    <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
+      <div className="!p-3 !flex !flex-col !h-full">
+        <div className="!flex !items-center !justify-between !mb-3">
+          <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
+            Kumaş Planlama
           </div>
-          <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">
-            <span className="!text-[11px] !text-[#9ca3af]">
-              Toplam {satirlar.length} kayıt{sorguMetni}
-            </span>
-            <span className="!text-[11px] !text-[#9ca3af] !tabular-nums">
-              Görüntülenen: {filtrelenmis.length}
-            </span>
+          <div className="!flex !items-center !gap-1.5">
+            <Input
+              size="small"
+              placeholder="Sipariş / Model / Müşteri / Malzeme ara..."
+              allowClear
+              prefix={<SearchOutlined style={{ fontSize: 12, color: '#9ca3af' }} />}
+              value={arama}
+              onChange={(e) => setArama(e.target.value)}
+              className="!w-64 !text-[12px]"
+            />
+            <button
+              type="button"
+              onClick={load}
+              className="!text-[12px] !h-7 !px-2 !border !border-gray-300 !rounded !bg-white hover:!bg-gray-50 !flex !items-center !gap-1"
+            >
+              <ReloadOutlined /> Yenile
+            </button>
+          </div>
+        </div>
+
+        <div className="!flex-1 !min-h-0" style={{ minHeight: 300 }}>
+          <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
+            <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
+              <DataGrid
+                rowData={filtrelenmis}
+                columnDefs={columns}
+                domLayout="normal"
+                storageKey="kumas-planlama"
+                exportFileName="kumas-planlama"
+                enableRowSelection
+                onCellContextMenu={(e: CellContextMenuEvent<KumasPlanlamaSatir>) => {
+                  e.node?.setSelected(true)
+                }}
+              />
+            </div>
+            <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">
+              <span className="!text-[11px] !text-[#9ca3af]">
+                Toplam {satirlar.length} kayıt{sorguMetni}
+              </span>
+              <span className="!text-[11px] !text-[#9ca3af] !tabular-nums">
+                Görüntülenen: {filtrelenmis.length}
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </Dropdown>
   )
 }

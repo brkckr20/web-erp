@@ -5,9 +5,14 @@ import { Input, Switch, Select, InputNumber, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import { malzemeApi, type MalzemeFormData } from '@/lib/malzeme-api'
 import { numaratorApi, type Numarator } from '@/lib/numarator-api'
 import { ozellikKodlamaApi, type OzellikKodlama } from '@/lib/ozellik-kodlama-api'
+import { formSabloniApi } from '@/lib/form-sabloni-api'
+import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
+import { generatePdf, previewPdf } from '@/lib/reports/pdf-common'
+import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
 
 const emptyData: MalzemeFormData = {
   kod: '',
@@ -72,6 +77,8 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
   const [numaratorlar, setNumaratorlar] = useState<Numarator[]>([])
   const [turModalOpen, setTurModalOpen] = useState(false)
   const [turData, setTurData] = useState<OzellikKodlama | null>(null)
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
+  const [sablonSecenekleri, setSablonSecenekleri] = useState<{ id: number; ad: string }[]>([])
 
   useEffect(() => {
     if (kod) {
@@ -256,12 +263,86 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
     })
   }
 
+  const raporVerisiTopla = async (sablonId: number, malzemeId: number) => {
+    const d = await formSabloniApi.getById(sablonId)
+    const draft: FormTasarimDraft = {
+      id: String(d.id),
+      ad: d.ad,
+      ekranTuru: d.ekranTuru,
+      sorgular: (d.sorgular as FormTasarimDraft['sorgular']) ?? [],
+      layout: (d.layout as FormTasarimDraft['layout']) ?? [],
+      sayfa: (d.sayfa as FormTasarimDraft['sayfa']) ?? { boyut: 'A4', yon: 'dikey', kenarUst: 8, kenarAlt: 8, kenarSol: 10, kenarSag: 10 },
+      sablonId: d.id,
+      kod: d.kod,
+    }
+    const veri: Record<number, Record<string, unknown>[]> = {}
+    for (const s of draft.sorgular) {
+      if (!s.sorguMetni?.trim()) continue
+      try {
+        const sonuc = await formSabloniApi.sorguTest({ sorguMetni: s.sorguMetni, parametreler: { id: malzemeId } })
+        veri[s.sirano] = sonuc.satirlar
+      } catch {
+        veri[s.sirano] = []
+      }
+    }
+    return { draft, veri }
+  }
+
+  const handleRapor = async () => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'Kartı yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const list = await formSabloniApi.listByEkranTuru('Kumaş Kartları')
+      if (list.length === 0) {
+        modal.info({
+          title: 'Form tasarımı yok',
+          content:
+            'Bu ekran için form tasarımı bulunamadı. Form Tasarımı ekranından "Kumaş Kartları" için bir form hazırlayıp kaydedin.',
+        })
+        return
+      }
+      setSablonSecenekleri(list.map((f) => ({ id: f.id, ad: f.ad })))
+      setRaporModalAcik(true)
+    } catch {
+      message.error('Form şablonları yüklenemedi')
+    }
+  }
+
+  const handleSabloniOnizle = async (sablonId: number) => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'Kartı yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const { draft, veri } = await raporVerisiTopla(sablonId, id)
+      await previewPdf(formTasarimDoc(draft, veri))
+    } catch (e) {
+      message.error('Rapor hazırlanamadı: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
+    }
+  }
+
+  const handleSabloniIndir = async (sablonId: number) => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'Kartı yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const { draft, veri } = await raporVerisiTopla(sablonId, id)
+      await generatePdf(formTasarimDoc(draft, veri), `kumas-karti-${form.kod || 'yeni'}.pdf`)
+    } catch (e) {
+      message.error('Rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
+    }
+  }
+
   const toolbarButtons = createToolbarButtons({
     onNew: handleYeni,
     onSave: handleKaydet,
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+    onReport: handleRapor,
   })
 
   const ormeTipiOptions = [
@@ -362,6 +443,19 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
         value={form.kumasTuruId}
         onChange={handleTurChange}
         onClose={() => setTurModalOpen(false)}
+      />
+
+      <RaporSecimModal
+        open={raporModalAcik}
+        baslik={form.kod ? `Kumaş Kartı — ${form.kod}` : 'Kumaş Kartı'}
+        tasarimlar={sablonSecenekleri.map((s) => ({
+          id: String(s.id),
+          label: s.ad,
+          aciklama: 'Form tasarım editöründe hazırlandı',
+        }))}
+        onCancel={() => setRaporModalAcik(false)}
+        onOnizle={(id) => handleSabloniOnizle(Number(id))}
+        onIndir={(id) => handleSabloniIndir(Number(id))}
       />
     </div>
   )

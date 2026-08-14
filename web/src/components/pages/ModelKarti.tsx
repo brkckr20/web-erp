@@ -355,7 +355,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     setSaving(true)
     try {
       let currentId = model.id
-      if (isNew) {
+      if (!model.id) {
         const created = await malzemeApi.create({ ...model, tip: 5 } as any)
         setModel(created)
         currentId = created.id
