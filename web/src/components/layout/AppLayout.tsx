@@ -61,6 +61,7 @@ import KumasPlanlama from '@/components/pages/KumasPlanlama'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
+import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
 import FormListesi from '@/components/pages/FormListesi'
 import FormTasarimi from '@/components/pages/FormTasarimi'
 import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
@@ -73,6 +74,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [formEditorForm, setFormEditorForm] = useState<FormTasarimDraft | null>(null)
+  const [yeniSiparisKey, setYeniSiparisKey] = useState(0)
 
   const openFormEditor = useCallback((form: FormTasarimDraft | null) => {
     setFormEditorForm(form)
@@ -654,11 +656,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const openYeniSiparis = useCallback(() => {
     const key = 'siparis-karti-yeni'
+    setYeniSiparisKey((k) => k + 1)
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Sipariş', moduleKey: 'siparis', isForm: true }
-      const exists = prev.find((t) => t.key === key)
-      if (!exists) return [...prev, tab]
-      return prev
+      return [...prev.filter((t) => t.key !== key), tab]
     })
     setActiveTab(key)
   }, [])
@@ -723,6 +724,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'malzeme-yonetim-parametreleri') {
       return <MalzemeYonetimParametreleri />
+    }
+    if (tab.key === 'siparis-parametreleri') {
+      return <SiparisParametreleri />
     }
     if (tab.key === 'form-tasarimi') {
       return <FormListesi onSelect={(f) => openFormEditor(f)} onNew={() => openFormEditor(null)} />
@@ -936,7 +940,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <KumasPlanlama />
     }
     if (tab.key === 'siparis-karti-yeni') {
-      return <SiparisKarti isNew />
+      return <SiparisKarti isNew key={`yeni-${yeniSiparisKey}`} />
     }
     if (tab.key.startsWith('siparis-karti-')) {
       return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} />

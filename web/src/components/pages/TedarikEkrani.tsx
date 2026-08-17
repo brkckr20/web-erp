@@ -45,6 +45,22 @@ interface KumasIhtiyacSatir {
   kfMetraj: number
 }
 
+interface MalzemeDetaySatir {
+  malzemeKodu: string
+  malzemeAdi: string
+  miktar: number
+  kfMiktar: number
+  birim: string
+}
+
+interface MalzemeIhtiyacSatir {
+  malzemeKodu: string
+  malzemeAdi: string
+  miktar: number
+  kfMiktar: number
+  birim: string
+}
+
 const fmt = (v: number | null | undefined, basamak = 2): string => {
   if (v === null || v === undefined || isNaN(v)) return ''
   return v.toLocaleString('tr-TR', { minimumFractionDigits: basamak, maximumFractionDigits: basamak })
@@ -65,8 +81,8 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
   const [siparisLoading, setSiparisLoading] = useState(false)
   const [modelKey, setModelKey] = useState<string | null>(null)
   const [hesaplamaLoading, setHesaplamaLoading] = useState(false)
-  const [detaySatirlar, setDetaySatirlar] = useState<KumasDetaySatir[]>([])
-  const [ihtiyacSatirlar, setIhtiyacSatirlar] = useState<KumasIhtiyacSatir[]>([])
+  const [detaySatirlar, setDetaySatirlar] = useState<(KumasDetaySatir | MalzemeDetaySatir)[]>([])
+  const [ihtiyacSatirlar, setIhtiyacSatirlar] = useState<(KumasIhtiyacSatir | MalzemeIhtiyacSatir)[]>([])
   const [durum, setDurum] = useState('')
 
   useEffect(() => {
@@ -201,11 +217,75 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
     [message, siparisId],
   )
 
+  const hesaplaMalzeme = useCallback(
+    async (kalem: SiparisKalem | null, hesapTip: 'iplik' | 'aksesuar') => {
+      if (!kalem?.malzeme) {
+        setDetaySatirlar([])
+        setIhtiyacSatirlar([])
+        setDurum('')
+        return
+      }
+      if (!siparisId) {
+        message.warning('Sipariş ID eksik')
+        setDetaySatirlar([])
+        setIhtiyacSatirlar([])
+        setDurum('')
+        return
+      }
+      setHesaplamaLoading(true)
+      setDurum('')
+      try {
+        const sonuc: HesaplaSonuc = await tedarikApi.hesapla(siparisId, kalem.id ?? null, hesapTip)
+        const satirlar = sonuc.satirlar
+
+        const detayList: MalzemeDetaySatir[] = satirlar
+          .map((s): MalzemeDetaySatir => ({
+            malzemeKodu: s.malzemeKod,
+            malzemeAdi: s.malzemeAd,
+            miktar: Number(s.brutMiktar) || 0,
+            kfMiktar: Number(s.netMiktar) || 0,
+            birim: s.birim,
+          }))
+          .sort((a, b) => a.malzemeKodu.localeCompare(b.malzemeKodu))
+        setDetaySatirlar(detayList)
+
+        const ihtiyacTopla = new Map<string, MalzemeIhtiyacSatir>()
+        for (const s of satirlar) {
+          const key = s.malzemeKod
+          const mevcut = ihtiyacTopla.get(key)
+          if (mevcut) {
+            mevcut.miktar += Number(s.brutMiktar) || 0
+            mevcut.kfMiktar += Number(s.netMiktar) || 0
+          } else {
+            ihtiyacTopla.set(key, {
+              malzemeKodu: s.malzemeKod,
+              malzemeAdi: s.malzemeAd,
+              miktar: Number(s.brutMiktar) || 0,
+              kfMiktar: Number(s.netMiktar) || 0,
+              birim: s.birim,
+            })
+          }
+        }
+        setIhtiyacSatirlar([...ihtiyacTopla.values()].sort((a, b) => a.malzemeKodu.localeCompare(b.malzemeKodu)))
+
+        if (detayList.length === 0) {
+          setDurum('Seçili model için hesaplanacak veri bulunamadı (reçete miktarı veya sipariş beden adedi kontrol edin)')
+        } else {
+          setDurum(`${ihtiyacTopla.size} ${hesapTip} için ${detayList.length} satır hesaplandı; veritabanına kaydedildi`)
+        }
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : 'Hesaplama sırasında hata oluştu')
+        setDetaySatirlar([])
+        setIhtiyacSatirlar([])
+        setDurum('')
+      } finally {
+        setHesaplamaLoading(false)
+      }
+    },
+    [message, siparisId],
+  )
+
   const handleHesapla = () => {
-    if (tip !== 'kumas') {
-      message.info('Bu tip için hesaplama henüz uygulanmadı')
-      return
-    }
     if (!siparisId) {
       message.warning('Önce Order No seçin')
       return
@@ -214,7 +294,8 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
       message.warning('Önce bir model seçin')
       return
     }
-    hesaplaKumas(seciliKalem)
+    if (tip === 'kumas') hesaplaKumas(seciliKalem)
+    else hesaplaMalzeme(seciliKalem, tip)
   }
 
   const detayGridKolonlar = useMemo<ColDef[]>(() => {
@@ -222,7 +303,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
       return [
         { headerName: 'Malzeme Kodu', field: 'malzemeKodu', width: 140 },
         { headerName: 'Malzeme Adı', field: 'malzemeAdi', flex: 1, minWidth: 160 },
-        { headerName: 'Miktar', field: 'miktar', width: 100 },
+        { headerName: 'Miktar', field: 'miktar', width: 100, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
         { headerName: 'Birim', field: 'birim', width: 80 },
       ]
     }
@@ -240,8 +321,10 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
   const ihtiyacGridKolonlar = useMemo<ColDef[]>(() => {
     if (tip !== 'kumas') {
       return [
-        { headerName: 'Açıklama', field: 'aciklama', flex: 1, minWidth: 120 },
-        { headerName: 'Tutar', field: 'tutar', width: 110 },
+        { headerName: 'Malzeme Kodu', field: 'malzemeKodu', width: 140 },
+        { headerName: 'Malzeme Adı', field: 'malzemeAdi', flex: 1, minWidth: 160 },
+        { headerName: 'Miktar', field: 'miktar', width: 110, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
+        { headerName: 'Birim', field: 'birim', width: 80 },
       ]
     }
     return [
@@ -292,12 +375,10 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
               />
             </div>
           </div>
-          {tip === 'kumas' && (
-            <div className="!flex !items-center !gap-3 !mt-2 !text-[11px]">
+          <div className="!flex !items-center !gap-3 !mt-2 !text-[11px]">
               <span className={durum ? '!text-[#b45309]' : '!text-[#9ca3af]'}>{durum || 'Hesaplama için model seçin'}</span>
-              {kfYuzde > 0 && <span className="!text-[#9ca3af]">Kesim fazlası: %{kfYuzde} uygulandı</span>}
+              {tip === 'kumas' && kfYuzde > 0 && <span className="!text-[#9ca3af]">Kesim fazlası: %{kfYuzde} uygulandı</span>}
             </div>
-          )}
         </div>
 
         <Spin spinning={siparisLoading}>

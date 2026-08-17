@@ -36,12 +36,24 @@ export class SiparisService {
     });
     if (!numarator) throw new NotFoundException('Numaratör bulunamadı');
     const year = new Date().getFullYear().toString().slice(-2);
-    const updated = await this.prisma.numarator.update({
+    const prefix = `${numarator.onEk}${year}-`;
+    const last = await this.prisma.siparis.findFirst({
+      where: { numaratorId, siparisNo: { startsWith: prefix } },
+      orderBy: { siparisNo: 'desc' },
+      select: { siparisNo: true },
+    });
+    let sonNo = numarator.sonNo;
+    if (last?.siparisNo) {
+      const m = last.siparisNo.match(/(\d+)\s*$/);
+      if (m) sonNo = Math.max(sonNo, parseInt(m[1], 10));
+    }
+    const yeniNo = sonNo + 1;
+    await this.prisma.numarator.update({
       where: { id: numaratorId },
-      data: { sonNo: { increment: 1 } },
+      data: { sonNo: yeniNo },
     });
     return {
-      siparisNo: `${numarator.onEk}${year}-${String(updated.sonNo).padStart(4, '0')}`,
+      siparisNo: `${prefix}${String(yeniNo).padStart(4, '0')}`,
     };
   }
 

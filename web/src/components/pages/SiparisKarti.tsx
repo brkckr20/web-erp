@@ -14,6 +14,7 @@ import { dovizApi } from '@/lib/doviz-api'
 import { modelBedenApi, type ModelBeden } from '@/lib/model-beden-api'
 import { modelKumasGrupApi, type ModelKumasGrup } from '@/lib/model-kumas-grup-api'
 import { numaratorApi } from '@/lib/numarator-api'
+import { parametreApi } from '@/lib/parametre-api'
 import { siparisApi, type SiparisKalem, type SiparisRenk } from '@/lib/siparis-api'
 import { useAuth } from '@/context/AuthContext'
 import type { ColDef, CellValueChangedEvent, RowClickedEvent, CellDoubleClickedEvent } from 'ag-grid-community'
@@ -201,7 +202,7 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
     if (id && !isNew) {
       loadById(id)
     } else {
-      setForm({ ...emptyData, musteriTemsilcisi: kayitYapan })
+      handleYeni()
     }
   }, [id, isNew])
 
@@ -708,8 +709,15 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
 
   const selectedModel = rows.find((r) => r.key === selectedModelKey) ?? null
 
-  const handleYeni = () => {
-    setForm({ ...emptyData, musteriTemsilcisi: kayitYapan })
+  const handleYeni = async () => {
+    let defaultKesimFazlasi = ''
+    try {
+      const p = await parametreApi.get('siparis', 'kesimFazlasi')
+      defaultKesimFazlasi = p.deger ?? ''
+    } catch {
+      defaultKesimFazlasi = ''
+    }
+    setForm({ ...emptyData, kesimFazlasi: defaultKesimFazlasi, musteriTemsilcisi: kayitYapan })
     setRows([])
     setRenkBedenRows([])
     setRenkBedenCache({})
@@ -778,6 +786,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     try {
       const payload = {
         numaratorId: form.numaratorId ?? undefined,
+        siparisNo: form.siparisNo || undefined,
         musteriOrderNo: form.musteriOrderNo || null,
         tarih: form.tarih || new Date().toISOString().slice(0, 10),
         istemeTarihi: form.istemeTarih || null,

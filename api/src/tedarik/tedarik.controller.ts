@@ -22,10 +22,12 @@ export class TedarikController {
   hesapla(
     @Query('siparisId', ParseIntPipe) siparisId: number,
     @Query('kalemId') kalemId?: string,
+    @Query('tip') tip?: string,
   ) {
     const params: HesaplaParamsDto = {
       siparisId,
       kalemId: kalemId ? Number(kalemId) : null,
+      tip: tip ?? 'kumas',
     }
     return this.service.hesapla(params)
   }

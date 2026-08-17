@@ -1,6 +1,7 @@
 export class HesaplaParamsDto {
   siparisId: number
   kalemId?: number | null
+  tip?: string
 }
 
 export interface TedarikHesaplaSatir {

@@ -18,6 +18,7 @@ export type AksesuarFormData = {
   cinsi: string | null
   renk: string | null
   ebat: string | null
+  desenKodu: string | null
   ureticiUrunKodu: string | null
   markaId: number | null
   ozellik1: string | null
@@ -29,6 +30,7 @@ export type AksesuarFormData = {
   boyOlcu: string | null
   kapak: string | null
   micron: string | null
+  model: string | null
 }
 
 export const aksesuarApi = {

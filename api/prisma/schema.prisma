@@ -7,6 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Parametre {
+  id               Int      @id @default(autoincrement())
+  grup             String   @map("grup") @db.NVarChar(50)
+  anahtar          String   @map("anahtar") @db.NVarChar(50)
+  deger            String   @map("deger") @db.NVarChar(MAX)
+  guncelleyen      String?  @map("guncelleyen") @db.NVarChar(100)
+  guncellemeTarihi DateTime @default(now()) @map("guncelleme_tarihi")
+
+  @@unique([grup, anahtar])
+  @@map("parametre")
+}
+
 model KolonSecimi {
   id          Int      @id @default(autoincrement())
   kullaniciId Int      @map("kullanici_id")
@@ -152,6 +164,7 @@ model Malzeme {
   cinsi             String?  @db.VarChar(100)
   renk              String?  @db.VarChar(100)
   ebat              String?  @db.VarChar(100)
+  desenKodu         String?  @map("desen_kodu") @db.NVarChar(100)
   ozellik1          String?  @map("ozellik_1") @db.VarChar(200)
   ozellik2          String?  @map("ozellik_2") @db.VarChar(200)
   ozellik3          String?  @map("ozellik_3") @db.VarChar(200)
@@ -248,7 +261,7 @@ model Numarator {
 
 model OzellikKodlama {
   id           Int      @id @default(autoincrement())
-  ad           String   @db.VarChar(200)
+  ad                String   @db.NVarChar(200)
   kategori     String   @db.VarChar(100)
 
   createdAt    DateTime @default(now()) @map("created_at")
@@ -1050,11 +1063,11 @@ model TedarikIhtiyac {
   malzemeId       Int      @map("malzeme_id")
   malzemeKod      String   @map("malzeme_kod") @db.NVarChar(50)
   malzemeAd       String   @map("malzeme_ad") @db.NVarChar(200)
-  kumasGrupId     Int      @map("kumas_grup_id")
-  kumasGrupKod    String   @map("kumas_grup_kod") @db.NVarChar(50)
-  renkId          Int      @map("renk_id")
-  renkKod         String   @map("renk_kod") @db.NVarChar(50)
-  renkAd          String   @map("renk_ad") @db.NVarChar(200)
+  kumasGrupId     Int?     @map("kumas_grup_id")
+  kumasGrupKod    String?  @map("kumas_grup_kod") @db.NVarChar(50)
+  renkId          Int?     @map("renk_id")
+  renkKod         String?  @map("renk_kod") @db.NVarChar(50)
+  renkAd          String?  @map("renk_ad") @db.NVarChar(200)
   brutMiktar      Decimal  @map("brut_miktar") @db.Decimal(18, 6)
   netMiktar       Decimal  @map("net_miktar") @db.Decimal(18, 6)
   birim           String   @default("mt") @db.NVarChar(20)

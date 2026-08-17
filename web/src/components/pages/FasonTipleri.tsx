@@ -2,7 +2,7 @@
 
 import { Input, Button, Table, Tag, Spin, App } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
 
@@ -14,7 +14,7 @@ interface Row {
 }
 
 export default function FasonTipleri() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const [data, setData] = useState<Row[]>([])
   const [loading, setLoading] = useState(false)
   const [yeniAd, setYeniAd] = useState('')
@@ -60,6 +60,25 @@ export default function FasonTipleri() {
     }
   }
 
+  const handleSil = (row: Row) => {
+    modal.confirm({
+      title: 'Fason Tipi Sil',
+      content: `"${row.ad}" tanımını silmek istediğinize emin misiniz?`,
+      okText: 'Evet, Sil',
+      cancelText: 'İptal',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await fasonTipiApi.delete(row.id)
+          message.success('Fason tipi silindi')
+          await load()
+        } catch (err: unknown) {
+          message.error('Silinirken hata: ' + ((err as Error)?.message ?? String(err)))
+        }
+      },
+    })
+  }
+
   const columns: ColumnsType<Row> = [
     {
       title: 'Ad',
@@ -76,6 +95,22 @@ export default function FasonTipleri() {
         <Tag color={val ? 'green' : 'default'} className="!text-[10px]">
           {val ? 'Aktif' : 'Pasif'}
         </Tag>
+      ),
+    },
+    {
+      title: 'İşlem',
+      key: 'islem',
+      width: 70,
+      align: 'center',
+      render: (_, row) => (
+        <Button
+          type="text"
+          size="small"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleSil(row)}
+          className="!text-[12px]"
+        />
       ),
     },
   ]

@@ -36,6 +36,7 @@ export class TedarikService {
             birim: s.birim,
             brutMiktar: s.brutMiktar,
             netMiktar: s.netMiktar,
+            tip: params.tip ?? 'kumas',
           })),
         })
       }
@@ -47,6 +48,10 @@ export class TedarikService {
   private async hesaplaRaw(params: HesaplaParamsDto): Promise<HesaplaSonuc> {
     const siparisId = Number(params.siparisId)
     const kalemId = params.kalemId ? Number(params.kalemId) : null
+
+    if ((params.tip ?? 'kumas') !== 'kumas') {
+      return this.hesaplaMalzeme(params)
+    }
 
     const rows = await this.prisma.$queryRaw<TedarikHesaplaSatir[]>`
       WITH detay AS (
@@ -116,6 +121,64 @@ export class TedarikService {
     const toplamNet = Math.round(
       rows.reduce((acc, r) => acc + (Number(r.netMiktar) || 0), 0) * 1e6,
     ) / 1e6
+
+    return { satirlar: rows, toplamNet }
+  }
+
+  private async hesaplaMalzeme(params: HesaplaParamsDto): Promise<HesaplaSonuc> {
+    const siparisId = Number(params.siparisId)
+    const kalemId = params.kalemId ? Number(params.kalemId) : null
+    const tip = params.tip ?? 'aksesuar'
+    const receteTip = tip === 'iplik' ? 3 : 4
+
+    const rows = await this.prisma.$queryRaw<TedarikHesaplaSatir[]>`
+      WITH detay AS (
+        SELECT
+          m.id           AS malzeme_id,
+          m.kod          AS malzeme_kod,
+          m.ad           AS malzeme_ad,
+          rk.id          AS recete_kalem_id,
+          sk.id          AS siparis_kalem_id,
+          SUM(ISNULL(ro.miktar, 0) * ISNULL(srb.miktar, 0)) AS brut
+        FROM siparis s
+        JOIN siparis_kalem sk        ON sk.siparis_id   = s.id
+        JOIN model_recete mr         ON mr.malzeme_id   = sk.malzeme_id
+        JOIN recete_kalem rk         ON rk.recete_id  = mr.id
+          AND rk.tip = ${receteTip}
+          AND ISNULL(rk.tedarik_hesaplanmayacak, 0) = 0
+        JOIN malzeme m               ON m.id          = rk.malzeme_id
+        JOIN recete_olcu ro          ON ro.kalem_id  = rk.id
+        JOIN siparis_renk sr         ON sr.siparis_kalem_id = sk.id
+        JOIN siparis_renk_beden srb  ON srb.siparis_renk_id = sr.id
+          AND srb.beden_id = ro.beden_id
+        WHERE s.id = ${siparisId}
+          AND (${kalemId} IS NULL OR sk.id = ${kalemId})
+        GROUP BY
+          m.id, m.kod, m.ad,
+          rk.id, sk.id
+      )
+      SELECT
+        d.malzeme_id          AS malzemeId,
+        d.malzeme_kod         AS malzemeKod,
+        d.malzeme_ad          AS malzemeAd,
+        NULL                  AS kumasGrupId,
+        NULL                  AS kumasGrupKod,
+        NULL                  AS renkId,
+        NULL                  AS renkKod,
+        NULL                  AS renkAd,
+        d.recete_kalem_id     AS receteKalemId,
+        d.siparis_kalem_id    AS siparisKalemId,
+        N'ADET'               AS birim,
+        CAST(CEILING(d.brut) AS FLOAT) AS brutMiktar,
+        CAST(CEILING(d.brut) AS FLOAT) AS netMiktar,
+        CAST(CEILING(SUM(d.brut) OVER (PARTITION BY d.malzeme_id)) AS FLOAT) AS kumasNetToplam
+      FROM detay d
+      ORDER BY d.malzeme_kod
+    `
+
+    const toplamNet = Math.round(
+      rows.reduce((acc, r) => acc + (Number(r.netMiktar) || 0) * 1e6, 0) / 1e6,
+    )
 
     return { satirlar: rows, toplamNet }
   }

@@ -16,10 +16,12 @@ import { useCallback, useState, useMemo, useEffect } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { tedarikApi, type KumasPlanlamaSatir } from '@/lib/tedarik-api'
+import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
 
 export default function KumasPlanlama() {
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
   const [arama, setArama] = useState('')
+  const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
   const { message } = App.useApp()
 
   const load = useCallback(() => {
@@ -34,6 +36,13 @@ export default function KumasPlanlama() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    fasonTipiApi
+      .list()
+      .then(setFasonTipleri)
+      .catch(() => setFasonTipleri([]))
+  }, [])
 
   const filtrelenmis = useMemo(() => {
     const q = arama.trim().toLowerCase()
@@ -96,7 +105,7 @@ export default function KumasPlanlama() {
       key: 'fason',
       label: 'Fason İşlemleri',
       icon: <ApartmentOutlined />,
-      children: [{ key: 'fason-test', label: 'Test' }],
+      children: fasonTipleri.map((f) => ({ key: `fason:${f.id}`, label: f.ad })),
     },
     { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
     { type: 'divider' },
@@ -104,8 +113,39 @@ export default function KumasPlanlama() {
     { key: 'renkler', label: 'Renkler', icon: <BgColorsOutlined /> },
   ]
 
+  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'satinalma-talimat') {
+      message.info('Satın Alma Talimatı yakında')
+      return
+    }
+    if (key === 'mal-alim-irsaliye') {
+      message.info('Mal Alım İrsaliyesi yakında')
+      return
+    }
+    if (key === 'uretime-cikis') {
+      message.info('Üretime Çıkış İrsaliyesi yakında')
+      return
+    }
+    if (key === 'hareket-detaylari') {
+      message.info('Hareket Detayları yakında')
+      return
+    }
+    if (key === 'renkler') {
+      message.info('Renkler yakında')
+      return
+    }
+    if (key.startsWith('fason:')) {
+      const fason = fasonTipleri.find((f) => `fason:${f.id}` === key)
+      message.info(`${fason?.ad ?? 'Fason'} işlemi yakında`)
+      return
+    }
+  }
+
   return (
-    <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
+    <Dropdown
+      menu={{ items: contextMenuItems, onClick: handleMenuClick }}
+      trigger={['contextMenu']}
+    >
       <div className="!p-3 !flex !flex-col !h-full">
         <div className="!flex !items-center !justify-between !mb-3">
           <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">

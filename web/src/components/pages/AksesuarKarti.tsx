@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { Input, Switch, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
@@ -23,6 +23,7 @@ const emptyData: AksesuarFormData = {
   cinsi: null,
   renk: null,
   ebat: null,
+  desenKodu: null,
   ureticiUrunKodu: null,
   markaId: null,
   ozellik1: null,
@@ -34,6 +35,7 @@ const emptyData: AksesuarFormData = {
   boyOlcu: null,
   kapak: null,
   micron: null,
+  model: null,
 }
 
 interface AksesuarKartiProps {
@@ -113,13 +115,13 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
   }, [selectedTipId, tipList, numaratorlar])
 
   useEffect(() => {
-    if (!id && (form.cinsi || form.renk || form.ebat || form.ureticiUrunKodu || markaAd || form.ozellik1 || form.ozellik2 || form.ozellik3 || form.ozellik4 || form.derece || form.enOlcu || form.boyOlcu || form.kapak || form.micron)) {
-      const parts = [tipAd, form.cinsi, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1, form.ozellik2, form.ozellik3, form.ozellik4, form.derece, form.enOlcu, form.boyOlcu, form.kapak, form.micron].filter(Boolean)
+    if (!id && (form.cinsi || form.renk || form.ebat || form.desenKodu || form.ureticiUrunKodu || markaAd || form.ozellik1 || form.ozellik2 || form.ozellik3 || form.ozellik4 || form.derece || form.enOlcu || form.boyOlcu || form.kapak || form.micron || form.model)) {
+      const parts = [tipAd, form.cinsi, form.desenKodu, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1, form.ozellik2, form.ozellik3, form.ozellik4, form.derece, form.enOlcu, form.boyOlcu, form.kapak, form.micron, form.model].filter(Boolean)
       if (parts.length > 1) {
         set('ad', parts.join(' '))
       }
     }
-  }, [form.cinsi, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1, form.ozellik2, form.ozellik3, form.ozellik4, form.derece, form.enOlcu, form.boyOlcu, form.kapak, form.micron])
+  }, [form.cinsi, form.desenKodu, form.renk, form.ebat, form.ureticiUrunKodu, markaAd, form.ozellik1, form.ozellik2, form.ozellik3, form.ozellik4, form.derece, form.enOlcu, form.boyOlcu, form.kapak, form.micron, form.model])
 
   const loadByKod = useCallback(async (k: string) => {
     setLoading(true)
@@ -137,6 +139,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
         cinsi: data.cinsi ?? null,
         renk: (data as any).renk ?? null,
         ebat: data.ebat ?? null,
+        desenKodu: (data as any).desenKodu ?? null,
         ureticiUrunKodu: data.ureticiUrunKodu ?? null,
         markaId: data.markaId ?? null,
         ozellik1: (data as any).ozellik1 ?? null,
@@ -148,6 +151,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
         boyOlcu: (data as any).boyOlcu ?? null,
         kapak: (data as any).kapak ?? null,
         micron: (data as any).micron ?? null,
+        model: (data as any).model ?? null,
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -318,12 +322,127 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
     'Ara Karton': ['cinsi', 'ebat', 'marka'],
     'Askı': ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'marka', 'ozellik1'],
     'Çıt Çıt': ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'ozellik1', 'ozellik2', 'marka'],
+    'Dantel': ['cinsi', 'desenKodu', 'ebat'],
+    'Ekstrafor': ['cinsi', 'renk', 'ozellik1', 'ebat'],
+    'Fermuar': ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'ozellik1', 'ozellik2', 'ozellik3'],
+    'Genel': ['cinsi', 'ebat', 'renk', 'ozellik1'],
+    'Grogren': ['cinsi', 'renk', 'ebat', 'ozellik1'],
+    'Kordon': ['cinsi', 'ebat', 'renk', 'ozellik1', 'ozellik2', 'ozellik3'],
+    'Kursör': ['cinsi', 'ebat', 'renk', 'ozellik1', 'ozellik2', 'ureticiKodu'],
     'Etiket': ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'derece', 'ozellik1', 'ozellik2', 'ozellik3', 'ozellik4'],
     'Paket Kartı': ['cinsi', 'renk', 'ureticiKodu', 'ebat', 'ozellik1', 'ozellik2', 'ozellik3', 'ozellik4'],
     'Kapaklı Poşet': ['cinsi', 'enOlcu', 'boyOlcu', 'kapak', 'micron', 'ozellik1', 'ozellik2'],
     'Koli': ['ebat', 'ozellik1'],
+    'Kutu': ['cinsi', 'ebat', 'renk', 'ozellik1', 'ozellik2', 'ozellik3', 'ozellik4'],
+    'Lastik': ['cinsi', 'ebat', 'renk', 'ozellik1'],
+    'Ponpon': ['cinsi', 'ebat'],
+    'Poşet': ['cinsi', 'enOlcu', 'boyOlcu', 'renk', 'ozellik1', 'ozellik2', 'micron'],
+    'Püskül': ['cinsi', 'ebat'],
+    'Pvc Çanta': ['cinsi', 'ebat', 'renk', 'ozellik1', 'ozellik2', 'micron'],
+    'Saçak': ['cinsi', 'ebat', 'model'],
+    'Saten Kurdela': ['cinsi', 'ebat', 'renk', 'ozellik1'],
+    'Sticker': ['cinsi', 'ebat', 'renk', 'marka', 'ozellik1', 'ozellik2', 'ozellik3'],
   }
   const fields = tipFields[tipAd] ?? ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'marka', 'ozellik1']
+
+  const alanSatirlari: Record<string, ReactNode> = {
+    cinsi: (
+      <div key="cinsi" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Cinsi</label>
+        <Input size="small" value={form.cinsi ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setCinsiModalOpen(true)} />} onClick={() => setCinsiModalOpen(true)} />
+      </div>
+    ),
+    renk: (
+      <div key="renk" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Renk</label>
+        <Input size="small" value={form.renk ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setRenkModalOpen(true)} />} onClick={() => setRenkModalOpen(true)} />
+      </div>
+    ),
+    ebat: (
+      <div key="ebat" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Ebat</label>
+        <Input size="small" value={form.ebat ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setEbatModalOpen(true)} />} onClick={() => setEbatModalOpen(true)} />
+      </div>
+    ),
+    desenKodu: (
+      <div key="desenKodu" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Desen Kodu</label>
+        <Input size="small" value={form.desenKodu ?? ''} onChange={(e) => set('desenKodu', e.target.value || null)} className="!text-[11px] !max-w-xs" />
+      </div>
+    ),
+    ureticiKodu: (
+      <div key="ureticiKodu" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Üretici Kodu</label>
+        <Input size="small" value={form.ureticiUrunKodu ?? ''} onChange={(e) => set('ureticiUrunKodu', e.target.value || null)} className="!text-[11px] !max-w-xs" />
+      </div>
+    ),
+    marka: (
+      <div key="marka" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Marka</label>
+        <SearchableMarkaSelect value={form.markaId} onChange={handleMarkaChange} />
+      </div>
+    ),
+    derece: (
+      <div key="derece" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Derece</label>
+        <Input size="small" value={form.derece ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setDereceModalOpen(true)} />} onClick={() => setDereceModalOpen(true)} />
+      </div>
+    ),
+    enOlcu: (
+      <div key="enOlcu" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">En</label>
+        <Input size="small" value={form.enOlcu ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setEnOlcuModalOpen(true)} />} onClick={() => setEnOlcuModalOpen(true)} />
+      </div>
+    ),
+    boyOlcu: (
+      <div key="boyOlcu" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Boy</label>
+        <Input size="small" value={form.boyOlcu ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setBoyOlcuModalOpen(true)} />} onClick={() => setBoyOlcuModalOpen(true)} />
+      </div>
+    ),
+    kapak: (
+      <div key="kapak" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Kapak</label>
+        <Input size="small" value={form.kapak ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setKapakModalOpen(true)} />} onClick={() => setKapakModalOpen(true)} />
+      </div>
+    ),
+    micron: (
+      <div key="micron" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Micron</label>
+        <Input size="small" value={form.micron ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setMicronModalOpen(true)} />} onClick={() => setMicronModalOpen(true)} />
+      </div>
+    ),
+    ozellik1: (
+      <div key="ozellik1" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 1</label>
+        <Input size="small" value={form.ozellik1 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik1ModalOpen(true)} />} onClick={() => setOzellik1ModalOpen(true)} />
+      </div>
+    ),
+    ozellik2: (
+      <div key="ozellik2" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 2</label>
+        <Input size="small" value={form.ozellik2 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik2ModalOpen(true)} />} onClick={() => setOzellik2ModalOpen(true)} />
+      </div>
+    ),
+    ozellik3: (
+      <div key="ozellik3" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 3</label>
+        <Input size="small" value={form.ozellik3 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik3ModalOpen(true)} />} onClick={() => setOzellik3ModalOpen(true)} />
+      </div>
+    ),
+    ozellik4: (
+      <div key="ozellik4" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 4</label>
+        <Input size="small" value={form.ozellik4 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik4ModalOpen(true)} />} onClick={() => setOzellik4ModalOpen(true)} />
+      </div>
+    ),
+    model: (
+      <div key="model" className="!flex !items-center !gap-2">
+        <label className="!text-[10px] !font-semibold !uppercase !w-20">Model</label>
+        <Input size="small" value={form.model ?? ''} onChange={(e) => set('model', e.target.value || null)} className="!text-[11px] !max-w-xs" />
+      </div>
+    ),
+  }
 
   return (
     <div className="!h-full !flex !flex-col">
@@ -346,90 +465,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
                   <Switch checked={form.kullanimda} onChange={(v) => set('kullanimda', v)} />
                 </div>
               </div>
-              {fields.includes('cinsi') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Cinsi</label>
-                <Input size="small" value={form.cinsi ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setCinsiModalOpen(true)} />} onClick={() => setCinsiModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('enOlcu') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">En</label>
-                <Input size="small" value={form.enOlcu ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setEnOlcuModalOpen(true)} />} onClick={() => setEnOlcuModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('boyOlcu') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Boy</label>
-                <Input size="small" value={form.boyOlcu ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setBoyOlcuModalOpen(true)} />} onClick={() => setBoyOlcuModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('kapak') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Kapak</label>
-                <Input size="small" value={form.kapak ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setKapakModalOpen(true)} />} onClick={() => setKapakModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('micron') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Micron</label>
-                <Input size="small" value={form.micron ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setMicronModalOpen(true)} />} onClick={() => setMicronModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('renk') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Renk</label>
-                <Input size="small" value={form.renk ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setRenkModalOpen(true)} />} onClick={() => setRenkModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('ebat') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Ebat</label>
-                <Input size="small" value={form.ebat ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setEbatModalOpen(true)} />} onClick={() => setEbatModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('ureticiKodu') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Üretici Kodu</label>
-                <Input size="small" value={form.ureticiUrunKodu ?? ''} onChange={(e) => set('ureticiUrunKodu', e.target.value || null)} className="!text-[11px] !max-w-xs" />
-              </div>
-              )}
-              {fields.includes('marka') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Marka</label>
-                <SearchableMarkaSelect value={form.markaId} onChange={handleMarkaChange} />
-              </div>
-              )}
-              {fields.includes('derece') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Derece</label>
-                <Input size="small" value={form.derece ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setDereceModalOpen(true)} />} onClick={() => setDereceModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('ozellik1') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 1</label>
-                <Input size="small" value={form.ozellik1 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik1ModalOpen(true)} />} onClick={() => setOzellik1ModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('ozellik2') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 2</label>
-                <Input size="small" value={form.ozellik2 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik2ModalOpen(true)} />} onClick={() => setOzellik2ModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('ozellik3') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 3</label>
-                <Input size="small" value={form.ozellik3 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik3ModalOpen(true)} />} onClick={() => setOzellik3ModalOpen(true)} />
-              </div>
-              )}
-              {fields.includes('ozellik4') && (
-              <div className="!flex !items-center !gap-2">
-                <label className="!text-[10px] !font-semibold !uppercase !w-20">Özellik 4</label>
-                <Input size="small" value={form.ozellik4 ?? ''} readOnly className="!text-[11px] !max-w-xs" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => setOzellik4ModalOpen(true)} />} onClick={() => setOzellik4ModalOpen(true)} />
-              </div>
-              )}
+              {fields.map((f) => alanSatirlari[f]).filter(Boolean)}
             </div>
           </div>
         </Spin>

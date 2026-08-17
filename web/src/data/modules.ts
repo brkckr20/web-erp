@@ -232,6 +232,7 @@ export const modules: Module[] = [
         title: 'Parametreler',
         items: [
           { key: 'malzeme-yonetim-parametreleri', label: 'Malzeme Yönetim Parametreleri', isForm: true },
+          { key: 'siparis-parametreleri', label: 'Sipariş Parametreleri', isForm: true },
         ],
       },
     ],

@@ -33,11 +33,11 @@ export interface TedarikIhtiyac {
   malzemeId: number
   malzemeKod: string
   malzemeAd: string
-  kumasGrupId: number
-  kumasGrupKod: string
-  renkId: number
-  renkKod: string
-  renkAd: string
+  kumasGrupId: number | null
+  kumasGrupKod: string | null
+  renkId: number | null
+  renkKod: string | null
+  renkAd: string | null
   brutMiktar: number
   netMiktar: number
   birim: string
@@ -66,9 +66,9 @@ export interface KumasPlanlamaSatir {
 }
 
 export const tedarikApi = {
-  hesapla: (siparisId: number, kalemId?: number | null) =>
+  hesapla: (siparisId: number, kalemId?: number | null, tip?: 'kumas' | 'iplik' | 'aksesuar') =>
     api.post<HesaplaSonuc>(
-      `/tedarik/hesapla?siparisId=${siparisId}${kalemId ? `&kalemId=${kalemId}` : ''}`,
+      `/tedarik/hesapla?siparisId=${siparisId}${kalemId ? `&kalemId=${kalemId}` : ''}${tip ? `&tip=${tip}` : ''}`,
     ),
   list: (siparisId: number) => api.get<TedarikIhtiyac[]>(`/tedarik?siparisId=${siparisId}`),
   get: (id: number) => api.get<TedarikIhtiyac>(`/tedarik/${id}`),

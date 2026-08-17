@@ -39,6 +39,7 @@ export class CreateMalzemeDto {
   renk?: string
   grm2?: number
   ebat?: string
+  desenKodu?: string
   ozellik1?: string
   ozellik2?: string
   ozellik3?: string
