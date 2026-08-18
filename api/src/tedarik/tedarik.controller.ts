@@ -38,8 +38,16 @@ export class TedarikController {
   }
 
   @Get()
-  findBySiparis(@Query('siparisId', ParseIntPipe) siparisId: number) {
-    return this.service.findBySiparis(siparisId)
+  findBySiparis(
+    @Query('siparisId', ParseIntPipe) siparisId: number,
+    @Query('tip') tip?: string,
+    @Query('siparisKalemId') siparisKalemId?: string,
+  ) {
+    return this.service.findBySiparis(
+      siparisId,
+      tip,
+      siparisKalemId ? Number(siparisKalemId) : undefined,
+    )
   }
 
   @Get(':id')

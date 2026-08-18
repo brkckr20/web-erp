@@ -70,7 +70,10 @@ export const tedarikApi = {
     api.post<HesaplaSonuc>(
       `/tedarik/hesapla?siparisId=${siparisId}${kalemId ? `&kalemId=${kalemId}` : ''}${tip ? `&tip=${tip}` : ''}`,
     ),
-  list: (siparisId: number) => api.get<TedarikIhtiyac[]>(`/tedarik?siparisId=${siparisId}`),
+  list: (siparisId: number, tip?: string, siparisKalemId?: number) =>
+    api.get<TedarikIhtiyac[]>(
+      `/tedarik?siparisId=${siparisId}${tip ? `&tip=${tip}` : ''}${siparisKalemId ? `&siparisKalemId=${siparisKalemId}` : ''}`,
+    ),
   get: (id: number) => api.get<TedarikIhtiyac>(`/tedarik/${id}`),
   planlamaKumas: () => api.get<KumasPlanlamaSatir[]>('/tedarik/planlama/kumas'),
 }

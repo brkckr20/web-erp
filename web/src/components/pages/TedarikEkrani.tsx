@@ -61,6 +61,17 @@ interface MalzemeIhtiyacSatir {
   birim: string
 }
 
+interface SatirKaynak {
+  malzemeKod: string
+  malzemeAd: string
+  kumasGrupKod?: string | null
+  renkKod?: string | null
+  renkAd?: string | null
+  birim: string
+  brutMiktar: number
+  netMiktar: number
+}
+
 const fmt = (v: number | null | undefined, basamak = 2): string => {
   if (v === null || v === undefined || isNaN(v)) return ''
   return v.toLocaleString('tr-TR', { minimumFractionDigits: basamak, maximumFractionDigits: basamak })
@@ -81,6 +92,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
   const [siparisLoading, setSiparisLoading] = useState(false)
   const [modelKey, setModelKey] = useState<string | null>(null)
   const [hesaplamaLoading, setHesaplamaLoading] = useState(false)
+  const [kayitLoading, setKayitLoading] = useState(false)
   const [detaySatirlar, setDetaySatirlar] = useState<(KumasDetaySatir | MalzemeDetaySatir)[]>([])
   const [ihtiyacSatirlar, setIhtiyacSatirlar] = useState<(KumasIhtiyacSatir | MalzemeIhtiyacSatir)[]>([])
   const [durum, setDurum] = useState('')
@@ -145,6 +157,110 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
 
   const kfYuzde = useMemo(() => kesimFazlasiYuzde(siparis), [siparis])
 
+  const gridlerDoldur = useCallback(
+    (satirlar: SatirKaynak[]): { detaySayisi: number; ihtiyacSayisi: number } => {
+      if (tip === 'kumas') {
+        const detayList: KumasDetaySatir[] = satirlar
+          .map((s) => ({
+            kumasKod: s.malzemeKod,
+            kumasAdi: s.malzemeAd,
+            varyant: s.kumasGrupKod ?? '',
+            renk: s.renkKod ? `${s.renkKod} - ${s.renkAd ?? ''}`.trim() : (s.renkAd ?? ''),
+            adet: 0,
+            birim: s.birim,
+            netMetraj: Number(s.brutMiktar) || 0,
+            kfMetraj: Number(s.netMiktar) || 0,
+          }))
+          .sort((a, b) => a.kumasKod.localeCompare(b.kumasKod) || a.renk.localeCompare(b.renk))
+        setDetaySatirlar(detayList)
+        const ihtiyacTopla = new Map<string, KumasIhtiyacSatir>()
+        for (const s of satirlar) {
+          const key = s.malzemeKod
+          const mevcut = ihtiyacTopla.get(key)
+          if (mevcut) {
+            mevcut.netMetraj += Number(s.brutMiktar) || 0
+            mevcut.kfMetraj += Number(s.netMiktar) || 0
+          } else {
+            ihtiyacTopla.set(key, {
+              kumasKod: s.malzemeKod,
+              kumasAdi: s.malzemeAd,
+              adet: 0,
+              birim: s.birim,
+              netMetraj: Number(s.brutMiktar) || 0,
+              kfMetraj: Number(s.netMiktar) || 0,
+            })
+          }
+        }
+        const ihtiyacList = [...ihtiyacTopla.values()].sort((a, b) =>
+          a.kumasKod.localeCompare(b.kumasKod),
+        )
+        setIhtiyacSatirlar(ihtiyacList)
+        return { detaySayisi: detayList.length, ihtiyacSayisi: ihtiyacList.length }
+      }
+      const detayList: MalzemeDetaySatir[] = satirlar
+        .map((s) => ({
+          malzemeKodu: s.malzemeKod,
+          malzemeAdi: s.malzemeAd,
+          miktar: Number(s.brutMiktar) || 0,
+          kfMiktar: Number(s.netMiktar) || 0,
+          birim: s.birim,
+        }))
+        .sort((a, b) => a.malzemeKodu.localeCompare(b.malzemeKodu))
+      setDetaySatirlar(detayList)
+      const ihtiyacTopla = new Map<string, MalzemeIhtiyacSatir>()
+      for (const s of satirlar) {
+        const key = s.malzemeKod
+        const mevcut = ihtiyacTopla.get(key)
+        if (mevcut) {
+          mevcut.miktar += Number(s.brutMiktar) || 0
+          mevcut.kfMiktar += Number(s.netMiktar) || 0
+        } else {
+          ihtiyacTopla.set(key, {
+            malzemeKodu: s.malzemeKod,
+            malzemeAdi: s.malzemeAd,
+            miktar: Number(s.brutMiktar) || 0,
+            kfMiktar: Number(s.netMiktar) || 0,
+            birim: s.birim,
+          })
+        }
+      }
+      const ihtiyacList = [...ihtiyacTopla.values()].sort((a, b) =>
+        a.malzemeKodu.localeCompare(b.malzemeKodu),
+      )
+      setIhtiyacSatirlar(ihtiyacList)
+      return { detaySayisi: detayList.length, ihtiyacSayisi: ihtiyacList.length }
+    },
+    [tip],
+  )
+
+  const modelOnChange = useCallback(
+    async (key: string) => {
+      setModelKey(key)
+      setDetaySatirlar([])
+      setIhtiyacSatirlar([])
+      setDurum('')
+      const kalem = modeller.find((m) => m.key === key)?.kalem ?? null
+      if (!kalem?.malzeme || !siparisId || !kalem.id) return
+      setKayitLoading(true)
+      try {
+        const kayitlar = await tedarikApi.list(siparisId, tip, kalem.id)
+        if (kayitlar.length === 0) {
+          setDurum('Bu model için hesaplanmış kayıt yok — Hesapla ile hesaplayın')
+          return
+        }
+        const { detaySayisi, ihtiyacSayisi } = gridlerDoldur(kayitlar)
+        setDurum(
+          `${ihtiyacSayisi} ${tip} için ${detaySayisi} satır daha önce hesaplanmış kayıttan gösteriliyor`,
+        )
+      } catch {
+        message.error('Kayıtlı tedarik sonucu yüklenemedi')
+      } finally {
+        setKayitLoading(false)
+      }
+    },
+    [modeller, siparisId, tip, gridlerDoldur, message],
+  )
+
   const hesaplaKumas = useCallback(
     async (kalem: SiparisKalem | null) => {
       if (!kalem?.malzeme) {
@@ -164,46 +280,12 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
       setDurum('')
       try {
         const sonuc: HesaplaSonuc = await tedarikApi.hesapla(siparisId, kalem.id ?? null)
-        const satirlar = sonuc.satirlar
+        const { detaySayisi, ihtiyacSayisi } = gridlerDoldur(sonuc.satirlar)
 
-        const detayList: KumasDetaySatir[] = satirlar
-          .map((s): KumasDetaySatir => ({
-            kumasKod: s.malzemeKod,
-            kumasAdi: s.malzemeAd,
-            varyant: s.kumasGrupKod,
-            renk: s.renkKod ? `${s.renkKod} - ${s.renkAd ?? ''}`.trim() : s.renkAd ?? '',
-            adet: 0,
-            birim: s.birim,
-            netMetraj: Number(s.brutMiktar) || 0,
-            kfMetraj: Number(s.netMiktar) || 0,
-          }))
-          .sort((a, b) => a.kumasKod.localeCompare(b.kumasKod) || a.renk.localeCompare(b.renk))
-        setDetaySatirlar(detayList)
-
-        const ihtiyacTopla = new Map<string, KumasIhtiyacSatir>()
-        for (const s of satirlar) {
-          const key = s.malzemeKod
-          const mevcut = ihtiyacTopla.get(key)
-          if (mevcut) {
-            mevcut.netMetraj += Number(s.brutMiktar) || 0
-            mevcut.kfMetraj += Number(s.netMiktar) || 0
-          } else {
-            ihtiyacTopla.set(key, {
-              kumasKod: s.malzemeKod,
-              kumasAdi: s.malzemeAd,
-              adet: 0,
-              birim: s.birim,
-              netMetraj: Number(s.brutMiktar) || 0,
-              kfMetraj: Number(s.netMiktar) || 0,
-            })
-          }
-        }
-        setIhtiyacSatirlar([...ihtiyacTopla.values()].sort((a, b) => a.kumasKod.localeCompare(b.kumasKod)))
-
-        if (detayList.length === 0) {
+        if (detaySayisi === 0) {
           setDurum('Seçili model için hesaplanacak veri bulunamadı (reçete miktarı veya sipariş beden adedi kontrol edin)')
         } else {
-          setDurum(`${ihtiyacTopla.size} kumaş için ${detayList.length} satır hesaplandı; veritabanına kaydedildi`)
+          setDurum(`${ihtiyacSayisi} kumaş için ${detaySayisi} satır hesaplandı; veritabanına kaydedildi`)
         }
       } catch (err) {
         message.error(err instanceof Error ? err.message : 'Hesaplama sırasında hata oluştu')
@@ -214,7 +296,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
         setHesaplamaLoading(false)
       }
     },
-    [message, siparisId],
+    [message, siparisId, gridlerDoldur],
   )
 
   const hesaplaMalzeme = useCallback(
@@ -236,42 +318,12 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
       setDurum('')
       try {
         const sonuc: HesaplaSonuc = await tedarikApi.hesapla(siparisId, kalem.id ?? null, hesapTip)
-        const satirlar = sonuc.satirlar
+        const { detaySayisi, ihtiyacSayisi } = gridlerDoldur(sonuc.satirlar)
 
-        const detayList: MalzemeDetaySatir[] = satirlar
-          .map((s): MalzemeDetaySatir => ({
-            malzemeKodu: s.malzemeKod,
-            malzemeAdi: s.malzemeAd,
-            miktar: Number(s.brutMiktar) || 0,
-            kfMiktar: Number(s.netMiktar) || 0,
-            birim: s.birim,
-          }))
-          .sort((a, b) => a.malzemeKodu.localeCompare(b.malzemeKodu))
-        setDetaySatirlar(detayList)
-
-        const ihtiyacTopla = new Map<string, MalzemeIhtiyacSatir>()
-        for (const s of satirlar) {
-          const key = s.malzemeKod
-          const mevcut = ihtiyacTopla.get(key)
-          if (mevcut) {
-            mevcut.miktar += Number(s.brutMiktar) || 0
-            mevcut.kfMiktar += Number(s.netMiktar) || 0
-          } else {
-            ihtiyacTopla.set(key, {
-              malzemeKodu: s.malzemeKod,
-              malzemeAdi: s.malzemeAd,
-              miktar: Number(s.brutMiktar) || 0,
-              kfMiktar: Number(s.netMiktar) || 0,
-              birim: s.birim,
-            })
-          }
-        }
-        setIhtiyacSatirlar([...ihtiyacTopla.values()].sort((a, b) => a.malzemeKodu.localeCompare(b.malzemeKodu)))
-
-        if (detayList.length === 0) {
+        if (detaySayisi === 0) {
           setDurum('Seçili model için hesaplanacak veri bulunamadı (reçete miktarı veya sipariş beden adedi kontrol edin)')
         } else {
-          setDurum(`${ihtiyacTopla.size} ${hesapTip} için ${detayList.length} satır hesaplandı; veritabanına kaydedildi`)
+          setDurum(`${ihtiyacSayisi} ${hesapTip} için ${detaySayisi} satır hesaplandı; veritabanına kaydedildi`)
         }
       } catch (err) {
         message.error(err instanceof Error ? err.message : 'Hesaplama sırasında hata oluştu')
@@ -282,7 +334,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
         setHesaplamaLoading(false)
       }
     },
-    [message, siparisId],
+    [message, siparisId, gridlerDoldur],
   )
 
   const handleHesapla = () => {
@@ -371,7 +423,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
                   value: m.key,
                   label: m.kalem.malzeme ? `${m.kalem.malzeme.kod} - ${m.kalem.malzeme.ad}` : m.key,
                 }))}
-                onChange={setModelKey}
+                onChange={modelOnChange}
               />
             </div>
           </div>
@@ -381,7 +433,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
             </div>
         </div>
 
-        <Spin spinning={siparisLoading}>
+        <Spin spinning={siparisLoading || kayitLoading}>
           <div className="!flex-1 !flex !flex-col !min-h-0 !p-3 !gap-3">
             <div className="!h-[60%] !min-h-[300px] !border !border-gray-200 !rounded-sm !p-2">
               <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-2">

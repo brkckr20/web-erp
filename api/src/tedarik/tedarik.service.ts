@@ -12,10 +12,11 @@ export class TedarikService {
     const { satirlar, toplamNet } = await this.hesaplaRaw(params)
 
     await this.prisma.$transaction(async (tx) => {
-      const where: { siparisId: number; siparisKalemId?: number } = {
+      const where: { siparisId: number; siparisKalemId?: number; tip?: string } = {
         siparisId: params.siparisId,
       }
       if (params.kalemId) where.siparisKalemId = params.kalemId
+      where.tip = params.tip ?? 'kumas'
 
       await tx.tedarikIhtiyac.deleteMany({ where })
 
@@ -243,9 +244,13 @@ export class TedarikService {
     }))
   }
 
-  async findBySiparis(siparisId: number) {
+  async findBySiparis(siparisId: number, tip?: string, siparisKalemId?: number) {
     return this.prisma.tedarikIhtiyac.findMany({
-      where: { siparisId },
+      where: {
+        siparisId,
+        ...(tip ? { tip } : {}),
+        ...(siparisKalemId ? { siparisKalemId } : {}),
+      },
       orderBy: [{ malzemeKod: 'asc' }, { renkKod: 'asc' }],
     })
   }
