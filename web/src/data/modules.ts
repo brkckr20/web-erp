@@ -146,7 +146,7 @@ export const modules: Module[] = [
       {
         title: 'İşlemler',
         items: [
-          { key: 'siparis-girisi', label: 'Satın Alma Siparişi', isFavorite: true, isForm: true },
+          { key: 'satinalma-siparis', label: 'Satın Alma Siparişi', isFavorite: true, isForm: true },
           { key: 'teslimat-takip', label: 'Teslimat Takibi' },
           { key: 'tedarikci-degerlendirme', label: 'Tedarikçi Değerlendirme' },
         ],

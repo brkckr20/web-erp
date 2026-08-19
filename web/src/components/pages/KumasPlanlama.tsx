@@ -12,17 +12,19 @@ import {
   ProfileOutlined,
   BgColorsOutlined,
 } from '@ant-design/icons'
-import { useCallback, useState, useMemo, useEffect } from 'react'
+import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
-import DataGrid from '@/components/shared/DataGrid'
+import DataGrid, { DataGridHandle } from '@/components/shared/DataGrid'
 import { tedarikApi, type KumasPlanlamaSatir } from '@/lib/tedarik-api'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
+import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
 
-export default function KumasPlanlama() {
+export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void }) {
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
   const [arama, setArama] = useState('')
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
   const { message } = App.useApp()
+  const gridRef = useRef<DataGridHandle>(null)
 
   const load = useCallback(() => {
     tedarikApi
@@ -115,7 +117,19 @@ export default function KumasPlanlama() {
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'satinalma-talimat') {
-      message.info('Satın Alma Talimatı yakında')
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
+        return
+      }
+      const kalemler: IrsaliyeBaslangicKalem[] = secili.map((r) => ({
+        malzemeKod: r.malzemeKod,
+        malzemeAd: r.malzemeAd,
+        miktar: Number(r.gerekenMiktar) || 0,
+        birim: r.birim || 'mt',
+        aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+      }))
+      onYeniSatinalmaSiparis?.(kalemler)
       return
     }
     if (key === 'mal-alim-irsaliye') {
@@ -175,6 +189,7 @@ export default function KumasPlanlama() {
           <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
             <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
               <DataGrid
+                ref={gridRef}
                 rowData={filtrelenmis}
                 columnDefs={columns}
                 domLayout="normal"

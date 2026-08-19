@@ -44,7 +44,7 @@ const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
     sevkNo: i.sevkNo ?? '',
     aciklama: i.aciklama ?? '',
     irsaliyeToplam,
-    eIrsaliye: i.tamamlandi ? 'Tamamlandı' : i.onaylandi ? 'Onaylandı' : 'Taslak',
+    eIrsaliye: i.tamamlandi ? (i.irsaliyeTipi === '201' ? 'Teslim Alındı' : 'Tamamlandı') : i.onaylandi ? (i.irsaliyeTipi === '201' ? 'Kesinleşti' : 'Onaylandı') : 'Taslak',
     kayitEden: i.kayitYapan ?? '-',
   }
 }
@@ -81,12 +81,17 @@ const satinalmaIrsaliyeTipiMap: Record<string, string> = {
   '139': '139-Alınan Hizmet İadesi',
 }
 
-const irsaliyeTipiMap: Record<string, string> = { ...satisIrsaliyeTipiMap, ...satinalmaIrsaliyeTipiMap }
+const satinalmaSiparisTipiMap: Record<string, string> = {
+  '201': '201-Satın Alma Siparişi',
+}
+
+const irsaliyeTipiMap: Record<string, string> = { ...satisIrsaliyeTipiMap, ...satinalmaIrsaliyeTipiMap, ...satinalmaSiparisTipiMap }
 const satisTipleri = Object.keys(irsaliyeTipiMap)
 const satinalmaTipleri = Object.keys(satinalmaIrsaliyeTipiMap)
+const satinalmaSiparisTipleri = Object.keys(satinalmaSiparisTipiMap)
 
 interface IrsaliyeListesiProps {
-  mod?: 'satis' | 'satinalma'
+  mod?: 'satis' | 'satinalma' | 'satinalma-siparis'
   onNew?: (irsaliyeTipi: string, fasonTipiId?: number | null) => void
   onSelect?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
 }
@@ -94,14 +99,15 @@ interface IrsaliyeListesiProps {
 const fasonFisTipleri = {
   satis: ['12', '125', '134'],
   satinalma: ['6', '11', '133'],
+  'satinalma-siparis': [] as string[],
 }
 
 export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: IrsaliyeListesiProps) {
-  const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : satisTipleri
+  const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : satisTipleri
   const irsaliyeTipiOptions = gorselTipler.map((value) => ({ value, label: irsaliyeTipiMap[value] }))
-  const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : 'Satış İrsaliyeleri'
+  const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : 'Satış İrsaliyeleri'
   const [data, setData] = useState<IrsaliyeRow[]>([])
-  const [yeniIrsaliyeTipi, setYeniIrsaliyeTipi] = useState(mod === 'satinalma' ? '1' : '120')
+  const [yeniIrsaliyeTipi, setYeniIrsaliyeTipi] = useState(mod === 'satinalma' ? '1' : mod === 'satinalma-siparis' ? '201' : '120')
   const [yeniFasonTipiId, setYeniFasonTipiId] = useState<number | null>(null)
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
@@ -142,7 +148,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
   }
 
   const load = () => {
-    const tipler = new Set(mod === 'satinalma' ? satinalmaTipleri : satisTipleri)
+    const tipler = new Set(mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : satisTipleri)
     irsaliyeApi
       .list()
       .then((res) => setData(res.filter((i) => tipler.has(String(i.irsaliyeTipi))).map(mapIrsaliye)))
@@ -196,7 +202,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
     {
       headerName: 'Durum', field: 'eIrsaliye', width: 110, resizable: true,
       cellRenderer: (p: { value: string }) => (
-        <Tag color={p.value === 'Tamamlandı' ? 'green' : p.value === 'Onaylandı' ? 'blue' : 'default'} className="!text-[11px]">
+        <Tag color={p.value === 'Tamamlandı' || p.value === 'Teslim Alındı' ? 'green' : p.value === 'Onaylandı' || p.value === 'Kesinleşti' ? 'blue' : 'default'} className="!text-[11px]">
           {p.value}
         </Tag>
       ),
@@ -257,8 +263,8 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
                 rowData={data}
                 columnDefs={columns}
                 domLayout="normal"
-                exportFileName={mod === 'satinalma' ? 'satinalma-irsaliyeleri' : 'irsaliyeleri'}
-                storageKey={mod === 'satinalma' ? 'satinalmaIrsaliye' : 'irsaliye'}
+                exportFileName={mod === 'satinalma' ? 'satinalma-irsaliyeleri' : mod === 'satinalma-siparis' ? 'satinalma-siparisleri' : 'irsaliyeleri'}
+                storageKey={mod === 'satinalma' ? 'satinalmaIrsaliye' : mod === 'satinalma-siparis' ? 'satinalmaSiparis' : 'irsaliye'}
                 rowSelection="single"
                 onCellDoubleClicked={(e: CellDoubleClickedEvent<IrsaliyeRow>) => {
                   const row = e.data as IrsaliyeRow | undefined
@@ -280,16 +286,18 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
 
             <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">
               <div className="!flex !items-center !gap-2 !flex-wrap">
-                <div className="!flex !items-center !gap-2">
-                  <span className="!text-[11px] !text-[#9ca3af]">Yeni İrsaliye Türü:</span>
-                  <Select
-                    size="small"
-                    value={yeniIrsaliyeTipi}
-                    onChange={setYeniIrsaliyeTipi}
-                    className="!w-56 !text-[12px]"
-                    options={irsaliyeTipiOptions}
-                  />
-                </div>
+                {mod !== 'satinalma-siparis' && (
+                  <div className="!flex !items-center !gap-2">
+                    <span className="!text-[11px] !text-[#9ca3af]">Yeni İrsaliye Türü:</span>
+                    <Select
+                      size="small"
+                      value={yeniIrsaliyeTipi}
+                      onChange={setYeniIrsaliyeTipi}
+                      className="!w-56 !text-[12px]"
+                      options={irsaliyeTipiOptions}
+                    />
+                  </div>
+                )}
                 {fasonFisTipleri[mod].includes(yeniIrsaliyeTipi) && (
                   <div className="!flex !items-center !gap-2">
                     <span className="!text-[11px] !text-[#9ca3af]">Fiş Alt Tipi:</span>

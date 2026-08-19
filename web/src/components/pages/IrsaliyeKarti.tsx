@@ -9,6 +9,11 @@ import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
 import { PlusOutlined, DeleteOutlined, SettingOutlined, SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
+import { formSabloniApi } from '@/lib/form-sabloni-api'
+import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
+import { previewPdf, generatePdf } from '@/lib/reports/pdf-common'
+import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
@@ -50,6 +55,15 @@ interface IrsaliyeKartiProps {
   fasonTipiId?: number | null
   id?: number
   onDeleted?: (irsaliyeTipi: string) => void
+  baslangicKalemler?: IrsaliyeBaslangicKalem[]
+}
+
+export interface IrsaliyeBaslangicKalem {
+  malzemeKod: string
+  malzemeAd: string
+  miktar: number
+  birim: string
+  aciklama?: string
 }
 
 interface KalemRow {
@@ -105,12 +119,23 @@ const irsaliyeTipiMap: Record<string, string> = {
   '134': '134-Fasona Çıkış İrsaliyesi',
   '138': '138-Verilen Hizmet İrsaliyesi',
   '192': '192-Serbest Meslek Makbuzu',
+  '201': '201-Satın Alma Siparişi',
 }
 
 const fasonFisTipleri = ['6', '11', '12', '125', '133', '134']
 const uretimKolonlari = ['tip', 'barkod', 'brutKg', 'kg', 'brutMt', 'mt', 'adet', 'hesapBirimi']
-const defaultHiddenColsFor = (irsaliyeTipi: string): Set<string> =>
-  fasonFisTipleri.includes(irsaliyeTipi) ? new Set() : new Set(uretimKolonlari)
+const satinalmaSiparisKolonlari = ['tip', 'barkod']
+const defaultHiddenColsFor = (irsaliyeTipi: string): Set<string> => {
+  const gizle = new Set<string>()
+  if (irsaliyeTipi === '201') {
+    satinalmaSiparisKolonlari.forEach((k) => gizle.add(k))
+    return gizle
+  }
+  if (!fasonFisTipleri.includes(irsaliyeTipi)) {
+    uretimKolonlari.forEach((k) => gizle.add(k))
+  }
+  return gizle
+}
 
 const formatTR = (v: number) => {
   if (v === 0) return ''
@@ -203,7 +228,7 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, onDeleted }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, onDeleted, baslangicKalemler }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -220,9 +245,24 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
   const [belgeNo, setBelgeNo] = useState('')
   const [aciklama, setAciklama] = useState('')
-  const [kalemler, setKalemler] = useState<KalemRow[]>([])
+  const [onaylandi, setOnaylandi] = useState(false)
+  const [tamamlandi, setTamamlandi] = useState(false)
+  const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
+    !id && baslangicKalemler && baslangicKalemler.length > 0
+      ? baslangicKalemler.map((b) => {
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '' }
+          const val = b.miktar || 0
+          if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
+          else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
+          else { row.mt = val; row.hesapBirimi = 'mt' }
+          return row
+        })
+      : [],
+  )
   const [loading, setLoading] = useState<boolean>(() => Boolean(id))
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
+  const [sablonSecenekleri, setSablonSecenekleri] = useState<{ id: number; ad: string }[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -236,6 +276,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
           if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
           setBelgeNo(i.sevkNo ?? '')
           setAciklama(i.aciklama ?? '')
+          setOnaylandi(!!i.onaylandi)
+          setTamamlandi(!!i.tamamlandi)
           setFasonTipiKayit((i as Irsaliye).fasonTipiId ?? null)
           setFasonTipiAd((i as Irsaliye).fasonTipi?.ad ?? '')
           setCariKod((i as Irsaliye).cariHesap?.kod ?? String((i as Irsaliye).cariHesapId ?? ''))
@@ -320,6 +362,84 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
     setTimeout(() => focusCellEditor('malzemeKod', newIndex), 50)
   }
 
+  const raporEkranTuru = useMemo(() => {
+    if (irsaliyeTipi === '201') return 'Satın Alma Siparişleri'
+    const satisTipleri = ['2', '3', '4', '8', '12', '23', '120', '121', '123', '125', '126', '134', '138', '192']
+    return satisTipleri.includes(irsaliyeTipi) ? 'Satış İrsaliyeleri' : 'Satın Alma İrsaliyeleri'
+  }, [irsaliyeTipi])
+
+  const raporVerisiTopla = async (sablonId: number, irsaliyeId: number) => {
+    const d = await formSabloniApi.getById(sablonId)
+    const draft: FormTasarimDraft = {
+      id: String(d.id),
+      ad: d.ad,
+      ekranTuru: d.ekranTuru,
+      sorgular: (d.sorgular as FormTasarimDraft['sorgular']) ?? [],
+      layout: (d.layout as FormTasarimDraft['layout']) ?? [],
+      sayfa: (d.sayfa as FormTasarimDraft['sayfa']) ?? { boyut: 'A4', yon: 'dikey', kenarUst: 8, kenarAlt: 8, kenarSol: 10, kenarSag: 10 },
+      sablonId: d.id,
+      kod: d.kod,
+    }
+    const veri: Record<number, Record<string, unknown>[]> = {}
+    for (const s of draft.sorgular) {
+      if (!s.sorguMetni?.trim()) continue
+      try {
+        const sonuc = await formSabloniApi.sorguTest({ sorguMetni: s.sorguMetni, parametreler: { id: irsaliyeId } })
+        veri[s.sirano] = sonuc.satirlar
+      } catch {
+        veri[s.sirano] = []
+      }
+    }
+    return { draft, veri }
+  }
+
+  const handleRapor = async () => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'İrsaliyeyi yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const list = await formSabloniApi.listByEkranTuru(raporEkranTuru)
+      if (list.length === 0) {
+        modal.info({
+          title: 'Form tasarımı yok',
+          content: `Bu ekran için form tasarımı bulunamadı. Form Tasarımı ekranından "${raporEkranTuru}" için bir form hazırlayıp kaydedin.`,
+        })
+        return
+      }
+      setSablonSecenekleri(list.map((f) => ({ id: f.id, ad: f.ad })))
+      setRaporModalAcik(true)
+    } catch {
+      message.error('Form şablonları yüklenemedi')
+    }
+  }
+
+  const handleSabloniOnizle = async (sablonId: number) => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'İrsaliyeyi yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const { draft, veri } = await raporVerisiTopla(sablonId, id)
+      await previewPdf(formTasarimDoc(draft, veri))
+    } catch (e) {
+      message.error('Rapor hazırlanamadı: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
+    }
+  }
+
+  const handleSabloniIndir = async (sablonId: number) => {
+    if (!id) {
+      modal.warning({ title: 'Yazdırma', content: 'İrsaliyeyi yazdırmak için önce kaydetmelisiniz.' })
+      return
+    }
+    try {
+      const { draft, veri } = await raporVerisiTopla(sablonId, id)
+      await generatePdf(formTasarimDoc(draft, veri), `irsaliye-${irsaliyeNo || 'yeni'}.pdf`)
+    } catch (e) {
+      message.error('Rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
+    }
+  }
+
   const handleKaydet = async () => {
     if (!cariKod) {
       message.warning('Cari hesap zorunludur')
@@ -363,6 +483,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
           irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
           sevkNo: belgeNo || null,
+          onaylandi,
+          tamamlandi,
           aciklama: aciklama || null,
           cariHesapId,
           depoId,
@@ -378,6 +500,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
         irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
         sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
         sevkNo: belgeNo || null,
+        onaylandi,
+        tamamlandi,
         aciklama: aciklama || null,
         cariHesapId,
         depoId,
@@ -748,17 +872,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
   const [fasonGidenlerOpen, setFasonGidenlerOpen] = useState(false)
   const [fasonGidenlerData, setFasonGidenlerData] = useState<Irsaliye[]>([])
   const [fasonGidenlerYukleniyor, setFasonGidenlerYukleniyor] = useState(false)
-  const [seciliFasonGiden, setSeciliFasonGiden] = useState<Irsaliye | null>(null)
-  const [fasonGidenKalemler, setFasonGidenKalemler] = useState<IrsaliyeKalem[]>([])
   const [fasonGidenArama, setFasonGidenArama] = useState('')
-  const fasonGidenListeGridRef = useRef<GridApi>(null)
-  const fasonGidenKalemGridRef = useRef<GridApi>(null)
+  const fasonGidenGridRef = useRef<GridApi>(null)
 
   const openFasonGidenler = () => {
     setFasonGidenlerOpen(true)
     setFasonGidenlerYukleniyor(true)
-    setSeciliFasonGiden(null)
-    setFasonGidenKalemler([])
+    setFasonGidenArama('')
     irsaliyeApi
       .list()
       .then((res) => setFasonGidenlerData(res.filter((i) => String(i.irsaliyeTipi) === '134')))
@@ -771,19 +891,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       ? [{ key: 'fason-gidenler', label: 'Fason Gidenler (134)...', onClick: () => openFasonGidenler() }]
       : []
 
-  const fasonGidenSec = (i: Irsaliye) => {
-    setSeciliFasonGiden(i)
-    setFasonGidenKalemler(i.kalemler ?? [])
-    if (!i.kalemler?.length) {
-      irsaliyeApi
-        .get(i.id)
-        .then((d) => setFasonGidenKalemler(d.kalemler ?? []))
-        .catch(() => {})
-    }
-  }
-
   const iceriAktar = () => {
-    const secili = fasonGidenKalemGridRef.current?.getSelectedRows() ?? []
+    const secili = fasonGidenGridRef.current?.getSelectedRows() ?? []
     if (secili.length === 0) {
       message.warning('İçe aktarılacak kalem seçiniz')
       return
@@ -793,7 +902,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       tip: k.tip ?? 'Malzeme',
       malzemeKod: k.malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
       malzemeAd: k.malzeme?.ad ?? '',
-      barkod: k.takipNo ?? '',
+      barkod: k.id != null ? String(k.id) : (k.takipNo ?? ''),
       brutKg: Number(k.brutAgirlik) || 0,
       kg: Number(k.netAgirlik) || 0,
       brutMt: Number(k.brutMetre) || 0,
@@ -817,29 +926,70 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
   const fasonGidenlerFiltreli = fasonGidenlerData.filter(
     (d) =>
       !fasonGidenArama ||
-      `${d.irsaliyeNo} ${d.cariHesap?.ad ?? ''} ${d.cariHesap?.kod ?? ''}`
+      `${d.irsaliyeNo} ${d.cariHesap?.ad ?? ''} ${d.cariHesap?.kod ?? ''} ${d.sevkNo ?? ''}`
         .toLocaleLowerCase('tr-TR')
         .includes(fasonGidenArama.toLocaleLowerCase('tr-TR')),
   )
 
-  const fasonGidenListeKolonlar = useMemo<ColDef<any>[]>(
-    () => [
-      { headerName: 'İrsaliye No', field: 'irsaliyeNo', width: 110, cellClass: '!text-[#f57c00] !font-medium' },
-      { headerName: 'Tarih', field: 'irsaliyeTarihi', width: 100, valueFormatter: (p) => formatTarih(p.value) },
-      { headerName: 'Cari Hesap', field: 'cariHesap.ad', flex: 1, minWidth: 120, valueFormatter: (p) => p.value || '-' },
-      { headerName: 'Fason Alt Tipi', field: 'fasonTipi.ad', width: 150, valueFormatter: (p) => p.value || '-' },
-      {
-        headerName: 'Toplam', field: 'toplam', width: 120, type: 'rightAligned',
-        valueFormatter: (p) => formatTR(p.value),
-      },
-    ],
-    [],
-  )
+  const fasonGidenSatirlar = useMemo(() => {
+    const gorilenMiktar = new Map<string, number>()
+    for (const k of kalemler) {
+      if (!k.barkod) continue
+      const birim = k.hesapBirimi
+      let m = 0
+      if (birim === 'brutKg') m = k.brutKg
+      else if (birim === 'kg') m = k.kg
+      else if (birim === 'brutMt') m = k.brutMt
+      else if (birim === 'mt') m = k.mt
+      else if (birim === 'adet') m = k.adet
+      gorilenMiktar.set(k.barkod, (gorilenMiktar.get(k.barkod) ?? 0) + m)
+    }
+    const kaynakMiktar = (k: IrsaliyeKalem): number => {
+      switch (k.olcuBirimi) {
+        case 'brutKg': return Number(k.brutAgirlik) || 0
+        case 'kg': return Number(k.netAgirlik) || 0
+        case 'brutMt': return Number(k.brutMetre) || 0
+        case 'mt': return Number(k.netMetre) || 0
+        case 'adet': return Number(k.adet) || 0
+        default: return 0
+      }
+    }
+    const rows: (IrsaliyeKalem & {
+      fisNo: string
+      belgeNo: string
+      tarih: string | null
+      cariAd: string
+      fasonTipiAd: string
+      kalan: number
+    })[] = []
+    for (const i of fasonGidenlerFiltreli) {
+      for (const k of i.kalemler ?? []) {
+        const idStr = k.id != null ? String(k.id) : null
+        const kalan = kaynakMiktar(k) - (idStr ? (gorilenMiktar.get(idStr) ?? 0) : 0)
+        if (idStr && kalan <= 0) continue
+        rows.push({
+          ...(k as IrsaliyeKalem),
+          fisNo: i.irsaliyeNo,
+          belgeNo: i.sevkNo ?? '',
+          tarih: i.irsaliyeTarihi,
+          cariAd: i.cariHesap?.ad ?? '',
+          fasonTipiAd: i.fasonTipi?.ad ?? '',
+          kalan,
+        })
+      }
+    }
+    return rows
+  }, [fasonGidenlerFiltreli, kalemler])
 
-  const fasonGidenKalemKolonlar = useMemo<ColDef<any>[]>(
+  const fasonGidenSatirKolonlar = useMemo<ColDef<any>[]>(
     () => [
+      { headerName: 'Çıkış Fiş No', field: 'fisNo', width: 110, cellClass: '!text-[#f57c00] !font-medium' },
+      { headerName: 'Belge No', field: 'belgeNo', width: 100, valueFormatter: (p) => p.value || '-' },
+      { headerName: 'Tarih', field: 'tarih', width: 100, valueFormatter: (p) => formatTarih(p.value) },
+      { headerName: 'Cari Hesap', field: 'cariAd', flex: 1, minWidth: 120, valueFormatter: (p) => p.value || '-' },
+      { headerName: 'Fason Alt Tipi', field: 'fasonTipiAd', width: 140, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Tip', field: 'tip', width: 80, valueFormatter: (p) => p.value || '-' },
-      { headerName: 'Malzeme Kodu', field: 'malzeme.kod', width: 110 },
+      { headerName: 'Malzeme Kodu', field: 'malzeme.kod', width: 110, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Malzeme Adı', field: 'malzeme.ad', flex: 1, minWidth: 140, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Takip No', field: 'takipNo', width: 110, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Brüt Kg', field: 'brutAgirlik', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
@@ -847,7 +997,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       { headerName: 'Brüt Mt', field: 'brutMetre', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
       { headerName: 'Mt', field: 'netMetre', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
       { headerName: 'Adet', field: 'adet', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
-      { headerName: 'Birim', field: 'olcuBirimi', width: 90, valueFormatter: (p) => p.value || '-' },
+      { headerName: 'Birim', field: 'olcuBirimi', width: 80, valueFormatter: (p) => p.value || '-' },
+      { headerName: 'Kalan', field: 'kalan', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
       { headerName: 'Açıklama', field: 'aciklama', width: 160, valueFormatter: (p) => p.value || '-' },
     ],
     [],
@@ -889,11 +1040,24 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
             buttons={createToolbarButtons({
               onSave: handleKaydet,
               onDelete: handleSil,
+              onReport: handleRapor,
             }, {
               delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
             })}
           />
         </div>
+        <RaporSecimModal
+          open={raporModalAcik}
+          baslik={irsaliyeTipiLabel}
+          tasarimlar={sablonSecenekleri.map((s) => ({
+            id: String(s.id),
+            label: s.ad,
+            aciklama: 'Form tasarım editöründe hazırlandı',
+          }))}
+          onCancel={() => setRaporModalAcik(false)}
+          onOnizle={(tid) => handleSabloniOnizle(Number(tid))}
+          onIndir={(tid) => handleSabloniIndir(Number(tid))}
+        />
         <div className="!flex-1 !min-h-0 !flex !flex-col">
           <div className="!flex-shrink-0 !space-y-1.5">
             <div className="!flex !gap-2">
@@ -909,17 +1073,38 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
                     <DatePicker size="small" value={irsaliyeTarihi} onChange={(d) => d && setIrsaliyeTarihi(d)} format="DD.MM.YYYY" placeholder="Fiş tarihi" className="!w-48 !text-[12px]" />
                   </div>
                   <div className="!flex !items-center !gap-3">
-                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Sevk Tarihi</div>
-                    <DatePicker size="small" value={sevkTarihi} onChange={(d) => setSevkTarihi(d)} format="DD.MM.YYYY" placeholder="Sevk tarihi" className="!w-48 !text-[12px]" />
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">{irsaliyeTipi === '201' ? 'Teslim Tarihi' : 'Sevk Tarihi'}</div>
+                    <DatePicker size="small" value={sevkTarihi} onChange={(d) => setSevkTarihi(d)} format="DD.MM.YYYY" placeholder={irsaliyeTipi === '201' ? 'Teslim tarihi' : 'Sevk tarihi'} className="!w-48 !text-[12px]" />
                   </div>
-                  <div className="!flex !items-center !gap-3">
-                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Belge No</div>
-                    <Input size="small" value={belgeNo} onChange={(e) => setBelgeNo(e.target.value)} className="!w-48 !text-[12px]" />
-                  </div>
+                  {irsaliyeTipi !== '201' && (
+                    <div className="!flex !items-center !gap-3">
+                      <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Belge No</div>
+                      <Input size="small" value={belgeNo} onChange={(e) => setBelgeNo(e.target.value)} className="!w-48 !text-[12px]" />
+                    </div>
+                  )}
                   <div className="!flex !items-center !gap-3">
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Açıklama</div>
                     <Input size="small" value={aciklama} onChange={(e) => setAciklama(e.target.value)} className="!w-48 !text-[12px]" />
                   </div>
+                  {irsaliyeTipi === '201' && (
+                    <div className="!flex !items-center !gap-3">
+                      <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Durum</div>
+                      <Select
+                        size="small"
+                        className="!w-48 !text-[12px]"
+                        value={tamamlandi ? 'tamamlandi' : onaylandi ? 'kesinlesti' : 'taslak'}
+                        onChange={(val) => {
+                          setTamamlandi(val === 'tamamlandi')
+                          setOnaylandi(val === 'kesinlesti' || val === 'tamamlandi')
+                        }}
+                        options={[
+                          { value: 'taslak', label: 'Taslak' },
+                          { value: 'kesinlesti', label: 'Kesinleşti' },
+                          { value: 'tamamlandi', label: 'Teslim Alındı' },
+                        ]}
+                      />
+                    </div>
+                  )}
                   {fasonTipiAd && (
                     <div className="!flex !items-center !gap-3">
                       <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fiş Alt Tipi</div>
@@ -1031,7 +1216,6 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
           <Button
             key="aktar"
             type="primary"
-            disabled={!seciliFasonGiden}
             onClick={iceriAktar}
             className="!text-[12px]"
           >
@@ -1043,7 +1227,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
           <div className="!flex !flex-col !gap-2">
             <Input
               size="small"
-              placeholder="İrsaliye no veya cari ara..."
+              placeholder="Çıkış fiş no, belge no veya cari ara..."
               allowClear
               value={fasonGidenArama}
               onChange={(e) => setFasonGidenArama(e.target.value)}
@@ -1051,45 +1235,21 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
               className="!w-80 !text-[12px]"
             />
             <div className="!text-[11px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
-              Fasona Çıkış İrsaliyeleri
+              Fasona Çıkış İrsaliyeleri — Kalemler ({fasonGidenSatirlar.length} satır, seçip içe aktarın)
             </div>
-            <div style={{ height: 220 }}>
+            <div style={{ height: 420 }}>
               <AgGridReact
-                rowData={fasonGidenlerFiltreli}
-                columnDefs={fasonGidenListeKolonlar}
+                rowData={fasonGidenSatirlar}
+                columnDefs={fasonGidenSatirKolonlar}
                 theme={antTheme}
                 headerHeight={30}
                 rowHeight={28}
-                rowSelection="single"
+                rowSelection="multiple"
                 localeText={agGridLocaleTR}
                 defaultColDef={{ resizable: true, sortable: true }}
-                onGridReady={(e) => { fasonGidenListeGridRef.current = e.api }}
-                onSelectionChanged={(e) => {
-                  const row = e.api.getSelectedRows()[0] as Irsaliye | undefined
-                  if (row) fasonGidenSec(row)
-                }}
+                onGridReady={(e) => { fasonGidenGridRef.current = e.api }}
               />
             </div>
-            {seciliFasonGiden && (
-              <>
-                <div className="!text-[11px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider !mt-1">
-                  Kalemler — {seciliFasonGiden.irsaliyeNo} ({fasonGidenKalemler.length} satır, seçip içe aktarın)
-                </div>
-                <div style={{ height: 220 }}>
-                  <AgGridReact
-                    rowData={fasonGidenKalemler}
-                    columnDefs={fasonGidenKalemKolonlar}
-                    theme={antTheme}
-                    headerHeight={30}
-                    rowHeight={28}
-                    rowSelection="multiple"
-                    localeText={agGridLocaleTR}
-                    defaultColDef={{ resizable: true, sortable: true }}
-                    onGridReady={(e) => { fasonGidenKalemGridRef.current = e.api }}
-                  />
-                </div>
-              </>
-            )}
           </div>
         </Spin>
       </Modal>

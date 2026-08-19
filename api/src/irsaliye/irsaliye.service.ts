@@ -30,7 +30,7 @@ export class IrsaliyeService {
   findAll() {
     return this.prisma.irsaliye.findMany({
       orderBy: [{ irsaliyeTipi: 'asc' }, { irsaliyeNo: 'desc' }],
-      include: { cariHesap: true, depo: true, fasonTipi: true, kalemler: true },
+      include: { cariHesap: true, depo: true, fasonTipi: true, kalemler: { include: { malzeme: true } } },
     })
   }
 
