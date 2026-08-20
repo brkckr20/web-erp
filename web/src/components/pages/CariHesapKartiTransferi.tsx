@@ -1,0 +1,152 @@
+'use client'
+
+import ExcelTransferEkrani from './ExcelTransferEkrani'
+import { cariTransferApi } from '@/lib/cari-transfer-api'
+
+const ALANLAR = [
+  { anahtar: 'kod', etiket: 'Kod', zorunlu: true },
+  { anahtar: 'ad', etiket: 'Ad', zorunlu: true },
+  { anahtar: 'ticariUnvani', etiket: 'Ticari Ünvanı' },
+  { anahtar: 'erisimKodu', etiket: 'Erişim Kodu' },
+  { anahtar: 'ozelKod', etiket: 'Özel Kod' },
+  { anahtar: 'grubu', etiket: 'Grubu' },
+  { anahtar: 'sektoru', etiket: 'Sektörü' },
+  { anahtar: 'ticariIslemGrubu', etiket: 'Ticari İşlem Grubu' },
+  { anahtar: 'cariHesapTipi', etiket: 'Cari Hesap Tipi' },
+  { anahtar: 'cariHesapTuru', etiket: 'Cari Hesap Türü' },
+  { anahtar: 'personel', etiket: 'Personel' },
+  { anahtar: 'satisPersoneli', etiket: 'Satış Personeli' },
+  { anahtar: 'satisKanali', etiket: 'Satış Kanalı' },
+  { anahtar: 'araciKurum', etiket: 'Aracı Kurum' },
+  { anahtar: 'musteriHesapKodu', etiket: 'Müşteri Hesap Kodu' },
+  { anahtar: 'saticiHesapKodu', etiket: 'Satıcı Hesap Kodu' },
+  { anahtar: 'vadeFarkiFaizOrani', etiket: 'Vade Farkı Faiz Oranı' },
+  { anahtar: 'vadeOpsiyonu', etiket: 'Vade Opsiyonu' },
+  { anahtar: 'odemePlani', etiket: 'Ödeme Planı' },
+  { anahtar: 'indirimKodu', etiket: 'İndirim Kodu' },
+  { anahtar: 'fiyatKodu', etiket: 'Fiyat Kodu' },
+  { anahtar: 'alisIndirimKodu', etiket: 'Alış İndirim Kodu' },
+  { anahtar: 'satisIndirimKodu', etiket: 'Satış İndirim Kodu' },
+  { anahtar: 'vergiDairesi', etiket: 'Vergi Dairesi' },
+  { anahtar: 'vergiNo', etiket: 'Vergi No' },
+  { anahtar: 'dovizCinsi', etiket: 'Döviz Cinsi' },
+  { anahtar: 'dovizKurTipi', etiket: 'Döviz Kur Tipi' },
+  { anahtar: 'kullanimda', etiket: 'Kullanımda' },
+  { anahtar: 'potansiyel', etiket: 'Potansiyel' },
+  { anahtar: 'bayi', etiket: 'Bayi' },
+  { anahtar: 'faktoring', etiket: 'Faktoring' },
+]
+
+const SABLON_SIRASI = [
+  'kod',
+  'ad',
+  'ticariUnvani',
+  'erisimKodu',
+  'ozelKod',
+  'grubu',
+  'sektoru',
+  'ticariIslemGrubu',
+  'cariHesapTipi',
+  'cariHesapTuru',
+  'personel',
+  'satisPersoneli',
+  'satisKanali',
+  'araciKurum',
+  'musteriHesapKodu',
+  'saticiHesapKodu',
+  'vadeFarkiFaizOrani',
+  'vadeOpsiyonu',
+  'odemePlani',
+  'indirimKodu',
+  'fiyatKodu',
+  'alisIndirimKodu',
+  'satisIndirimKodu',
+  'vergiDairesi',
+  'vergiNo',
+  'dovizCinsi',
+  'dovizKurTipi',
+  'kullanimda',
+  'potansiyel',
+  'bayi',
+  'faktoring',
+] as const
+
+const SABLON_BASLIKLAR = {
+  kod: 'Kod',
+  ad: 'Ad',
+  ticariUnvani: 'Ticari Ünvanı',
+  erisimKodu: 'Erişim Kodu',
+  ozelKod: 'Özel Kod',
+  grubu: 'Grubu',
+  sektoru: 'Sektörü',
+  ticariIslemGrubu: 'Ticari İşlem Grubu',
+  cariHesapTipi: 'Cari Hesap Tipi',
+  cariHesapTuru: 'Cari Hesap Türü',
+  personel: 'Personel',
+  satisPersoneli: 'Satış Personeli',
+  satisKanali: 'Satış Kanalı',
+  araciKurum: 'Aracı Kurum',
+  musteriHesapKodu: 'Müşteri Hesap Kodu',
+  saticiHesapKodu: 'Satıcı Hesap Kodu',
+  vadeFarkiFaizOrani: 'Vade Farkı Faiz Oranı',
+  vadeOpsiyonu: 'Vade Opsiyonu',
+  odemePlani: 'Ödeme Planı',
+  indirimKodu: 'İndirim Kodu',
+  fiyatKodu: 'Fiyat Kodu',
+  alisIndirimKodu: 'Alış İndirim Kodu',
+  satisIndirimKodu: 'Satış İndirim Kodu',
+  vergiDairesi: 'Vergi Dairesi',
+  vergiNo: 'Vergi No',
+  dovizCinsi: 'Döviz Cinsi',
+  dovizKurTipi: 'Döviz Kur Tipi',
+  kullanimda: 'Kullanımda',
+  potansiyel: 'Potansiyel',
+  bayi: 'Bayi',
+  faktoring: 'Faktoring',
+}
+
+const SABLON_ORNEK = [
+  'C001',
+  'Acme Tekstil',
+  'Acme Tekstil A.Ş.',
+  'ER001',
+  'OZK01',
+  'Grup A',
+  'Tekstil',
+  'Müşteri + Tedarikçi',
+  'Şirket',
+  'Ahmet',
+  'Ali',
+  'Web',
+  'Aracı X',
+  'M001',
+  'S001',
+  '5',
+  '10',
+  'Vadeli',
+  'IND001',
+  'FIY001',
+  'AID001',
+  'SID001',
+  'İstanbul VD',
+  '1234567890',
+  'TRY',
+  'Parametre',
+  'Evet',
+  'Hayır',
+  'Hayır',
+  'Hayır',
+]
+
+export default function CariHesapKartiTransferi() {
+  return (
+    <ExcelTransferEkrani
+      alanlar={ALANLAR}
+      sablonSira={SABLON_SIRASI}
+      sablonBasliklar={SABLON_BASLIKLAR}
+      sablonOrnek={SABLON_ORNEK}
+      sablonDosyaAdi="cari-hesap-sablonu.xlsx"
+      importFonksiyon={cariTransferApi.import}
+    />
+  )
+}

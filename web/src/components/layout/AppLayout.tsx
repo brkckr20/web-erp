@@ -65,6 +65,8 @@ import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParame
 import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
 import FormListesi from '@/components/pages/FormListesi'
 import FormTasarimi from '@/components/pages/FormTasarimi'
+import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
+import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
 import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
 
 const { Content } = Layout
@@ -743,6 +745,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'siparis-parametreleri') {
       return <SiparisParametreleri />
+    }
+    if (tab.key === 'renk-karti-transferi') {
+      return <RenkKartiTransferi />
+    }
+    if (tab.key === 'cari-hesap-transferi') {
+      return <CariHesapKartiTransferi />
     }
     if (tab.key === 'form-tasarimi') {
       return <FormListesi onSelect={(f) => openFormEditor(f)} onNew={() => openFormEditor(null)} />

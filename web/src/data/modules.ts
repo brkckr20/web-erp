@@ -229,6 +229,13 @@ export const modules: Module[] = [
         ],
       },
       {
+        title: 'Transferler',
+        items: [
+          { key: 'renk-karti-transferi', label: 'Renk Kartı Transferi' },
+          { key: 'cari-hesap-transferi', label: 'Cari Hesap Kartı Transferi' },
+        ],
+      },
+      {
         title: 'Parametreler',
         items: [
           { key: 'malzeme-yonetim-parametreleri', label: 'Malzeme Yönetim Parametreleri', isForm: true },
