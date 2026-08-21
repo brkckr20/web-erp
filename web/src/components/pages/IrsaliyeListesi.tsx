@@ -86,7 +86,7 @@ const satinalmaSiparisTipiMap: Record<string, string> = {
 }
 
 const irsaliyeTipiMap: Record<string, string> = { ...satisIrsaliyeTipiMap, ...satinalmaIrsaliyeTipiMap, ...satinalmaSiparisTipiMap }
-const satisTipleri = Object.keys(irsaliyeTipiMap)
+const satisTipleri = Object.keys(satisIrsaliyeTipiMap)
 const satinalmaTipleri = Object.keys(satinalmaIrsaliyeTipiMap)
 const satinalmaSiparisTipleri = Object.keys(satinalmaSiparisTipiMap)
 

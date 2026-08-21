@@ -42,11 +42,12 @@ export class SiparisService {
       orderBy: { siparisNo: 'desc' },
       select: { siparisNo: true },
     });
-    let sonNo = numarator.sonNo;
+    let sonNo: number | null = null;
     if (last?.siparisNo) {
       const m = last.siparisNo.match(/(\d+)\s*$/);
-      if (m) sonNo = Math.max(sonNo, parseInt(m[1], 10));
+      if (m) sonNo = parseInt(m[1], 10);
     }
+    if (sonNo === null) sonNo = numarator.sonNo;
     const yeniNo = sonNo + 1;
     await this.prisma.numarator.update({
       where: { id: numaratorId },
@@ -116,6 +117,7 @@ export class SiparisService {
     return this.prisma.$transaction(async (tx) => {
       await tx.siparis.update({ where: { id }, data });
       if (Array.isArray(kalemler)) {
+        await tx.tedarikIhtiyac.deleteMany({ where: { siparisId: id } });
         await tx.siparisKalem.deleteMany({ where: { siparisId: id } });
         await tx.siparisAciklama.deleteMany({ where: { siparisId: id } });
         await this.createChildren(tx, id, kalemler, aciklamalar);
@@ -127,6 +129,7 @@ export class SiparisService {
   async remove(id: number) {
     await this.findOne(id);
     return this.prisma.$transaction(async (tx) => {
+      await tx.tedarikIhtiyac.deleteMany({ where: { siparisId: id } });
       await tx.siparisKalem.deleteMany({ where: { siparisId: id } });
       await tx.siparisAciklama.deleteMany({ where: { siparisId: id } });
       return tx.siparis.delete({ where: { id } });

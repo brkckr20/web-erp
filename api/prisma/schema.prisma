@@ -830,6 +830,7 @@ model AksesuarTipi {
 model FasonTipi {
   id                Int      @id @default(autoincrement())
   ad                String   @db.VarChar(200)
+  kategoriler       String?  @db.VarChar(200) @map("kategoriler")
   kullanimda        Boolean  @default(true)
 
   fasonIrsaliyeler   Irsaliye[] @relation("IrsaliyeFasonTipi")
@@ -918,8 +919,9 @@ model Siparis {
   musteriTemsilcisi String?  @map("musteri_temsilcisi") @db.VarChar(200)
   toplamTutar       Decimal? @map("toplam_tutar") @db.Decimal(18, 2)
   toplamDoviz       String?  @map("toplam_doviz") @db.VarChar(10)
-  onaylandi         Boolean  @default(false)
-  durum             String   @default("acik") @db.VarChar(20)
+   onaylandi         Boolean  @default(false)
+   tamamlandi        Boolean  @default(false) @map("tamamlandi")
+   durum             String   @default("acik") @db.VarChar(20)
   kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
   kayitTarihi       DateTime? @map("kayit_tarihi")
   guncelleyen       String?  @db.VarChar(100)

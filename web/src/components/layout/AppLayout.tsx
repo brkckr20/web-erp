@@ -193,26 +193,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     '201': '201-Satın Alma Siparişi',
   }
 
-  const openYeniIrsaliye = useCallback((irsaliyeTipi: string, fasonTipiId?: number | null) => {
-    if (irsaliyeTipi === '201') {
-      setSatinalmaBaslangicKalemler([])
-    }
-    const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
-    const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
-    setTabs((prev) => {
-      const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true }
-      const exists = prev.find((t) => t.key === key)
-      if (!exists) return [...prev, tab]
-      return prev
-    })
-    setActiveTab(key)
-  }, [irsaliyeTipiLabelMap])
+  const openYeniIrsaliye = useCallback(
+    (irsaliyeTipi: string, fasonTipiId?: number | null, baslangicKalemler?: IrsaliyeBaslangicKalem[]) => {
+      if (irsaliyeTipi === '201' || irsaliyeTipi === '1') {
+        setSatinalmaBaslangicKalemler(baslangicKalemler ?? [])
+      }
+      const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
+      const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
+      setTabs((prev) => {
+        const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true }
+        const exists = prev.find((t) => t.key === key)
+        if (!exists) return [...prev, tab]
+        return prev
+      })
+      setActiveTab(key)
+    },
+    [irsaliyeTipiLabelMap],
+  )
 
   const openYeniSatinalmaSiparis = useCallback(
     (kalemler: IrsaliyeBaslangicKalem[]) => {
       setSatinalmaSiparisKey((k) => k + 1)
-      openYeniIrsaliye('201')
-      setSatinalmaBaslangicKalemler(kalemler)
+      openYeniIrsaliye('201', null, kalemler)
+    },
+    [openYeniIrsaliye],
+  )
+
+  const handleCreateIrsaliye = useCallback(
+    (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[]) => {
+      setSatinalmaSiparisKey((k) => k + 1)
+      openYeniIrsaliye(irsaliyeTipi, null, kalemler)
     },
     [openYeniIrsaliye],
   )
@@ -982,19 +992,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const match = tab.key.match(/^satis-irsaliye-yeni-(\d+)(?:-ft(\d+))?$/)
       const irsaliyeTipi = match?.[1] ?? tab.key.replace('satis-irsaliye-yeni-', '')
       const fasonTipiId = match?.[2] ? Number(match[2]) : null
-      const isYeni201 = irsaliyeTipi === '201'
+       const isYeniSatinalma = irsaliyeTipi === '201' || irsaliyeTipi === '1'
       return (
         <IrsaliyeKarti
-          key={isYeni201 ? `yeni201-${satinalmaSiparisKey}` : undefined}
+          key={isYeniSatinalma ? `yeni201-${satinalmaSiparisKey}` : undefined}
           irsaliyeTipi={irsaliyeTipi}
           fasonTipiId={fasonTipiId}
-          baslangicKalemler={isYeni201 ? satinalmaBaslangicKalemler : undefined}
+          baslangicKalemler={isYeniSatinalma ? satinalmaBaslangicKalemler : undefined}
+          onCreateIrsaliye={handleCreateIrsaliye}
         />
       )
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} onDeleted={() => handleTabClose(tab.key)} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} />
     }
     return (
       <div className="!p-3">

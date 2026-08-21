@@ -81,6 +81,7 @@ export interface Siparis {
   toplamTutar?: number | null
   toplamDoviz?: string | null
   onaylandi: boolean
+  tamamlandi: boolean
   durum: string
   kayitYapan?: string | null
   kayitTarihi?: string | null

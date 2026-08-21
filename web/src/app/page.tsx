@@ -1,15 +1,30 @@
 'use client'
 
 import { Card, Row, Col } from 'antd'
+import { useEffect, useState } from 'react'
+import { depoApi } from '@/lib/depo-api'
 
-const stats = [
+const baseStats = [
   { label: 'Toplam Kumaş (mt)', value: '12.580', color: '#f57c00' },
   { label: 'Bu Ay Giriş', value: '2.340', color: '#10b981' },
   { label: 'Bu Ay Çıkış', value: '1.850', color: '#ef4444' },
-  { label: 'Aktif Depo', value: '4', color: '#3b82f6' },
 ]
 
 export default function Home() {
+  const [aktifDepo, setAktifDepo] = useState<number | null>(null)
+
+  useEffect(() => {
+    depoApi
+      .list()
+      .then((depolar) => setAktifDepo(depolar.filter((d) => d.durum).length))
+      .catch(() => setAktifDepo(null))
+  }, [])
+
+  const stats = [
+    ...baseStats,
+    { label: 'Aktif Depo', value: aktifDepo === null ? '—' : String(aktifDepo), color: '#3b82f6' },
+  ]
+
   return (
     <div className="!p-3">
       <div className="!text-xs !font-semibold !text-[#6b7280] !uppercase !tracking-wider !mb-3">

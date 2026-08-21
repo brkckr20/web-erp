@@ -80,9 +80,9 @@ export class TedarikService {
         LEFT JOIN numarator n        ON n.id          = m.numarator_id
         JOIN recete_olcu ro          ON ro.kalem_id  = rk.id
         JOIN siparis_renk sr         ON sr.siparis_kalem_id = sk.id
-        JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
+        LEFT JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
           AND g.kumas_grup_id = kg.id
-        JOIN renk rn                 ON rn.id         = g.renk_id
+        LEFT JOIN renk rn                 ON rn.id         = g.renk_id
         JOIN siparis_renk_beden srb  ON srb.siparis_renk_id = sr.id
           AND srb.beden_id = ro.beden_id
         WHERE s.id = ${siparisId}

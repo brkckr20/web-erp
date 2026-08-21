@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dayjs from 'dayjs'
-import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal } from 'antd'
+import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal, Switch } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import DataGrid from '@/components/shared/DataGrid'
@@ -113,6 +113,7 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
   const [dovizOptions, setDovizOptions] = useState<{ value: string; label: string }[]>([])
   const [aciklamaTip, setAciklamaTip] = useState<string>('genel')
   const [aciklamaMetin, setAciklamaMetin] = useState('')
+  const [tamamlandi, setTamamlandi] = useState(false)
   const [selectedModelKey, setSelectedModelKey] = useState<string | null>(null)
   const [modelBedenler, setModelBedenler] = useState<ModelBeden[]>([])
   const [kumasGruplari, setKumasGruplari] = useState<ModelKumasGrup[]>([])
@@ -249,6 +250,7 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
         toplamTutar: s.toplamTutar?.toString() ?? '',
         toplamDoviz: s.toplamDoviz ?? '',
       })
+      setTamamlandi(s.tamamlandi ?? false)
 
       const modelRows: ModelRow[] = (s.kalemler ?? []).map((k, i) => ({
         key: k.id ? `k-${k.id}` : `n-${i}`,
@@ -795,6 +797,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         musteriTemsilcisi: form.musteriTemsilcisi || null,
         toplamTutar: numOrNull(form.toplamTutar),
         toplamDoviz: form.toplamDoviz || null,
+        tamamlandi: tamamlandi,
         cariHesapId: form.cariHesapId ?? null,
         kalemler: buildKalemler(),
         aciklamalar: [{ tip: aciklamaTip, metin: aciklamaMetin || null }],
@@ -1165,16 +1168,21 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                         />
                       </div>
                       <div className="!h-[2px]" />
-                      <div className="!flex !items-center !gap-2">
-                        <label className="!text-[10px] !font-semibold !uppercase !w-28 !text-right !shrink-0">Müşteri Temsilcisi</label>
-                        <Input
-                          size="small"
-                          value={form.musteriTemsilcisi}
-                          readOnly
-                          className="!w-48 !text-[11px] !bg-gray-50"
-                        />
-                      </div>
-                    </div>
+                       <div className="!flex !items-center !gap-2">
+                         <label className="!text-[10px] !font-semibold !uppercase !w-28 !text-right !shrink-0">Müşteri Temsilcisi</label>
+                         <Input
+                           size="small"
+                           value={form.musteriTemsilcisi}
+                           readOnly
+                           className="!w-48 !text-[11px] !bg-gray-50"
+                         />
+                       </div>
+                       <div className="!h-[2px]" />
+                       <div className="!flex !items-center !gap-2">
+                         <label className="!text-[10px] !font-semibold !uppercase !w-28 !text-right !shrink-0">Tamamlandı</label>
+                         <Switch size="small" checked={tamamlandi} onChange={setTamamlandi} className="!text-[11px]" />
+                       </div>
+                     </div>
 
                     <div className="!mt-3 !border !border-gray-200 !rounded-sm !p-2">
                       <div className="!flex !items-center !gap-2">

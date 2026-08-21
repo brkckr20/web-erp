@@ -71,6 +71,7 @@ export class CreateSiparisDto {
   toplamTutar?: number;
   toplamDoviz?: string;
   onaylandi?: boolean;
+  tamamlandi?: boolean;
   durum?: string;
   kayitYapan?: string;
   kayitTarihi?: string;

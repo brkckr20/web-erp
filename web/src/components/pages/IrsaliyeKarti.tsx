@@ -56,6 +56,7 @@ interface IrsaliyeKartiProps {
   id?: number
   onDeleted?: (irsaliyeTipi: string) => void
   baslangicKalemler?: IrsaliyeBaslangicKalem[]
+  onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[]) => void
 }
 
 export interface IrsaliyeBaslangicKalem {
@@ -228,7 +229,7 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, onDeleted, baslangicKalemler }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, onDeleted, baslangicKalemler, onCreateIrsaliye }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -501,7 +502,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
         sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
         sevkNo: belgeNo || null,
         onaylandi,
-        tamamlandi,
+        tamamlandi: irsaliyeTipi === '1' ? true : tamamlandi,
         aciklama: aciklama || null,
         cariHesapId,
         depoId,
@@ -886,10 +887,42 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       .finally(() => setFasonGidenlerYukleniyor(false))
   }
 
+  const handleIrsaliyeOlustur = () => {
+    const secili = gridApiRef.current?.getSelectedRows() as KalemRow[] | undefined
+    const kaynak = secili && secili.length > 0 ? secili : kalemler.filter((k) => Boolean(k.malzemeKod))
+    if (kaynak.length === 0) {
+      message.warning('Aktarılacak kalem yok')
+      return
+    }
+    const kalemlerOut: IrsaliyeBaslangicKalem[] = []
+    for (const k of kaynak) {
+      let birim = k.hesapBirimi
+      if (birim === 'brutKg') birim = 'kg'
+      else if (birim === 'brutMt') birim = 'mt'
+      const miktar = hesapMiktariGetir(k)
+      if (!miktar) {
+        message.error(`${k.malzemeKod} ${k.malzemeAd} için miktar girilmemiş`)
+        return
+      }
+      kalemlerOut.push({
+        malzemeKod: k.malzemeKod,
+        malzemeAd: k.malzemeAd,
+        miktar,
+        birim,
+        aciklama: k.aciklama || undefined,
+      })
+    }
+    onCreateIrsaliye?.('1', kalemlerOut)
+  }
+
   const contextMenuItems: MenuProps['items'] =
     irsaliyeTipi === '11'
       ? [{ key: 'fason-gidenler', label: 'Fason Gidenler (134)...', onClick: () => openFasonGidenler() }]
-      : []
+      : irsaliyeTipi === '201'
+        ? [
+            { key: 'irsaliye-olustur', label: 'İrsaliye Oluştur', onClick: handleIrsaliyeOlustur },
+          ]
+        : []
 
   const iceriAktar = () => {
     const secili = fasonGidenGridRef.current?.getSelectedRows() ?? []
