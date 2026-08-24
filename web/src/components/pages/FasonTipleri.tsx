@@ -5,6 +5,7 @@ import {
   Button,
   Table,
   Tag,
+  Switch,
   Spin,
   Modal,
   App,
@@ -12,12 +13,18 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useState, useEffect, useRef } from 'react'
-import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
+import {
+  fasonTipiApi,
+  parseKategoriler,
+  FASON_KATEGORILER,
+  type FasonTipi,
+} from '@/lib/fason-tipi-api'
 
 interface Row {
   key: string
   id: number
   ad: string
+  kategoriler?: string | null
   kullanimda: boolean
 }
 
@@ -29,6 +36,7 @@ export default function FasonTipleri() {
   const [modalVisible, setModalVisible] = useState(false)
   const [currentRow, setCurrentRow] = useState<Row | null>(null)
   const [yeniAd, setYeniAd] = useState('')
+  const [yeniKategoriler, setYeniKategoriler] = useState<string[]>([])
 
   const load = async () => {
     setLoading(true)
@@ -39,6 +47,7 @@ export default function FasonTipleri() {
           key: String(d.id),
           id: d.id,
           ad: d.ad,
+          kategoriler: d.kategoriler,
           kullanimda: d.kullanimda,
         })),
       )
@@ -55,9 +64,11 @@ export default function FasonTipleri() {
     if (row) {
       setCurrentRow(row)
       setYeniAd(row.ad)
+      setYeniKategoriler(parseKategoriler(row.kategoriler))
     } else {
       setCurrentRow(null)
       setYeniAd('')
+      setYeniKategoriler(['kumas'])
     }
   }
 
@@ -65,6 +76,7 @@ export default function FasonTipleri() {
     setModalVisible(false)
     setCurrentRow(null)
     setYeniAd('')
+    setYeniKategoriler([])
   }
 
   const handleKaydet = async () => {
@@ -76,10 +88,18 @@ export default function FasonTipleri() {
     setLoading(true)
     try {
       if (currentRow?.id) {
-        await fasonTipiApi.update(currentRow.id, { ad, kullanimda: currentRow.kullanimda })
+        await fasonTipiApi.update(currentRow.id, {
+          ad,
+          kategoriler: yeniKategoriler.join(';'),
+          kullanimda: currentRow.kullanimda,
+        })
         message.success('Fason tanımı güncellendi')
       } else {
-        await fasonTipiApi.create({ ad, kullanimda: true })
+        await fasonTipiApi.create({
+          ad,
+          kategoriler: yeniKategoriler.join(';'),
+          kullanimda: true,
+        })
         message.success('Fason tanımı eklendi')
       }
       await load()
@@ -140,6 +160,28 @@ export default function FasonTipleri() {
       },
     },
     {
+      title: 'Kategoriler',
+      dataIndex: 'kategoriler',
+      key: 'kategoriler',
+      width: 160,
+      render: (val?: string | null) =>
+        parseKategoriler(val).length === 0 ? (
+          <span className="!text-[10px] !text-gray-400">-</span>
+        ) : (
+          <span className="!flex !gap-1">
+            {FASON_KATEGORILER.filter((k) => parseKategoriler(val).includes(k.key)).map((k) => (
+              <Tag
+                key={k.key}
+                color={k.key === 'kumas' ? 'blue' : k.key === 'iplik' ? 'purple' : 'default'}
+                className="!text-[10px] !mr-0"
+              >
+                {k.label}
+              </Tag>
+            ))}
+          </span>
+        ),
+    },
+    {
       title: 'Durum',
       dataIndex: 'kullanimda',
       key: 'kullanimda',
@@ -172,17 +214,46 @@ export default function FasonTipleri() {
     <div className="!p-3 !h-full !flex !flex-col">
       <Modal
         title={currentRow ? 'Fason Tanımını Düzenle' : 'Yeni Fason Tanımı Ekle'}
-        visible={modalVisible}
+        open={modalVisible}
         onCancel={closeModal}
-        footer={() => (
-  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-    <button onClick={closeModal} style={{ marginRight: 8 }}>İptal</button>
-    <Button type="primary" onClick={handleKaydet}>
-      {currentRow ? 'Güncelle' : 'Kaydet'}
-    </Button>
-  </div>
-)}
-      />
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button onClick={closeModal}>İptal</Button>
+            <Button type="primary" onClick={handleKaydet}>
+              {currentRow ? 'Güncelle' : 'Kaydet'}
+            </Button>
+          </div>
+        }
+      >
+        <Input
+          value={yeniAd}
+          onChange={(e) => setYeniAd(e.target.value)}
+          onPressEnter={() => handleKaydet()}
+          placeholder="Fason tanımı"
+        />
+        <div className="!flex !items-center !gap-4 !mt-3">
+          <span className="!text-[12px] !text-gray-500">Kategoriler:</span>
+          {FASON_KATEGORILER.map((k) => (
+            <label
+              key={k.key}
+              className="!flex !items-center !gap-1.5 !text-[12px] !cursor-pointer"
+            >
+              <Switch
+                size="small"
+                checked={yeniKategoriler.includes(k.key)}
+                onChange={(v) =>
+                  setYeniKategoriler(
+                    v
+                      ? [...yeniKategoriler, k.key]
+                      : yeniKategoriler.filter((x) => x !== k.key),
+                  )
+                }
+              />
+              {k.label}
+            </label>
+          ))}
+        </div>
+      </Modal>
       <div className="!flex !items-center !gap-2 !mb-3 !flex-shrink-0">
         <Button
           type="primary"

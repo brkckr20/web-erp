@@ -37,6 +37,14 @@ export class TedarikController {
     return this.service.planlamaKumas()
   }
 
+  @Get('planlama/kumas/hareketler')
+  planlamaKumasHareketler(
+    @Query('siparisNo') siparisNo: string,
+    @Query('malzemeKod') malzemeKod: string,
+  ) {
+    return this.service.planlamaKumasHareketler(siparisNo, malzemeKod)
+  }
+
   @Get()
   findBySiparis(
     @Query('siparisId', ParseIntPipe) siparisId: number,
@@ -63,6 +71,19 @@ export class TedarikController {
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: TedarikIhtiyacUpdateDto) {
     return this.service.update(id, dto)
+  }
+
+  @Delete()
+  removeAll(
+    @Query('siparisId', ParseIntPipe) siparisId: number,
+    @Query('tip') tip?: string,
+    @Query('siparisKalemId') siparisKalemId?: string,
+  ) {
+    return this.service.removeAll(
+      siparisId,
+      tip,
+      siparisKalemId ? Number(siparisKalemId) : undefined,
+    )
   }
 
   @Delete(':id')

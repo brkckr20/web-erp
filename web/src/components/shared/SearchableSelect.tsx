@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Select } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 
@@ -16,6 +16,7 @@ interface SearchableSelectProps<T extends SearchableItem> {
   className?: string
   widthClass?: string
   fetchList: () => Promise<T[]>
+  fetchSearch?: (search: string) => Promise<T[]>
   searchLabel?: (item: T) => string
   hideAdLabel?: boolean
   onIconClick?: () => void
@@ -28,6 +29,7 @@ export default function SearchableSelect<T extends SearchableItem>({
   className,
   widthClass = '!w-48',
   fetchList,
+  fetchSearch,
   searchLabel,
   hideAdLabel,
   onIconClick,
@@ -35,6 +37,26 @@ export default function SearchableSelect<T extends SearchableItem>({
   const [options, setOptions] = useState<T[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedAd, setSelectedAd] = useState<string>('')
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current)
+    },
+    [],
+  )
+
+  const handleSearch = (text: string) => {
+    if (!fetchSearch) return
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => {
+      setLoading(true)
+      fetchSearch(text)
+        .then((list) => setOptions(list))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    }, 300)
+  }
 
   const load = async () => {
     setLoading(true)
@@ -67,13 +89,27 @@ export default function SearchableSelect<T extends SearchableItem>({
   }, [fetchList])
 
   useEffect(() => {
-    if (value) {
-      const rec = options.find((d) => d.kod === value)
-      setSelectedAd(rec?.ad ?? '')
-    } else {
+    if (!value) {
       setSelectedAd('')
+      return
     }
-  }, [value, options])
+    const rec = options.find((d) => d.kod === value)
+    if (rec) {
+      setSelectedAd(rec.ad)
+      return
+    }
+    if (!fetchSearch) return
+    let active = true
+    fetchSearch(value)
+      .then((list) => {
+        const hit = list.find((d) => d.kod === value)
+        if (active && hit) setSelectedAd(hit.ad)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [value, options, fetchSearch])
 
   return (
     <div className={`!flex !items-center !gap-2 ${className ?? ''}`}>
@@ -92,7 +128,9 @@ export default function SearchableSelect<T extends SearchableItem>({
           />
         }
         className={`${widthClass} !text-[11px]`}
+        popupMatchSelectWidth={false}
         onOpenChange={(open) => { if (open) load() }}
+        onSearch={fetchSearch ? handleSearch : undefined}
         options={options.map((d) => ({
           label: d.kod,
           value: d.kod,
@@ -106,8 +144,11 @@ export default function SearchableSelect<T extends SearchableItem>({
           setSelectedAd(rec?.ad ?? '')
           onChange?.(kod, rec)
         }}
-        filterOption={(input, option) =>
-          ((option as { searchText?: string })?.searchText ?? '').toLowerCase().includes(input.toLowerCase())
+        filterOption={
+          fetchSearch
+            ? false
+            : (input, option) =>
+                ((option as { searchText?: string })?.searchText ?? '').toLowerCase().includes(input.toLowerCase())
         }
       />
       {!hideAdLabel && <span className="!text-[11px] !text-[#333] !whitespace-nowrap !overflow-visible" title={selectedAd}>{selectedAd}</span>}

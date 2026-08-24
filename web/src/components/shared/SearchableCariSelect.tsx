@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import SearchableSelect from './SearchableSelect'
 import { cariHesapApi, type CariHesap } from '@/lib/cari-hesap-api'
 
@@ -12,13 +13,17 @@ interface SearchableCariSelectProps {
 }
 
 export default function SearchableCariSelect(props: SearchableCariSelectProps) {
+  const fetchPage = useCallback(async (search?: string) => {
+    const data = await cariHesapApi.list(search)
+    return data.map((d) => ({ id: d.id, kod: d.kod, ad: d.ad } as CariHesap))
+  }, [])
+
   return (
     <SearchableSelect<CariHesap>
       {...props}
       searchLabel={(d) => `${d.kod} - ${d.ad}`}
-      fetchList={async () =>
-        (await cariHesapApi.list()).map((d) => ({ id: d.id, kod: d.kod, ad: d.ad } as CariHesap))
-      }
+      fetchList={() => fetchPage()}
+      fetchSearch={(s) => fetchPage(s)}
     />
   )
 }

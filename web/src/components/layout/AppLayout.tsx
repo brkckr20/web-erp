@@ -692,6 +692,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
+  const openTedarik = useCallback(
+    (tip: 'kumas' | 'iplik' | 'aksesuar', siparisId: number, siparisNo: string) => {
+      const key = `tedarik-${tip}-${siparisId}`
+      const ad = tip === 'kumas' ? 'Kumaş' : tip === 'iplik' ? 'İplik' : 'Aksesuar'
+      setTabs((prev) => {
+        if (prev.some((t) => t.key === key)) return prev
+        const tab: Tab = { key, label: `${ad} Tedarik - ${siparisNo}`, moduleKey: 'siparis', isForm: true }
+        return [...prev, tab]
+      })
+      setActiveTab(key)
+    },
+    [],
+  )
+
   const openAksesuarKarti = useCallback((kod: string) => {
     const key = 'aksesuar-karti-' + kod
     setTabs((prev) => {
@@ -959,7 +973,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <AksesuarKarti kod={tab.key.replace('aksesuar-karti-', '')} />
     }
     if (tab.key === 'siparis-girisi') {
-      return <SiparisGirisi onSelect={openSiparisKarti} onNew={openYeniSiparis} />
+      return <SiparisGirisi onSelect={openSiparisKarti} onNew={openYeniSiparis} onTedarik={openTedarik} />
+    }
+    {
+      const m = tab.key.match(/^tedarik-(kumas|iplik|aksesuar)-(\d+)$/)
+      if (m) {
+        return (
+          <TedarikEkrani
+            key={tab.key}
+            tip={m[1] as 'kumas' | 'iplik' | 'aksesuar'}
+            baslangicSiparisId={Number(m[2])}
+          />
+        )
+      }
     }
     if (tab.key === 'kumas-tedarik') {
       return <TedarikEkrani tip="kumas" />
@@ -974,10 +1000,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <KumasPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} />
     }
     if (tab.key === 'siparis-karti-yeni') {
-      return <SiparisKarti isNew key={`yeni-${yeniSiparisKey}`} />
+      return <SiparisKarti isNew key={`yeni-${yeniSiparisKey}`} onTedarik={openTedarik} />
     }
     if (tab.key.startsWith('siparis-karti-')) {
-      return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} />
+      return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} onTedarik={openTedarik} />
     }
     if (tab.key === 'satis-irsaliyeleri') {
       return <IrsaliyeListesi onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />

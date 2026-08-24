@@ -244,6 +244,68 @@ export class TedarikService {
     }))
   }
 
+  async planlamaKumasHareketler(siparisNo: string, malzemeKod: string) {
+    const rows = await this.prisma.$queryRaw<
+      {
+        fisNo: string
+        fisTipi: string
+        fisTarihi: Date
+        miktar: unknown
+        birim: string | null
+        depoAd: string | null
+        cariAd: string | null
+        aciklama: string | null
+      }[]
+    >`
+      SELECT
+        f.fis_no                               AS fisNo,
+        f.fis_tipi                             AS fisTipi,
+        f.fis_tarihi                           AS fisTarihi,
+        k.miktar                               AS miktar,
+        k.olcu_birimi                          AS birim,
+        d.ad                                   AS depoAd,
+        ch.ad                                  AS cariAd,
+        COALESCE(k.satir_aciklama, k.aciklama) AS aciklama
+      FROM stok_hareket_fisi_kalem k
+      JOIN stok_hareket_fisi f ON f.id = k.fis_id
+      LEFT JOIN malzeme m      ON m.id = k.malzeme_id
+      LEFT JOIN depo d         ON d.id = f.depo_id
+      LEFT JOIN cari_hesap ch  ON ch.id = f.cari_hesap_id
+      WHERE m.kod = ${malzemeKod}
+
+      UNION ALL
+
+      SELECT
+        i.irsaliye_no     AS fisNo,
+        i.irsaliye_tipi   AS fisTipi,
+        i.irsaliye_tarihi AS fisTarihi,
+        ik.miktar         AS miktar,
+        ik.olcu_birimi    AS birim,
+        d.ad              AS depoAd,
+        ch.ad             AS cariAd,
+        ik.aciklama       AS aciklama
+      FROM irsaliye_kalem ik
+      JOIN irsaliye i          ON i.id = ik.irsaliye_id
+      LEFT JOIN malzeme m2     ON m2.id = ik.malzeme_id
+      LEFT JOIN depo d         ON d.id = i.depo_id
+      LEFT JOIN cari_hesap ch  ON ch.id = i.cari_hesap_id
+      WHERE m2.kod = ${malzemeKod}
+        AND ik.aciklama LIKE ${'%' + siparisNo + '%'}
+      ORDER BY fisTarihi DESC, fisNo DESC
+    `
+
+    return rows.map((r) => ({
+      fisNo: r.fisNo,
+      fisTipi: r.fisTipi,
+      fisTarihi: r.fisTarihi,
+      miktar: Number(r.miktar) || 0,
+      birim: r.birim,
+      depoAd: r.depoAd,
+      cariAd: r.cariAd,
+      aciklama: r.aciklama,
+    }))
+  }
+
   async findBySiparis(siparisId: number, tip?: string, siparisKalemId?: number) {
     return this.prisma.tedarikIhtiyac.findMany({
       where: {
@@ -301,5 +363,16 @@ export class TedarikService {
 
   async remove(id: number) {
     return this.prisma.tedarikIhtiyac.delete({ where: { id } })
+  }
+
+  async removeAll(siparisId: number, tip?: string, siparisKalemId?: number) {
+    const sonuc = await this.prisma.tedarikIhtiyac.deleteMany({
+      where: {
+        siparisId,
+        ...(tip ? { tip } : {}),
+        ...(siparisKalemId ? { siparisKalemId } : {}),
+      },
+    })
+    return { silinen: sonuc.count }
   }
 }

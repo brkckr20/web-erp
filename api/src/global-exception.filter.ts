@@ -45,8 +45,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = 409
       const meta = (exception as any).meta
       const target = Array.isArray(meta?.target) ? meta.target : []
-      const field = target.includes('kod') ? 'kod' : target[0] ?? 'kod'
-      mesaj = { statusCode: 409, message: `Bu ${field} ile kayıtlı bir malzeme zaten mevcut` }
+      const ALAN_ADLARI: Record<string, string> = {
+        kod: 'kod',
+        ad: 'ad',
+        siparis_no: 'sipariş numarası',
+        fis_no: 'fiş numarası',
+        is_emri_no: 'iş emri numarası',
+        hata_kodu: 'hata kodu',
+      }
+      const alan =
+        target.length > 1
+          ? target.map((t: string) => ALAN_ADLARI[t] ?? t).join(' + ')
+          : ALAN_ADLARI[target[0]] ?? target[0] ?? 'değer'
+      mesaj = { statusCode: 409, message: `Bu ${alan} ile daha önce kayıt yapılmış` }
     } else if (exception instanceof Error) {
       mesaj = { statusCode: 500, message: exception.message }
     }

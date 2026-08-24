@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Query, Param, Body, ParseIntPipe } from '@nestjs/common'
 import { CariHesapService } from './cari-hesap.service'
 import { CreateCariHesapDto } from './dto/create-cari-hesap.dto'
 import { UpdateCariHesapDto } from './dto/update-cari-hesap.dto'
@@ -8,8 +8,12 @@ export class CariHesapController {
   constructor(private readonly cariHesapService: CariHesapService) {}
 
   @Get()
-  findAll() {
-    return this.cariHesapService.findAll()
+  findAll(
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.cariHesapService.findAll(search, page, limit)
   }
 
   @Get('by-kod/:kod')

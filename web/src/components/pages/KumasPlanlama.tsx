@@ -1,7 +1,8 @@
 'use client'
 
-import { Input, App, Dropdown } from 'antd'
+import { Input, App, Dropdown, Modal, Table } from 'antd'
 import type { MenuProps } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import {
   ReloadOutlined,
   SearchOutlined,
@@ -15,9 +16,21 @@ import {
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
 import DataGrid, { DataGridHandle } from '@/components/shared/DataGrid'
-import { tedarikApi, type KumasPlanlamaSatir } from '@/lib/tedarik-api'
-import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
+import { tedarikApi, type KumasPlanlamaSatir, type KumasHareketSatiri } from '@/lib/tedarik-api'
+import { fasonTipiApi, parseKategoriler, type FasonTipi } from '@/lib/fason-tipi-api'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
+
+const fisTipiAdlari: Record<string, string> = {
+  '1': 'Mal Alım İrsaliyesi',
+  '5': 'Konsinye Giriş İrsaliyesi',
+  '6': 'Fasona Giriş İrsaliyesi',
+  '9': 'Müstahsil İrsaliyesi',
+  '11': 'Fasondan Giriş İrsaliyesi',
+  '22': 'Alınan Hizmet İrsaliyesi',
+  '122': 'Mal Alım İade İrsaliyesi',
+  '133': 'Fasona Giriş İade İrsaliyesi',
+  '201': 'Satın Alma Siparişi',
+}
 
 export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void }) {
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
@@ -25,6 +38,68 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
   const { message } = App.useApp()
   const gridRef = useRef<DataGridHandle>(null)
+  const [hareketSatir, setHareketSatir] = useState<KumasPlanlamaSatir | null>(null)
+  const [hareketler, setHareketler] = useState<KumasHareketSatiri[]>([])
+  const [hareketLoading, setHareketLoading] = useState(false)
+
+  const hareketAc = useCallback((r: KumasPlanlamaSatir) => {
+    setHareketSatir(r)
+    setHareketler([])
+    setHareketLoading(true)
+    tedarikApi
+      .planlamaKumasHareketler(r.siparisNo, r.malzemeKod)
+      .then(setHareketler)
+      .catch((err: unknown) =>
+        message.error('Hareketler yüklenemedi: ' + (err instanceof Error ? err.message : String(err))),
+      )
+      .finally(() => setHareketLoading(false))
+  }, [message])
+
+  const hareketColumns = useMemo<ColumnsType<KumasHareketSatiri>>(() => [
+    {
+      title: 'Fiş No',
+      dataIndex: 'fisNo',
+      width: 130,
+    },
+    {
+      title: 'Fiş Tipi',
+      dataIndex: 'fisTipi',
+      width: 150,
+      render: (v: string) => fisTipiAdlari[v] ?? v,
+    },
+    {
+      title: 'Tarih',
+      dataIndex: 'fisTarihi',
+      width: 100,
+      render: (v: string) => (v ? new Date(v).toLocaleDateString('tr-TR') : ''),
+    },
+    {
+      title: 'Miktar',
+      dataIndex: 'miktar',
+      width: 110,
+      align: 'right',
+      render: (v: number, r) =>
+        Number(v).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) +
+        (r.birim ? ' ' + r.birim : ''),
+    },
+    {
+      title: 'Depo',
+      dataIndex: 'depoAd',
+      width: 140,
+      ellipsis: true,
+    },
+    {
+      title: 'Cari',
+      dataIndex: 'cariAd',
+      width: 160,
+      ellipsis: true,
+    },
+    {
+      title: 'Açıklama',
+      dataIndex: 'aciklama',
+      ellipsis: true,
+    },
+  ], [])
 
   const load = useCallback(() => {
     tedarikApi
@@ -107,7 +182,9 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
       key: 'fason',
       label: 'Fason İşlemleri',
       icon: <ApartmentOutlined />,
-      children: fasonTipleri.map((f) => ({ key: `fason:${f.id}`, label: f.ad })),
+      children: fasonTipleri
+        .filter((f) => parseKategoriler(f.kategoriler).includes('kumas'))
+        .map((f) => ({ key: `fason:${f.id}`, label: f.ad })),
     },
     { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
     { type: 'divider' },
@@ -141,7 +218,12 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
       return
     }
     if (key === 'hareket-detaylari') {
-      message.info('Hareket Detayları yakında')
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin')
+        return
+      }
+      hareketAc(secili[0])
       return
     }
     if (key === 'renkler') {
@@ -156,6 +238,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
   }
 
   return (
+    <>
     <Dropdown
       menu={{ items: contextMenuItems, onClick: handleMenuClick }}
       trigger={['contextMenu']}
@@ -212,6 +295,31 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
           </div>
         </div>
       </div>
-    </Dropdown>
+      </Dropdown>
+
+      <Modal
+        open={!!hareketSatir}
+        onCancel={() => setHareketSatir(null)}
+        footer={null}
+        width="100vw"
+        style={{ top: 0, maxWidth: '100vw', paddingBottom: 0 }}
+        styles={{ body: { height: 'calc(100vh - 70px)', overflowY: 'auto' } }}
+        title={
+          hareketSatir
+            ? `Hareket Detayları - ${hareketSatir.siparisNo} / ${hareketSatir.malzemeKod}`
+            : 'Hareket Detayları'
+        }
+      >
+        <Table<KumasHareketSatiri>
+          size="small"
+          columns={hareketColumns}
+          dataSource={hareketler}
+          loading={hareketLoading}
+          rowKey={(r, i) => `${r.fisNo}-${r.fisTipi}-${i}`}
+          pagination={{ pageSize: 25, size: 'small', showSizeChanger: false }}
+          locale={{ emptyText: 'Hareket bulunamadı' }}
+        />
+      </Modal>
+    </>
   )
 }

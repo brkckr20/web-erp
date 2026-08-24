@@ -23,10 +23,11 @@ interface SiparisRow {
 interface SiparisGirisiProps {
   onSelect?: (id: number) => void
   onNew?: () => void
+  onTedarik?: (tip: 'kumas' | 'iplik' | 'aksesuar', id: number, siparisNo: string) => void
 }
 
-export default function SiparisGirisi({ onSelect, onNew }: SiparisGirisiProps) {
-  const { message } = App.useApp()
+export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGirisiProps) {
+  const { message, modal } = App.useApp()
   const [data, setData] = useState<SiparisRow[]>([])
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -72,9 +73,57 @@ export default function SiparisGirisi({ onSelect, onNew }: SiparisGirisiProps) {
   }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
-    { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined /> },
+    { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow },
+    { type: 'divider' },
+    {
+      key: 'tedarik',
+      label: 'Tedarik İşlemleri',
+      disabled: !selectedRow,
+      children: [
+        { key: 'tedarik-kumas', label: 'Kumaş Tedarik' },
+        { key: 'tedarik-iplik', label: 'İplik Tedarik' },
+        { key: 'tedarik-aksesuar', label: 'Aksesuar Tedarik' },
+      ],
+    },
+    { type: 'divider' },
+    { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow },
   ]
+
+  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'yeni') return onNew?.()
+    if (key === 'duzenle') {
+      if (selectedRow) onSelect?.(selectedRow)
+      return
+    }
+    if (key.startsWith('tedarik-')) {
+      const tip = key.replace('tedarik-', '') as 'kumas' | 'iplik' | 'aksesuar'
+      const row = data.find((d) => d.id === selectedRow)
+      if (selectedRow && row) onTedarik?.(tip, selectedRow, row.siparisNo)
+      return
+    }
+    if (key === 'sil') {
+      if (!selectedRow) return
+      const row = data.find((d) => d.id === selectedRow)
+      modal.confirm({
+        title: 'Sipariş Sil',
+        content: `"${row?.siparisNo ?? ''}" numaralı siparişi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+        okText: 'Evet, Sil',
+        cancelText: 'İptal',
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          try {
+            await siparisApi.remove(selectedRow)
+            message.success('Sipariş silindi')
+            setSelectedRow(null)
+            await load()
+          } catch (err: unknown) {
+            message.error('Silinirken hata: ' + ((err as Error)?.message ?? String(err)))
+          }
+        },
+      })
+    }
+  }
 
   const columns = useMemo<ColDef<SiparisRow>[]>(
     () => [
@@ -90,7 +139,7 @@ export default function SiparisGirisi({ onSelect, onNew }: SiparisGirisiProps) {
   )
 
   return (
-    <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
+    <Dropdown menu={{ items: contextMenuItems, onClick: handleMenuClick }} trigger={['contextMenu']}>
       <div className="!p-3 !h-full !flex !flex-col">
         <div className="!flex !items-center !justify-between !mb-3 !flex-shrink-0">
           <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
@@ -117,6 +166,12 @@ export default function SiparisGirisi({ onSelect, onNew }: SiparisGirisiProps) {
                 setSelectedRow(sel[0]?.id ?? null)
               }}
               onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.id)}
+              onCellContextMenu={(e) => {
+                if (e.data) {
+                  e.node?.setSelected(true)
+                  setSelectedRow(e.data.id)
+                }
+              }}
             />
           </Spin>
         </div>

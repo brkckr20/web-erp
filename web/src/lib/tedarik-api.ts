@@ -65,6 +65,17 @@ export interface KumasPlanlamaSatir {
   birim: string
 }
 
+export interface KumasHareketSatiri {
+  fisNo: string
+  fisTipi: string
+  fisTarihi: string
+  miktar: number
+  birim: string | null
+  depoAd: string | null
+  cariAd: string | null
+  aciklama: string | null
+}
+
 export const tedarikApi = {
   hesapla: (siparisId: number, kalemId?: number | null, tip?: 'kumas' | 'iplik' | 'aksesuar') =>
     api.post<HesaplaSonuc>(
@@ -75,5 +86,14 @@ export const tedarikApi = {
       `/tedarik?siparisId=${siparisId}${tip ? `&tip=${tip}` : ''}${siparisKalemId ? `&siparisKalemId=${siparisKalemId}` : ''}`,
     ),
   get: (id: number) => api.get<TedarikIhtiyac>(`/tedarik/${id}`),
+  remove: (id: number) => api.delete<void>(`/tedarik/${id}`),
+  removeAll: (siparisId: number, tip?: string, siparisKalemId?: number) =>
+    api.delete<{ silinen: number }>(
+      `/tedarik?siparisId=${siparisId}${tip ? `&tip=${tip}` : ''}${siparisKalemId ? `&siparisKalemId=${siparisKalemId}` : ''}`,
+    ),
   planlamaKumas: () => api.get<KumasPlanlamaSatir[]>('/tedarik/planlama/kumas'),
+  planlamaKumasHareketler: (siparisNo: string, malzemeKod: string) =>
+    api.get<KumasHareketSatiri[]>(
+      `/tedarik/planlama/kumas/hareketler?siparisNo=${encodeURIComponent(siparisNo)}&malzemeKod=${encodeURIComponent(malzemeKod)}`,
+    ),
 }

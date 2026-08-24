@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSiparisDto } from './dto/create-siparis.dto';
@@ -37,8 +37,10 @@ export class SiparisService {
     if (!numarator) throw new NotFoundException('Numaratör bulunamadı');
     const year = new Date().getFullYear().toString().slice(-2);
     const prefix = `${numarator.onEk}${year}-`;
+    // numaratorId filtresi kullanma: eski kayıtlarda numaratorId boş kalmış olabilir;
+    // ön ek zaten numaratörü tanımlıyor
     const last = await this.prisma.siparis.findFirst({
-      where: { numaratorId, siparisNo: { startsWith: prefix } },
+      where: { siparisNo: { startsWith: prefix } },
       orderBy: { siparisNo: 'desc' },
       select: { siparisNo: true },
     });
@@ -47,7 +49,9 @@ export class SiparisService {
       const m = last.siparisNo.match(/(\d+)\s*$/);
       if (m) sonNo = parseInt(m[1], 10);
     }
-    if (sonNo === null) sonNo = numarator.sonNo;
+    // Bu ön ekte hiç sipariş yoksa 1'den başla (numarator.sonNo'ya bakma;
+    // tüm siparişler silinmişse numara baştan başlamalı)
+    if (sonNo === null) sonNo = 0;
     const yeniNo = sonNo + 1;
     await this.prisma.numarator.update({
       where: { id: numaratorId },
@@ -88,17 +92,32 @@ export class SiparisService {
     if (dto.kayitTarihi) data.kayitTarihi = new Date(dto.kayitTarihi);
     if (dto.guncellemeTarihi)
       data.guncellemeTarihi = new Date(dto.guncellemeTarihi);
-    if (numaratorId && !dto.siparisNo) {
-      const { siparisNo } = await this.nextSiparisNo(numaratorId);
-      data.siparisNo = siparisNo;
+    if (numaratorId) {
       data.numaratorId = numaratorId;
+      if (!dto.siparisNo) {
+        const { siparisNo } = await this.nextSiparisNo(numaratorId);
+        data.siparisNo = siparisNo;
+      }
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const siparis = await tx.siparis.create({ data });
-      await this.createChildren(tx, siparis.id, kalemler, aciklamalar);
-      return this.findOneTx(tx, siparis.id);
-    });
+    const kaydet = () =>
+      this.prisma.$transaction(async (tx) => {
+        const siparis = await tx.siparis.create({ data });
+        await this.createChildren(tx, siparis.id, kalemler, aciklamalar);
+        return this.findOneTx(tx, siparis.id);
+      });
+
+    try {
+      return await kaydet();
+    } catch (e) {
+      // Önden alınan numara bu arada başka kayıtta tüketildiyse taze numara üret ve bir kez daha dene
+      if ((e as any)?.code === 'P2002' && numaratorId) {
+        const { siparisNo } = await this.nextSiparisNo(numaratorId);
+        data.siparisNo = siparisNo;
+        return kaydet();
+      }
+      throw e;
+    }
   }
 
   async update(id: number, dto: UpdateSiparisDto) {
@@ -127,7 +146,20 @@ export class SiparisService {
   }
 
   async remove(id: number) {
-    await this.findOne(id);
+    const siparis = await this.findOne(id);
+    // Siparişe bağlı satın alma siparişi / mal alım irsaliyesi varsa silmeye izin verme
+    // (bağlantı şu aşamada kalem açıklamasındaki sipariş numarası üzerinden kuruluyor)
+    const bagliBelge = await this.prisma.irsaliyeKalem.count({
+      where: {
+        irsaliye: { irsaliyeTipi: { in: ['1', '201'] } },
+        aciklama: { contains: siparis.siparisNo },
+      },
+    });
+    if (bagliBelge > 0) {
+      throw new ConflictException(
+        `"${siparis.siparisNo}" siparişine bağlı ${bagliBelge} adet satın alma/alım belgesi bulunduğu için silinemez. Önce ilgili belgeleri silmelisiniz.`,
+      );
+    }
     return this.prisma.$transaction(async (tx) => {
       await tx.tedarikIhtiyac.deleteMany({ where: { siparisId: id } });
       await tx.siparisKalem.deleteMany({ where: { siparisId: id } });

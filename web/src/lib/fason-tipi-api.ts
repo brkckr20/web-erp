@@ -5,8 +5,18 @@ import { api } from './api'
 export interface FasonTipi {
   id: number
   ad: string
+  kategoriler?: string | null
   kullanimda: boolean
 }
+
+export const FASON_KATEGORILER = [
+  { key: 'kumas', label: 'Kumaş' },
+  { key: 'iplik', label: 'İplik' },
+  { key: 'diger', label: 'Diğer' },
+]
+
+export const parseKategoriler = (k?: string | null): string[] =>
+  (k ?? '').split(';').filter(Boolean)
 
 export type FasonTipiFormData = Omit<FasonTipi, 'id'>
 

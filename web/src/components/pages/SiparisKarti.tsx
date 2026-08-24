@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dayjs from 'dayjs'
-import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal, Switch } from 'antd'
+import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal, Switch, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import DataGrid from '@/components/shared/DataGrid'
@@ -99,10 +100,11 @@ const emptyData: SiparisFormData = {
 interface SiparisKartiProps {
   isNew?: boolean
   id?: number
+  onTedarik?: (tip: 'kumas' | 'iplik' | 'aksesuar', id: number, siparisNo: string) => void
 }
 
-export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
-  const { message } = App.useApp()
+export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps) {
+  const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : ''
   const [form, setForm] = useState<SiparisFormData>(emptyData)
@@ -122,7 +124,11 @@ export default function SiparisKarti({ isNew, id }: SiparisKartiProps) {
   const [stickerData, setStickerData] = useState<Record<string, Record<number, string[]>>>({})
   const [stickerModal, setStickerModal] = useState<StickerModalState | null>(null)
   const [numaratorOptions, setNumaratorOptions] = useState<{ value: number; label: string }[]>([])
+  const [kayitliId, setKayitliId] = useState<number | null>(null)
   const lastLoadedRef = useRef<{ key: string; malzemeId: number | undefined } | null>(null)
+
+  // props'taki id (mevcut kayıt) yoksa, bu oturumda yeni kaydedilen kaydın id'si kullanılır
+  const aktifId = id && !isNew ? id : kayitliId
 
   const aciklamaTipleri = [
     { value: 'genel', label: 'Genel Açıklamalar' },
@@ -719,6 +725,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     } catch {
       defaultKesimFazlasi = ''
     }
+    setKayitliId(null)
     setForm({ ...emptyData, kesimFazlasi: defaultKesimFazlasi, musteriTemsilcisi: kayitYapan })
     setRows([])
     setRenkBedenRows([])
@@ -802,12 +809,16 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         kalemler: buildKalemler(),
         aciklamalar: [{ tip: aciklamaTip, metin: aciklamaMetin || null }],
       }
-      if (id && !isNew) {
-        await siparisApi.update(id, { ...payload, guncelleyen: kayitYapan || null })
+      if (aktifId) {
+        await siparisApi.update(aktifId, { ...payload, guncelleyen: kayitYapan || null })
         message.success('Sipariş güncellendi')
       } else {
-        await siparisApi.create({ ...payload, kayitYapan: kayitYapan || null })
-        message.success('Sipariş kaydedildi')
+        const created = await siparisApi.create({ ...payload, kayitYapan: kayitYapan || null })
+        setKayitliId(created.id)
+        if (created?.siparisNo && created.siparisNo !== payload.siparisNo) {
+          setForm((prev) => ({ ...prev, siparisNo: created.siparisNo }))
+        }
+        message.success(`Sipariş kaydedildi (${created.siparisNo})`)
       }
       setIsDirty(false)
     } catch {
@@ -821,17 +832,26 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   const handleNext = () => message.info('Son kayıttasınız')
 
   const handleSil = async () => {
-    if (!id || isNew) {
+    if (!aktifId) {
       message.warning('Silinecek kayıt seçili değil')
       return
     }
-    try {
-      await siparisApi.remove(id)
-      message.success('Sipariş silindi')
-      handleYeni()
-    } catch {
-      message.error('Silme sırasında hata oluştu')
-    }
+    modal.confirm({
+      title: 'Sipariş Sil',
+      content: `"${form.siparisNo || aktifId}" numaralı siparişi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+      okText: 'Evet, Sil',
+      cancelText: 'İptal',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await siparisApi.remove(aktifId)
+          message.success('Sipariş silindi')
+          handleYeni()
+        } catch (err: unknown) {
+          message.error('Silme sırasında hata oluştu: ' + ((err as Error)?.message ?? String(err)))
+        }
+      },
+    })
   }
 
   const handleCellValueChanged = (e: CellValueChangedEvent<ModelRow>) => {
@@ -1007,7 +1027,30 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     onDelete: handleSil,
   })
 
+  const tedarikMenuItems: MenuProps['items'] = [
+    {
+      key: 'tedarik',
+      label: 'Tedarik İşlemleri',
+      children: [
+        { key: 'tedarik-kumas', label: 'Kumaş Tedarik' },
+        { key: 'tedarik-iplik', label: 'İplik Tedarik' },
+        { key: 'tedarik-aksesuar', label: 'Aksesuar Tedarik' },
+      ],
+    },
+  ]
+
+  const handleTedarikMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (!key.startsWith('tedarik-')) return
+    if (!aktifId) {
+      message.warning('Önce siparişi kaydedin')
+      return
+    }
+    const tip = key.replace('tedarik-', '') as 'kumas' | 'iplik' | 'aksesuar'
+    onTedarik?.(tip, aktifId, form.siparisNo || '')
+  }
+
   return (
+    <Dropdown menu={{ items: tedarikMenuItems, onClick: handleTedarikMenuClick }} trigger={['contextMenu']}>
     <div className="!h-full !flex !flex-col">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
         <CardToolbar buttons={toolbarButtons} />
@@ -1389,6 +1432,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         />}
       </div>
     </div>
+    </Dropdown>
   )
 }
 

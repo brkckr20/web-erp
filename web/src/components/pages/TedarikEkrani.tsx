@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { Select, Button, App, Spin } from 'antd'
+import { Select, Button, App, Spin, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
 import { CalculatorOutlined } from '@ant-design/icons'
 import DataGrid from '@/components/shared/DataGrid'
 import { siparisApi, type Siparis, type SiparisKalem } from '@/lib/siparis-api'
@@ -18,6 +19,7 @@ const TEDARIK_BASLIKLAR: Record<TedarikTipi, string> = {
 
 interface TedarikEkraniProps {
   tip: TedarikTipi
+  baslangicSiparisId?: number
 }
 
 interface SiparisOption {
@@ -26,6 +28,7 @@ interface SiparisOption {
 }
 
 interface KumasDetaySatir {
+  id?: number
   kumasKod: string
   kumasAdi: string
   varyant: string
@@ -46,6 +49,7 @@ interface KumasIhtiyacSatir {
 }
 
 interface MalzemeDetaySatir {
+  id?: number
   malzemeKodu: string
   malzemeAdi: string
   miktar: number
@@ -62,6 +66,7 @@ interface MalzemeIhtiyacSatir {
 }
 
 interface SatirKaynak {
+  id?: number
   malzemeKod: string
   malzemeAd: string
   kumasGrupKod?: string | null
@@ -83,8 +88,8 @@ const kesimFazlasiYuzde = (siparis: Siparis | null): number => {
   return isNaN(n) ? 0 : n
 }
 
-export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
-  const { message } = App.useApp()
+export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkraniProps) {
+  const { message, modal } = App.useApp()
   const [siparisler, setSiparisler] = useState<SiparisOption[]>([])
   const [siparislerLoading, setSiparislerLoading] = useState(true)
   const [siparisId, setSiparisId] = useState<number | null>(null)
@@ -96,6 +101,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
   const [detaySatirlar, setDetaySatirlar] = useState<(KumasDetaySatir | MalzemeDetaySatir)[]>([])
   const [ihtiyacSatirlar, setIhtiyacSatirlar] = useState<(KumasIhtiyacSatir | MalzemeIhtiyacSatir)[]>([])
   const [durum, setDurum] = useState('')
+  const [seciliDetayId, setSeciliDetayId] = useState<number | null>(null)
 
   useEffect(() => {
     let active = true
@@ -139,6 +145,11 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
     }
   }
 
+  useEffect(() => {
+    if (baslangicSiparisId) loadSiparis(baslangicSiparisId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baslangicSiparisId])
+
   const modeller = useMemo(() => {
     if (!siparis?.kalemler) return []
     const gorulen = new Set<number>()
@@ -162,6 +173,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
       if (tip === 'kumas') {
         const detayList: KumasDetaySatir[] = satirlar
           .map((s) => ({
+            id: s.id,
             kumasKod: s.malzemeKod,
             kumasAdi: s.malzemeAd,
             varyant: s.kumasGrupKod ?? '',
@@ -199,6 +211,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
       }
       const detayList: MalzemeDetaySatir[] = satirlar
         .map((s) => ({
+          id: s.id,
           malzemeKodu: s.malzemeKod,
           malzemeAdi: s.malzemeAd,
           miktar: Number(s.brutMiktar) || 0,
@@ -233,6 +246,37 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
     [tip],
   )
 
+  const kayitlariYukle = useCallback(
+    async (kalem: SiparisKalem | null, sessiz = false) => {
+      if (!siparisId || !kalem?.malzeme || !kalem.id) {
+        setDetaySatirlar([])
+        setIhtiyacSatirlar([])
+        setSeciliDetayId(null)
+        return
+      }
+      setKayitLoading(true)
+      try {
+        const kayitlar = await tedarikApi.list(siparisId, tip, kalem.id)
+        setSeciliDetayId(null)
+        if (kayitlar.length === 0) {
+          setDetaySatirlar([])
+          setIhtiyacSatirlar([])
+          if (!sessiz) setDurum('Bu model için hesaplanmış kayıt yok — Hesapla ile hesaplayın')
+          return
+        }
+        const { detaySayisi, ihtiyacSayisi } = gridlerDoldur(kayitlar)
+        if (!sessiz) {
+          setDurum(`${ihtiyacSayisi} ${tip} için ${detaySayisi} satır daha önce hesaplanmış kayıttan gösteriliyor`)
+        }
+      } catch {
+        message.error('Kayıtlı tedarik sonucu yüklenemedi')
+      } finally {
+        setKayitLoading(false)
+      }
+    },
+    [siparisId, tip, gridlerDoldur, message],
+  )
+
   const modelOnChange = useCallback(
     async (key: string) => {
       setModelKey(key)
@@ -240,25 +284,9 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
       setIhtiyacSatirlar([])
       setDurum('')
       const kalem = modeller.find((m) => m.key === key)?.kalem ?? null
-      if (!kalem?.malzeme || !siparisId || !kalem.id) return
-      setKayitLoading(true)
-      try {
-        const kayitlar = await tedarikApi.list(siparisId, tip, kalem.id)
-        if (kayitlar.length === 0) {
-          setDurum('Bu model için hesaplanmış kayıt yok — Hesapla ile hesaplayın')
-          return
-        }
-        const { detaySayisi, ihtiyacSayisi } = gridlerDoldur(kayitlar)
-        setDurum(
-          `${ihtiyacSayisi} ${tip} için ${detaySayisi} satır daha önce hesaplanmış kayıttan gösteriliyor`,
-        )
-      } catch {
-        message.error('Kayıtlı tedarik sonucu yüklenemedi')
-      } finally {
-        setKayitLoading(false)
-      }
+      await kayitlariYukle(kalem)
     },
-    [modeller, siparisId, tip, gridlerDoldur, message],
+    [modeller, kayitlariYukle],
   )
 
   const hesaplaKumas = useCallback(
@@ -285,6 +313,8 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
         if (detaySayisi === 0) {
           setDurum('Seçili model için hesaplanacak veri bulunamadı (reçete miktarı veya sipariş beden adedi kontrol edin)')
         } else {
+          // id'lerin dolması için kaydedilen kayıtları yeniden yükle (mesajı koru)
+          await kayitlariYukle(kalem ?? null, true)
           setDurum(`${ihtiyacSayisi} kumaş için ${detaySayisi} satır hesaplandı; veritabanına kaydedildi`)
         }
       } catch (err) {
@@ -296,7 +326,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
         setHesaplamaLoading(false)
       }
     },
-    [message, siparisId, gridlerDoldur],
+    [message, siparisId, gridlerDoldur, kayitlariYukle],
   )
 
   const hesaplaMalzeme = useCallback(
@@ -323,6 +353,8 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
         if (detaySayisi === 0) {
           setDurum('Seçili model için hesaplanacak veri bulunamadı (reçete miktarı veya sipariş beden adedi kontrol edin)')
         } else {
+          // id'lerin dolması için kaydedilen kayıtları yeniden yükle (mesajı koru)
+          await kayitlariYukle(kalem ?? null, true)
           setDurum(`${ihtiyacSayisi} ${hesapTip} için ${detaySayisi} satır hesaplandı; veritabanına kaydedildi`)
         }
       } catch (err) {
@@ -334,7 +366,7 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
         setHesaplamaLoading(false)
       }
     },
-    [message, siparisId, gridlerDoldur],
+    [message, siparisId, gridlerDoldur, kayitlariYukle],
   )
 
   const handleHesapla = () => {
@@ -388,7 +420,87 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
     ]
   }, [tip])
 
+  const tedarikMenuItems: MenuProps['items'] = [
+    { key: 'sil', label: 'Sil', danger: true, disabled: !seciliDetayId },
+    {
+      key: 'model-sil',
+      label: 'Model Kayıtlarını Sil',
+      disabled: !siparisId || !seciliKalem,
+    },
+    { key: 'tumu-sil', label: 'Siparişin Tümünü Sil', danger: true, disabled: !siparisId },
+  ]
+
+  const handleTedarikSil = async () => {
+    if (!seciliDetayId) return
+    modal.confirm({
+      title: 'Tedarik Satırı Sil',
+      content: 'Seçili tedarik kaydını silmek istediğinize emin misiniz?',
+      okText: 'Evet, Sil',
+      cancelText: 'İptal',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await tedarikApi.remove(seciliDetayId)
+          message.success('Tedarik kaydı silindi')
+          await kayitlariYukle(seciliKalem)
+        } catch (err) {
+          message.error('Silinirken hata: ' + (err instanceof Error ? err.message : String(err)))
+        }
+      },
+    })
+  }
+
+  const handleModelSil = async () => {
+    if (!siparisId || !seciliKalem?.malzeme || !seciliKalem.id) return
+    modal.confirm({
+      title: 'Model Kayıtlarını Sil',
+      content: `"${seciliKalem.malzeme.kod} - ${seciliKalem.malzeme.ad}" modelinin tüm ${TEDARIK_BASLIKLAR[tip].toLowerCase()} kayıtları silinecek. Onaylıyor musunuz?`,
+      okText: 'Evet, Sil',
+      cancelText: 'İptal',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await tedarikApi.removeAll(siparisId, tip, seciliKalem.id!)
+          message.success('Modelin tedarik kayıtları silindi')
+          await kayitlariYukle(seciliKalem)
+        } catch (err) {
+          message.error('Silinirken hata: ' + (err instanceof Error ? err.message : String(err)))
+        }
+      },
+    })
+  }
+
+  const handleTumunuSil = async () => {
+    if (!siparisId) return
+    modal.confirm({
+      title: 'Siparişin Tüm Tedarik Kayıtlarını Sil',
+      content: `Bu siparişe ait TÜM ${TEDARIK_BASLIKLAR[tip].toLowerCase()} kayıtları silinecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
+      okText: 'Evet, Hepsini Sil',
+      cancelText: 'İptal',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const sonuc = await tedarikApi.removeAll(siparisId, tip)
+          message.success(`${sonuc.silinen} kayıt silindi`)
+          setDetaySatirlar([])
+          setIhtiyacSatirlar([])
+          setSeciliDetayId(null)
+          setDurum('Siparişin tüm tedarik kayıtları silindi')
+        } catch (err) {
+          message.error('Silinirken hata: ' + (err instanceof Error ? err.message : String(err)))
+        }
+      },
+    })
+  }
+
+  const handleTedarikMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'sil') return handleTedarikSil()
+    if (key === 'model-sil') return handleModelSil()
+    if (key === 'tumu-sil') return handleTumunuSil()
+  }
+
   return (
+    <Dropdown menu={{ items: tedarikMenuItems, onClick: handleTedarikMenuClick }} trigger={['contextMenu']}>
     <div className="!h-full !flex !flex-col !p-3">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
         <div className="!px-3 !pt-3 !pb-2 !border-b !border-gray-200">
@@ -447,6 +559,14 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
                 enableExcelExport={false}
                 height={300}
                 wrapperClassName="!min-h-[300px]"
+                rowSelection="single"
+                onCellContextMenu={(e) => {
+                  const id = (e.data as { id?: number } | undefined)?.id
+                  if (id) {
+                    e.node?.setSelected(true)
+                    setSeciliDetayId(id)
+                  }
+                }}
               />
             </div>
             <div className="!h-[40%] !min-h-[180px] !border !border-gray-200 !rounded-sm !p-2">
@@ -480,5 +600,6 @@ export default function TedarikEkrani({ tip }: TedarikEkraniProps) {
         </div>
       </div>
     </div>
+    </Dropdown>
   )
 }
