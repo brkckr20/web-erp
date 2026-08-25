@@ -36,7 +36,7 @@ export interface HucreStil {
   format?: HucreFormat
 }
 
-export type BilesenTipi = 'veri' | 'metin' | 'checkbox' | 'resim' | 'tablo'
+export type BilesenTipi = 'veri' | 'metin' | 'checkbox' | 'resim' | 'tablo' | 'barkod'
 
 export interface BandHucre {
   id: string
@@ -79,6 +79,8 @@ export interface SayfaAyari {
   kenarAlt: number
   kenarSol: number
   kenarSag: number
+  ozelGenislik?: number
+  ozelYukseklik?: number
 }
 
 export interface FormTasarimDraft {

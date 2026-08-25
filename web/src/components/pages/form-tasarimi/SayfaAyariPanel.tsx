@@ -1,6 +1,6 @@
 'use client'
 
-import { InputNumber, Select } from 'antd'
+import { Button, InputNumber, Select } from 'antd'
 import type { SayfaAyari } from './types'
 
 interface SayfaAyariPanelProps {
@@ -56,6 +56,40 @@ export default function SayfaAyariPanel({ sayfa, onChange }: SayfaAyariPanelProp
           />
         </span>
       ))}
+      {sayfa.boyut === 'Ozel' && (
+        <>
+          <span className="!text-[10px] !text-[#6b7280]">Özel Boyut (mm):</span>
+          <span className="!flex !items-center !gap-1">
+            <span className="!text-[9px] !text-[#9ca3af]">Genişlik</span>
+            <InputNumber
+              size="small"
+              className="!w-16"
+              min={10}
+              max={500}
+              value={sayfa.ozelGenislik ?? 210}
+              onChange={(v) => onChange({ ozelGenislik: v ?? 210 })}
+            />
+          </span>
+          <span className="!flex !items-center !gap-1">
+            <span className="!text-[9px] !text-[#9ca3af]">Yükseklik</span>
+            <InputNumber
+              size="small"
+              className="!w-16"
+              min={10}
+              max={500}
+              value={sayfa.ozelYukseklik ?? 297}
+              onChange={(v) => onChange({ ozelYukseklik: v ?? 297 })}
+            />
+          </span>
+          <Button
+            size="small"
+            className="!h-5 !text-[9px]"
+            onClick={() => onChange({ boyut: 'A4', ozelGenislik: undefined, ozelYukseklik: undefined })}
+          >
+            Sıfırla
+          </Button>
+        </>
+      )}
     </div>
   )
 }

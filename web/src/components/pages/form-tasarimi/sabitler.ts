@@ -65,6 +65,7 @@ export function hucreGosterim(h: BandHucre, ornekVeri?: VeriMap): string {
   if (h.bilesen === 'checkbox') return `☐ ${h.etiket ?? ''}`
   if (h.bilesen === 'resim') return 'Resim'
   if (h.bilesen === 'tablo') return 'Tablo'
+  if (h.bilesen === 'barkod') return '║║║ Barkod ║║║'
   if (h.alan) {
     const c = alanCoz(h.alan)
     const v = c && ornekVeri ? ornekVeri[c.sirano]?.[0]?.[c.kolon] : undefined

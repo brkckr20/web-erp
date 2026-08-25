@@ -50,6 +50,7 @@ export default function Ozellikler(props: OzelliklerProps) {
               { value: 'checkbox', label: 'Checkbox' },
               { value: 'resim', label: 'Resim' },
               { value: 'tablo', label: 'Tablo' },
+              { value: 'barkod', label: 'Barkod' },
             ]}
           />
         </div>
@@ -123,6 +124,37 @@ export default function Ozellikler(props: OzelliklerProps) {
           <div className="!text-[10px] !text-[#9ca3af]">
             Tablo alanı — kalem tablosu bandı daha kapsamlı tablolar için kullanılır.
           </div>
+        )}
+
+        {bilesen === 'barkod' && (
+          <>
+            <div className="!flex !flex-col !gap-1">
+              <span className="!text-[10px] !text-[#9ca3af]">Bağlı alan (barkod değeri)</span>
+              <Select
+                size="small"
+                allowClear
+                placeholder="Sorgu alanı"
+                value={hucre.alan}
+                onChange={(v) => props.onHucrePatch(secili.bandId, secili.hucreId, { alan: v || undefined })}
+                options={props.alanSecenekler}
+              />
+            </div>
+            <div className="!flex !flex-col !gap-1">
+              <span className="!text-[10px] !text-[#9ca3af]">Barkod türü</span>
+              <Select
+                size="small"
+                value={hucre.deger || 'code128'}
+                onChange={(v) => props.onHucrePatch(secili.bandId, secili.hucreId, { deger: v })}
+                options={[
+                  { value: 'code128', label: 'Code 128' },
+                  { value: 'code39', label: 'Code 39' },
+                  { value: 'ean13', label: 'EAN-13' },
+                  { value: 'ean8', label: 'EAN-8' },
+                  { value: 'upca', label: 'UPC-A' },
+                ]}
+              />
+            </div>
+          </>
         )}
         <div className="!grid !grid-cols-2 !gap-2">
           <div className="!flex !flex-col !gap-1">

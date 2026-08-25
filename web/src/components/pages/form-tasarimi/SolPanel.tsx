@@ -12,6 +12,7 @@ const BILESENLER: { bilesen: BilesenTipi; ad: string }[] = [
   { bilesen: 'checkbox', ad: 'Checkbox' },
   { bilesen: 'resim', ad: 'Resim' },
   { bilesen: 'tablo', ad: 'Tablo' },
+  { bilesen: 'barkod', ad: 'Barkod' },
 ]
 
 function DraggableItem({ id, data, children }: { id: string; data: Record<string, unknown>; children: React.ReactNode }) {

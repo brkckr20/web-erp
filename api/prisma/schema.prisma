@@ -886,6 +886,8 @@ model Doviz {
   resim       String?  @db.VarChar(500)
   kullanimda  Boolean  @default(true)
 
+  kurlar      DovizKuru[]
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -1085,4 +1087,20 @@ model TedarikIhtiyac {
   @@index([siparisKalemId], map: "IX_tedarik_ihtiyac_sip_kalem")
   @@index([malzemeId], map: "IX_tedarik_ihtiyac_malzeme")
   @@map("tedarik_ihtiyac")
+}
+
+model DovizKuru {
+  id           Int      @id @default(autoincrement())
+  tarih        DateTime @db.Date
+  dovizKodu    String   @map("doviz_kodu") @db.NVarChar(10)
+  alisKuru     Decimal  @map("alis_kuru") @db.Decimal(18, 6)
+  satisKuru    Decimal  @map("satis_kuru") @db.Decimal(18, 6)
+  efektifAlis  Decimal? @map("efektif_alis") @db.Decimal(18, 6)
+  efektifSatis Decimal? @map("efektif_satis") @db.Decimal(18, 6)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  doviz Doviz @relation(fields: [dovizKodu], references: [kod])
+
+  @@unique([tarih, dovizKodu])
+  @@map("doviz_kuru")
 }

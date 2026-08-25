@@ -271,6 +271,7 @@ export default function FormTasarimi({ baslangicForm }: { baslangicForm?: FormTa
     checkbox: { genislik: 50, yukseklik: 8 },
     resim: { genislik: 50, yukseklik: 40 },
     tablo: { genislik: 90, yukseklik: 30 },
+    barkod: { genislik: 50, yukseklik: 20 },
   }
 
   const elemanEkleBilesen = (bandId: string, bilesen: BilesenTipi, x: number, y: number) => {
@@ -425,7 +426,9 @@ export default function FormTasarimi({ baslangicForm }: { baslangicForm?: FormTa
   }, [form])
 
   const sayfa = form.sayfa
-  const [g, y] = BOYUT_MM[sayfa.boyut] ?? BOYUT_MM.A4
+  const varsayilan = BOYUT_MM[sayfa.boyut] ?? BOYUT_MM.A4
+  const g = sayfa.boyut === 'Ozel' && sayfa.ozelGenislik ? sayfa.ozelGenislik : varsayilan[0]
+  const y = sayfa.boyut === 'Ozel' && sayfa.ozelYukseklik ? sayfa.ozelYukseklik : varsayilan[1]
   const kagitGenislik = (sayfa.yon === 'yatay' ? y : g) * OLCU
   const kagitYukseklik = (sayfa.yon === 'yatay' ? g : y) * OLCU
 
@@ -496,16 +499,17 @@ export default function FormTasarimi({ baslangicForm }: { baslangicForm?: FormTa
                       </div>
 
                       <div className="!flex-1 !min-h-0 !overflow-auto !bg-[#e2e5ea] !p-4 !relative">
-                        <div className="!mx-auto" style={{ width: kagitGenislik * zoom, minHeight: kagitYukseklik * zoom }}>
+                        <div className="!mx-auto" style={{ width: kagitGenislik * zoom, height: kagitYukseklik * zoom }}>
                           <div
                             className="!bg-white"
                             style={{
                               width: kagitGenislik,
-                              minHeight: kagitYukseklik,
+                              height: kagitYukseklik,
                               padding: `${sayfa.kenarUst * OLCU}px ${sayfa.kenarSag * OLCU}px ${sayfa.kenarAlt * OLCU}px ${sayfa.kenarSol * OLCU}px`,
                               boxShadow: '0 0 0 1px #cbd5e1, 0 4px 12px rgba(0,0,0,0.08)',
                               transform: `scale(${zoom})`,
                               transformOrigin: 'top left',
+                              overflow: 'hidden',
                             }}
                           >
                             <div className="!flex !flex-col !gap-1.5">

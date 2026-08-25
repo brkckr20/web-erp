@@ -1,6 +1,7 @@
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { Band, BandHucre, FormTasarimDraft, Hizalama, SayfaAyari } from '@/components/pages/form-tasarimi/types'
 import { alanCoz, degerMetin, type VeriMap } from './deger-format'
+import { toSVG } from '@bwip-js/browser'
 
 export type { VeriMap } from './deger-format'
 
@@ -28,6 +29,7 @@ function hucreMetin(h: BandHucre, veri?: VeriMap): string {
   if (h.bilesen === 'checkbox') return `☐ ${h.etiket ?? ''}`
   if (h.bilesen === 'resim') return '[Resim]'
   if (h.bilesen === 'tablo') return '[Tablo]'
+  if (h.bilesen === 'barkod') return ''
   if (h.alan) {
     const c = alanCoz(h.alan)
     const v = c && veri ? veri[c.sirano]?.[0]?.[c.kolon] : undefined
@@ -41,6 +43,32 @@ function hucreMetin(h: BandHucre, veri?: VeriMap): string {
 }
 
 function elemanPdf(h: BandHucre, x: number, y: number, veri?: VeriMap): Content {
+  if (h.bilesen === 'barkod') {
+    const deger = h.alan ? (() => {
+      const c = alanCoz(h.alan)
+      return c && veri ? String(veri[c.sirano]?.[0]?.[c.kolon] ?? '') : ''
+    })() : ''
+    if (!deger) return { text: '[Barkod]', fontSize: 8, color: '#999', absolutePosition: { x, y } }
+    try {
+      const svg = toSVG({
+        bcid: h.deger || 'code128',
+        text: deger,
+        scale: 2,
+        height: Math.round(h.yukseklik * 2.5),
+        includetext: true,
+        textxalign: 'center',
+        textsize: 8,
+      })
+      return {
+        svg,
+        width: h.genislik * MM,
+        height: h.yukseklik * MM,
+        absolutePosition: { x, y },
+      }
+    } catch {
+      return { text: `[Barkod Hata: ${deger}]`, fontSize: 8, color: 'red', absolutePosition: { x, y } }
+    }
+  }
   const s = h.stil ?? {}
   return {
     text: hucreMetin(h, veri) || ' ',
@@ -137,8 +165,10 @@ function kalemTabloPdf(
 
 export function formTasarimDoc(form: FormTasarimDraft, veri?: VeriMap): TDocumentDefinitions {
   const s = form.sayfa
-  const [g, y] = BOYUT_MM[s.boyut] ?? BOYUT_MM.A4
-  const pageSize = s.yon === 'yatay' ? { width: y * MM, height: g * MM } : { width: g * MM, height: y * MM }
+  const varsayilan = BOYUT_MM[s.boyut] ?? BOYUT_MM.A4
+  const genislik = s.boyut === 'Ozel' && s.ozelGenislik ? s.ozelGenislik : varsayilan[0]
+  const yukseklik = s.boyut === 'Ozel' && s.ozelYukseklik ? s.ozelYukseklik : varsayilan[1]
+  const pageSize = s.yon === 'yatay' ? { width: yukseklik * MM, height: genislik * MM } : { width: genislik * MM, height: yukseklik * MM }
 
   // Bantlar üst üste akar; her bant için elemanlar bant başlangıcına göre mutlak konumlanır.
   // Not: pdfmake'te absolutePosition sayfa köşesine göredir (pageMargins'i yok sayar) —

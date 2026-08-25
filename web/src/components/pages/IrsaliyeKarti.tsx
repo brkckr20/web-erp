@@ -454,13 +454,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
 
     setLoading(true)
     try {
-      const [cariList, depoList, malzemeList] = await Promise.all([
-        cariHesapApi.list(),
-        depoApi.list(),
+      const [cariHesapRecord, depoRecord, malzemeList] = await Promise.all([
+        cariKod ? cariHesapApi.getByKod(cariKod) : Promise.resolve(null),
+        depoKod ? depoApi.getByKod(depoKod) : Promise.resolve(null),
         malzemeApi.list(),
       ])
-      const cariHesapId = cariList.find((c) => c.kod === cariKod)?.id ?? null
-      const depoId = depoList.find((d) => d.kod === depoKod)?.id ?? null
+      const cariHesapId = cariHesapRecord?.id ?? null
+      const depoId = depoRecord?.id ?? null
       const kalemPayload = gecerliKalemler.map((k) => ({
         malzemeId: malzemeList.find((m) => m.kod === k.malzemeKod)?.id ?? null,
         tip: k.tip || null,
@@ -502,7 +502,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
         sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
         sevkNo: belgeNo || null,
         onaylandi,
-        tamamlandi: irsaliyeTipi === '1' ? true : tamamlandi,
+        tamamlandi: ['1','2','3','4','5','8','9','11','12','120','121','122','123','124','134'].includes(irsaliyeTipi) ? true : tamamlandi,
         aciklama: aciklama || null,
         cariHesapId,
         depoId,
