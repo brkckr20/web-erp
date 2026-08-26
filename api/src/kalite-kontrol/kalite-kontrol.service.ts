@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { StokHareketFisiService } from '../stok-hareket-fisi/stok-hareket-fisi.service'
+import { IrsaliyeService } from '../irsaliye/irsaliye.service'
 import { CreateKaliteKontrolDto, UpdateKaliteKontrolDto } from './dto/create-kalite-kontrol.dto'
 
 function padBarkod(n: number, length: number): string {
@@ -11,7 +11,7 @@ function padBarkod(n: number, length: number): string {
 export class KaliteKontrolService {
   constructor(
     private prisma: PrismaService,
-    private stokFisService: StokHareketFisiService,
+    private irsaliyeService: IrsaliyeService,
   ) {}
 
   async nextBarkod(depoKod: string): Promise<{ barkod: string }> {
@@ -64,7 +64,8 @@ export class KaliteKontrolService {
         cariHesap: true,
         depo: true,
         isEmri: true,
-        kalemler: { include: { malzeme: true, hatalar: true, stokFis: { select: { id: true, fisNo: true } } } },
+        irsaliye: true,
+        kalemler: { include: { malzeme: true, hatalar: true } },
       },
     })
     if (!fis) throw new NotFoundException('Fiş bulunamadı')
@@ -173,12 +174,12 @@ export class KaliteKontrolService {
 
   stogaAlinmamisListe() {
     return this.prisma.kaliteKontrol.findMany({
-      where: { stokFisId: null },
+      where: { irsaliyeId: null },
       orderBy: { fisNo: 'desc' },
       include: {
         depo: true,
         kalemler: {
-          where: { malzemeId: { not: null }, stokFisId: null },
+          where: { malzemeId: { not: null } },
           include: { malzeme: { select: { id: true, kod: true, ad: true } } },
         },
       },
@@ -191,31 +192,32 @@ export class KaliteKontrolService {
       include: { kalemler: true },
     })
     if (!fis) throw new NotFoundException('Fiş bulunamadı')
-    if (fis.stokFisId) throw new Error('Bu fiş zaten stoğa alınmış')
+    if (fis.irsaliyeId) throw new Error('Bu fiş zaten stoğa alınmış')
 
     const kalemler = fis.kalemler.filter((k) => k.malzemeId)
     if (kalemler.length === 0) throw new Error('Stoğa alınabilecek kalem bulunamadı (malzemeId gerekli)')
 
-    const { fisNo: nextNo } = await this.stokFisService.nextFisNo('10')
+    const { irsaliyeNo: nextNo } = await this.irsaliyeService.nextIrsaliyeNo('10')
 
     return this.prisma.$transaction(async (tx) => {
-      const stokFis = await tx.stokHareketFisi.create({
+      const irsaliye = await tx.irsaliye.create({
         data: {
-          fisNo: nextNo,
-          fisTipi: '10',
-          fisTarihi: fis.fisTarihi,
+          irsaliyeNo: nextNo,
+          irsaliyeTipi: '10',
+          irsaliyeTarihi: fis.fisTarihi,
           depoId: fis.depoId,
           cariHesapId: fis.cariHesapId,
           aciklama: `KK Fiş: ${fis.fisNo}${fis.aciklama ? ' - ' + fis.aciklama : ''}`,
+          tamamlandi: true,
           kayitYapan: fis.kayitYapan,
           kayitTarihi: new Date(),
         },
       })
 
       for (const k of kalemler) {
-        await tx.stokHareketFisiKalem.create({
+        await tx.irsaliyeKalem.create({
           data: {
-            fisId: stokFis.id,
+            irsaliyeId: irsaliye.id,
             malzemeId: k.malzemeId!,
             netAgirlik: k.netAgirlik,
             netMetre: k.netMetre,
@@ -223,22 +225,17 @@ export class KaliteKontrolService {
             aciklama: k.aciklama,
             takipNo: k.barkod,
             uuid: k.barkod ?? undefined,
-            siparisNo: fis.isEmriNo ?? undefined,
           },
-        })
-        await tx.kaliteKontrolKalem.update({
-          where: { id: k.id },
-          data: { stokFisId: stokFis.id },
         })
       }
 
       await tx.kaliteKontrol.update({
         where: { id },
-        data: { stokFisId: stokFis.id },
+        data: { irsaliyeId: irsaliye.id },
       })
 
-      return tx.stokHareketFisi.findUnique({
-        where: { id: stokFis.id },
+      return tx.irsaliye.findUnique({
+        where: { id: irsaliye.id },
         include: { kalemler: { include: { malzeme: true } } },
       })
     })

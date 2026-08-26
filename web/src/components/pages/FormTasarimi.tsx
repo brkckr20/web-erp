@@ -459,7 +459,7 @@ export default function FormTasarimi({ baslangicForm }: { baslangicForm?: FormTa
           value={form.ekranTuru}
           options={ekranTuruSecenekleri}
           onChange={(v) => formGuncelle((f) => ({ ...f, ekranTuru: v }))}
-          placeholder="ör. Stok Hareket Fişleri"
+          placeholder="ör. Malzeme Yönetim Fişleri"
           filterOption={(input, option) => (option?.value ?? '').toLowerCase().includes(input.toLowerCase())}
         />
       </div>

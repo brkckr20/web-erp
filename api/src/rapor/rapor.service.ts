@@ -18,19 +18,11 @@ export class RaporService {
   constructor(private prisma: PrismaService) {}
 
   async depoBazliStok(): Promise<DepoBazliStokSatir[]> {
-    // Stok fiş tipleri: giriş (+1), çıkış (-1). Diğerleri hariç.
-    const fisYon = `
-      CASE
-        WHEN f.fis_tipi IN ('10','16','17','18','40','101','20') THEN 1
-        WHEN f.fis_tipi IN ('130','131','132','135','136','137','140','99') THEN -1
-        ELSE 0
-      END
-    `
     // İrsaliye tipleri: giriş (+1), çıkış (-1). Sadece tamamlandı olanlar stoğa yansır.
     const irsaliyeYon = `
       CASE
-        WHEN i.irsaliye_tipi IN ('1','2','3','4','5','9','11','12') THEN 1
-        WHEN i.irsaliye_tipi IN ('8','120','121','123','134','122','124') THEN -1
+        WHEN i.irsaliye_tipi IN ('1','2','3','4','5','9','10','11','12','16','17','18','20','40','101') THEN 1
+        WHEN i.irsaliye_tipi IN ('8','99','120','121','122','123','124','130','131','132','134','135','136','137','140') THEN -1
         ELSE 0
       END
     `
@@ -47,15 +39,6 @@ export class RaporService {
         CAST(COALESCE(SUM(CASE WHEN t.net_metre    IS NOT NULL THEN t.net_metre    * t.yon ELSE 0 END), 0) AS FLOAT) AS mt,
         CAST(COALESCE(SUM(CASE WHEN t.adet         IS NOT NULL THEN t.adet         * t.yon ELSE 0 END), 0) AS INT)    AS adet
       FROM (
-        SELECT f.depo_id AS depo_id, k.malzeme_id AS malzeme_id,
-          ${fisYon} AS yon,
-          k.brut_agirlik, k.net_agirlik, k.brut_metre, k.net_metre, k.adet
-        FROM stok_hareket_fisi f
-        JOIN stok_hareket_fisi_kalem k ON k.fis_id = f.id
-        WHERE k.malzeme_id IS NOT NULL
-
-        UNION ALL
-
         SELECT i.depo_id AS depo_id, k.malzeme_id AS malzeme_id,
           ${irsaliyeYon} AS yon,
           k.brut_agirlik, k.net_agirlik, k.brut_metre, k.net_metre, k.adet

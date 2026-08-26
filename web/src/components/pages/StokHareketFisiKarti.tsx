@@ -17,7 +17,7 @@ import StokSecimiModal from '@/components/shared/StokSecimiModal'
 import KKSecimModal from '@/components/shared/KKSecimModal'
 import type { KKSelectRow } from '@/components/shared/KKSecimModal'
 import type { DepoBazliStokSatir } from '@/lib/depo-bazli-stok-api'
-import { stokHareketFisiApi } from '@/lib/stok-hareket-fisi-api'
+import { malzemeYonetimFisleriApi } from '@/lib/malzeme-yonetim-fisleri-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { formSabloniApi } from '@/lib/form-sabloni-api'
 import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
@@ -73,7 +73,6 @@ interface KalemRow {
   hesapBirimi: string
   birimFiyat: number
   doviz: string
-  kkKalemId?: number
   kdv: number
   satirTutari: number
   aciklama: string
@@ -218,7 +217,6 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const [depoKod, setDepoKod] = useState<string>('')
   const [fisTarihi, setFisTarihi] = useState(dayjs())
   const [sevkTarihi, setSevkTarihi] = useState(dayjs())
-  const [belgeNo, setBelgeNo] = useState('')
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -232,13 +230,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   useEffect(() => {
     if (id) {
       setLoading(true)
-      stokHareketFisiApi
+      malzemeYonetimFisleriApi
         .get(id)
         .then((f) => {
-          setFisNo(f.fisNo)
-          if (f.fisTarihi) setFisTarihi(dayjs(f.fisTarihi))
+          setFisNo(f.irsaliyeNo)
+          if (f.irsaliyeTarihi) setFisTarihi(dayjs(f.irsaliyeTarihi))
           if (f.sevkTarihi) setSevkTarihi(dayjs(f.sevkTarihi))
-          setBelgeNo(f.belgeAdi ?? '')
           setCariKod((f as any).cariHesap?.kod ?? String(f.cariHesapId ?? ''))
           setDepoKod((f as any).depo?.kod ?? String(f.depoId ?? ''))
           const rows: KalemRow[] = (f.kalemler ?? []).map((k) => ({
@@ -264,9 +261,9 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
         .catch((err) => message.error('Fiş yüklenemedi: ' + (err?.message || err)))
         .finally(() => setLoading(false))
     } else {
-      stokHareketFisiApi
-        .nextFisNo(fisTipi)
-        .then((res) => setFisNo(res.fisNo))
+      malzemeYonetimFisleriApi
+        .nextIrsaliyeNo(fisTipi)
+        .then((res) => setFisNo(res.irsaliyeNo))
         .catch(() => setFisNo('00000001'))
     }
   }, [id, fisTipi])
@@ -356,10 +353,10 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
 
       let savedFisId = id
       if (id) {
-        await stokHareketFisiApi.update(id, {
-          fisTarihi: fisTarihi.format('YYYY-MM-DD'),
+        await malzemeYonetimFisleriApi.update(id, {
+          irsaliyeTarihi: fisTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi.format('YYYY-MM-DD'),
-          belgeAdi: belgeNo || null,
+          tamamlandi: true,
           cariHesapId: cariList,
           depoId: depoList,
           kayitYapan,
@@ -367,12 +364,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
         } as any)
         message.success('Fiş güncellendi')
       } else {
-        const created = await stokHareketFisiApi.create({
-          fisNo,
-          fisTipi,
-          fisTarihi: fisTarihi.format('YYYY-MM-DD'),
+        const created = await malzemeYonetimFisleriApi.create({
+          irsaliyeNo: fisNo,
+          irsaliyeTipi: fisTipi,
+          irsaliyeTarihi: fisTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi.format('YYYY-MM-DD'),
-          belgeAdi: belgeNo || null,
+          tamamlandi: true,
           cariHesapId: cariList,
           depoId: depoList,
           kayitYapan,
@@ -380,10 +377,6 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
         } as any)
         savedFisId = created.id
         message.success('Fiş ve kalemler kaydedildi')
-      }
-      if (kkKalemIdSeti.size > 0 && savedFisId) {
-        await stokHareketFisiApi.kkIsaretle(savedFisId, Array.from(kkKalemIdSeti))
-        setKkKalemIdSeti(new Set())
       }
     } catch (err: any) {
       message.error('Hata: ' + (err?.message || err))
@@ -423,12 +416,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
       return
     }
     try {
-      const list = await formSabloniApi.listByEkranTuru('Stok Hareket Fişleri')
+      const list = await formSabloniApi.listByEkranTuru('Malzeme Yönetim Fişleri')
       if (list.length === 0) {
         modal.info({
           title: 'Form tasarımı yok',
           content:
-            'Bu ekran için form tasarımı bulunamadı. Form Tasarımı ekranından "Stok Hareket Fişleri" için bir form hazırlayıp kaydedin.',
+            'Bu ekran için form tasarımı bulunamadı. Form Tasarımı ekranından "Malzeme Yönetim Fişleri" için bir form hazırlayıp kaydedin.',
         })
         return
       }
@@ -459,7 +452,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     }
     try {
       const { draft, veri } = await raporVerisiTopla(sablonId, id)
-      await generatePdf(formTasarimDoc(draft, veri), `stok-hareket-fisi-${fisNo || 'yeni'}.pdf`)
+      await generatePdf(formTasarimDoc(draft, veri), `malzeme-yonetim-fisleri-${fisNo || 'yeni'}.pdf`)
     } catch (e) {
       message.error('Rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
     }
@@ -493,8 +486,6 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     setKalemler((prev) => [...prev, ...eklenecek])
   }
 
-  const [kkKalemIdSeti, setKkKalemIdSeti] = useState<Set<number>>(new Set())
-
   const handleKKSecimiEkle = (secimler: KKSelectRow[]) => {
     const yeniKalemler: KalemRow[] = secimler.map((s) => ({
       ...emptyKalem(),
@@ -505,13 +496,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
       mt: s.mt,
       adet: s.adet,
       aciklama: `KK:${s.kkFisNo}`,
-      kkKalemId: s.kkKalemId,
     }))
-    setKkKalemIdSeti((prev) => {
-      const next = new Set(prev)
-      for (const s of secimler) next.add(s.kkKalemId)
-      return next
-    })
     const varOlan = new Set(kalemler.filter((k) => k.malzemeKod).map((k) => k.malzemeKod))
     const eklenecek = yeniKalemler.filter((k) => !varOlan.has(k.malzemeKod))
     if (eklenecek.length === 0) {
@@ -534,14 +519,13 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
       cancelText: 'Vazgeç',
       onOk: async () => {
         try {
-          await stokHareketFisiApi.remove(id)
+          await malzemeYonetimFisleriApi.remove(id)
           message.success('Fiş silindi')
           setFisNo('')
           setCariKod('')
           setDepoKod('')
           setFisTarihi(dayjs())
           setSevkTarihi(dayjs())
-          setBelgeNo('')
           setKalemler([])
           onDeleted?.(fisTipi)
         } catch (err: any) {
@@ -797,7 +781,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     },
   ]
 
-  const storageKey = `stokHareketFisiKarti`
+  const storageKey = `malzemeYonetimFisleriKarti`
   const kolonLayoutKey = useCallback(
     () => `kolon_layout_${kullanici?.id ?? 'anonim'}_${storageKey}`,
     [kullanici?.id],
@@ -986,11 +970,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
                           <div className="!flex !items-center !gap-3">
                             <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Sevk Tarihi</div>
                             <DatePicker size="small" value={sevkTarihi} onChange={(d) => d && setSevkTarihi(d)} format="DD.MM.YYYY" placeholder="Sevk tarihi" className="!w-48 !text-[12px]" />
-                          </div>
-                          <div className="!flex !items-center !gap-3">
-                            <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Belge No</div>
-                            <Input size="small" value={belgeNo} onChange={(e) => setBelgeNo(e.target.value)} className="!w-48 !text-[12px]" />
-                          </div>
+                           </div>
                         </div>
                       </div>
 

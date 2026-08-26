@@ -17,8 +17,8 @@ import MalzemeKarti from '@/components/pages/MalzemeKarti'
 import MalzemeListesi from '@/components/pages/MalzemeListesi'
 import MakinaKarti from '@/components/pages/MakinaKarti'
 import MakinaListesi from '@/components/pages/MakinaListesi'
-import StokHareketFisiListesi from '@/components/pages/StokHareketFisiListesi'
-import StokHareketFisiKarti from '@/components/pages/StokHareketFisiKarti'
+import MalzemeYonetimFisleriListesi from '@/components/pages/MalzemeYonetimFisleriListesi'
+import MalzemeYonetimFisleriKarti from '@/components/pages/StokHareketFisiKarti'
 import DepoBazliStok from '@/components/pages/DepoBazliStok'
 import CariHesapKarti from '@/components/pages/CariHesapKarti'
 import CariHesapListesi from '@/components/pages/CariHesapListesi'
@@ -242,9 +242,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     [irsaliyeTipiLabelMap],
   )
 
-  const openYeniStokHareketFisi = useCallback((fisTipi: string) => {
-    const label = fisTipiLabelMap[fisTipi] || 'Stok Hareket Fişi'
-    const key = 'stok-hareket-fisi-yeni-' + fisTipi
+  const openYeniMalzemeYonetimFisi = useCallback((irsaliyeTipi: string) => {
+    const label = fisTipiLabelMap[irsaliyeTipi] || 'Malzeme Yönetim Fişi'
+    const key = 'malzeme-yonetim-fisi-yeni-' + irsaliyeTipi
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'stok', isForm: true }
       const exists = prev.find((t) => t.key === key)
@@ -254,10 +254,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
-  const openStokHareketFisiKarti = useCallback(
-    (info: { id: number; fisTipi: string; fisNo: string }) => {
-      const key = 'stok-hareket-fisi-karti-' + info.id
-      const label = (fisTipiLabelMap[info.fisTipi] || info.fisTipi) + '-' + info.fisNo
+  const openMalzemeYonetimFisiKarti = useCallback(
+    (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => {
+      const key = 'malzeme-yonetim-fisi-karti-' + info.id
+      const label = (fisTipiLabelMap[info.irsaliyeTipi] || info.irsaliyeTipi) + '-' + info.irsaliyeNo
       setTabs((prev) => {
         const tab: Tab = { key, label, moduleKey: 'stok', isForm: true }
         const exists = prev.find((t) => t.key === key)
@@ -269,11 +269,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  const handleStokHareketFisiDeleted = useCallback((fisTipi: string) => {
+  const handleMalzemeYonetimFisiDeleted = useCallback((irsaliyeTipi: string) => {
     const currentKey = activeTab
     setTabs((prev) => prev.filter((t) => t.key !== currentKey))
-    openYeniStokHareketFisi(fisTipi)
-  }, [activeTab, openYeniStokHareketFisi])
+    openYeniMalzemeYonetimFisi(irsaliyeTipi)
+  }, [activeTab, openYeniMalzemeYonetimFisi])
 
   const openMalzemeKarti = useCallback((kod: string) => {
     const key = 'malzeme-karti-' + kod
@@ -783,18 +783,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <FormTasarimi baslangicForm={formEditorForm ?? undefined} />
     }
     if (tab.key === 'stok-hareket-fisleri') {
-      return <StokHareketFisiListesi onNew={openYeniStokHareketFisi} onSelect={openStokHareketFisiKarti} />
+      return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />
     }
     if (tab.key === 'depo-bazli-stok') {
       return <DepoBazliStok />
     }
-    if (tab.key.startsWith('stok-hareket-fisi-yeni-')) {
-      const fisTipi = tab.key.replace('stok-hareket-fisi-yeni-', '')
-      return <StokHareketFisiKarti fisTipi={fisTipi} />
+    if (tab.key.startsWith('malzeme-yonetim-fisi-yeni-')) {
+      const fisTipi = tab.key.replace('malzeme-yonetim-fisi-yeni-', '')
+      return <MalzemeYonetimFisleriKarti fisTipi={fisTipi} />
     }
-    if (tab.key.startsWith('stok-hareket-fisi-karti-')) {
-      const fisId = Number(tab.key.replace('stok-hareket-fisi-karti-', ''))
-      return <StokHareketFisiKarti id={fisId} onDeleted={(ft) => handleStokHareketFisiDeleted(ft)} />
+    if (tab.key.startsWith('malzeme-yonetim-fisi-karti-')) {
+      const fisId = Number(tab.key.replace('malzeme-yonetim-fisi-karti-', ''))
+      return <MalzemeYonetimFisleriKarti id={fisId} onDeleted={(ft) => handleMalzemeYonetimFisiDeleted(ft)} />
     }
     if (tab.key === 'malzeme-kartlari') {
       return <MalzemeListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} />

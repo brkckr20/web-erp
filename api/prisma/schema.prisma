@@ -72,7 +72,6 @@ model Depo {
 
   barkodOnEki       String?  @map("barkod_on_eki") @db.VarChar(20)
 
-  fisler            StokHareketFisi[] @relation("FisDepo")
   kaliteKontrolFisler KaliteKontrol[] @relation("KKFisDepo")
   irsaliyeler       Irsaliye[] @relation("IrsaliyeDepo")
 
@@ -194,7 +193,6 @@ model Malzeme {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  kalemler          StokHareketFisiKalem[] @relation("KalemMalzeme")
   isEmriKalemler    IsEmriKalem[] @relation("IsEmriKalemMalzeme")
   kkKalemler        KaliteKontrolKalem[] @relation("KKKalemMalzeme")
   receteler         ModelRecete[] @relation("ReceteMalzeme")
@@ -354,105 +352,12 @@ model CariHesap {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  fisler            StokHareketFisi[] @relation("FisCariHesap")
   kkFisler          KaliteKontrol[] @relation("KKFisCariHesap")
   renkler           Renk[] @relation("RenkCariHesap")
   irsaliyeler       Irsaliye[] @relation("IrsaliyeCariHesap")
   siparisler        Siparis[] @relation("SiparisCariHesap")
 
   @@map("cari_hesap")
-}
-
-model StokHareketFisi {
-  id                Int      @id @default(autoincrement())
-  fisNo             String   @map("fis_no") @db.VarChar(50)
-  fisTipi           String   @map("fis_tipi") @db.VarChar(20)
-  fisTarihi         DateTime @map("fis_tarihi")
-  aciklama          String?  @db.VarChar(1000)
-  faturaNo          String?  @map("fatura_no") @db.VarChar(50)
-  faturaTarihi      DateTime? @map("fatura_tarihi")
-  sevkNo            String?  @map("sevk_no") @db.VarChar(50)
-  sevkTarihi        DateTime? @map("sevk_tarihi")
-  vadeTarihi        DateTime? @map("vade_tarihi")
-  yetkili           String?  @db.VarChar(200)
-  onaylandi         Boolean  @default(false)
-  tamamlandi        Boolean  @default(false) @map("tamamlandi")
-  musteriSiparisNo  String?  @map("musteri_siparis_no") @db.VarChar(50)
-  siparisNo         String?  @map("siparis_no") @db.VarChar(50)
-  vade              Int?
-  odemeTipi         String?  @map("odeme_tipi") @db.VarChar(50)
-  kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
-  kayitTarihi       DateTime? @map("kayit_tarihi")
-  guncelleyen       String?  @db.VarChar(100)
-  guncellemeTarihi  DateTime? @map("guncelleme_tarihi")
-  tasiyiciId        Int?     @map("tasiyici_id")
-  nakliyeciId       Int?     @map("nakliyeci_id")
-  belgeAdi          String?  @map("belge_adi") @db.VarChar(200)
-
-  cariHesapId       Int?     @map("cari_hesap_id")
-  cariHesap         CariHesap? @relation("FisCariHesap", fields: [cariHesapId], references: [id])
-  depoId            Int?     @map("depo_id")
-  depo              Depo?    @relation("FisDepo", fields: [depoId], references: [id])
-
-  kalemler          StokHareketFisiKalem[] @relation("FisKalemleri")
-  kkFisleri         KaliteKontrol[] @relation("KKStokFis")
-  kkKalemleri       KaliteKontrolKalem[] @relation("KKKalemStokFis")
-
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  @@unique([fisTipi, fisNo])
-  @@map("stok_hareket_fisi")
-}
-
-model StokHareketFisiKalem {
-  id                Int      @id @default(autoincrement())
-  fisId             Int      @map("fis_id")
-  fis               StokHareketFisi @relation("FisKalemleri", fields: [fisId], references: [id])
-
-  islemTipi         String?  @map("islem_tipi") @db.VarChar(20)
-  malzemeId         Int?     @map("malzeme_id")
-  malzeme           Malzeme? @relation("KalemMalzeme", fields: [malzemeId], references: [id])
-
-  grM2              Decimal? @map("gr_m2") @db.Decimal(18, 6)
-  brutAgirlik       Decimal? @map("brut_agirlik") @db.Decimal(18, 6)
-  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 6)
-  brutMetre         Decimal? @map("brut_metre") @db.Decimal(18, 6)
-  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 6)
-  adet              Int?
-  dovizFiyati       Decimal? @map("doviz_fiyati") @db.Decimal(18, 6)
-  doviz             String?  @db.VarChar(10)
-  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 6)
-  variantId         Int?     @map("variant_id")
-  renkId            Int?     @map("renk_id")
-  aciklama          String?  @db.VarChar(1000)
-  uuid              String?  @db.VarChar(100)
-  takipNo           String?  @map("takip_no") @db.VarChar(100)
-  desenId           Int?     @map("desen_id")
-  islemId           Int?     @map("islem_id")
-  satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 6)
-  kdv               Decimal? @db.Decimal(18, 6)
-  alici             String?  @db.VarChar(200)
-  olcuBirimi        String?  @map("olcu_birimi") @db.VarChar(20)
-  fisNo             String?  @map("fis_no") @db.VarChar(50)
-  marka             String?  @db.VarChar(100)
-  fire              Decimal? @db.Decimal(18, 6)
-  miktar            Decimal? @db.Decimal(18, 6)
-  variant           String?  @db.VarChar(100)
-  pesinOdeme        Boolean  @default(false) @map("pesin_odeme")
-  vadeliOdeme       Boolean  @default(false) @map("vadeli_odeme")
-  satirAciklama     String?  @map("satir_aciklama") @db.VarChar(1000)
-  partiNo           String?  @map("parti_no") @db.VarChar(100)
-  siparisNo         String?  @map("siparis_no") @db.VarChar(50)
-  musteriSiparisNo  String?  @map("musteri_siparis_no") @db.VarChar(50)
-  maliyetHesaplandi Boolean  @default(false) @map("maliyet_hesaplandi")
-  cipLi             Boolean  @default(false) @map("cip_li")
-
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  @@unique([fisId, uuid])
-  @@map("stok_hareket_fisi_kalem")
 }
 
 model Irsaliye {
@@ -481,6 +386,7 @@ model Irsaliye {
   fasonTipi         FasonTipi? @relation("IrsaliyeFasonTipi", fields: [fasonTipiId], references: [id])
 
   kalemler          IrsaliyeKalem[] @relation("IrsaliyeKalemleri")
+  kkFisleri         KaliteKontrol[] @relation("KKIrsaliye")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -540,8 +446,8 @@ model KaliteKontrol {
 
   kalemler          KaliteKontrolKalem[] @relation("KKFisKalemleri")
 
-  stokFisId         Int?            @map("stok_fis_id")
-  stokFis           StokHareketFisi? @relation("KKStokFis", fields: [stokFisId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  irsaliyeId        Int?     @map("irsaliye_id")
+  irsaliye          Irsaliye? @relation("KKIrsaliye", fields: [irsaliyeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -609,9 +515,6 @@ model KaliteKontrolKalem {
   aciklama          String?  @db.VarChar(1000)
   isEmriNo          String?  @map("is_emri_no") @db.VarChar(100)
   isEmriKg          Decimal? @map("is_emri_kg") @db.Decimal(18, 6)
-
-  stokFisId         Int?            @map("stok_fis_id")
-  stokFis           StokHareketFisi? @relation("KKKalemStokFis", fields: [stokFisId], references: [id], onUpdate: NoAction, onDelete: NoAction)
 
   hatalar           KaliteKontrolHata[] @relation("KKHataKalem")
 

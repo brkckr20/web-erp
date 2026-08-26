@@ -8,7 +8,6 @@ import { AuthModule } from './auth/auth.module';
 import { MalzemeModule } from './malzeme/malzeme.module';
 import { MakinaModule } from './makina/makina.module';
 import { CariHesapModule } from './cari-hesap/cari-hesap.module';
-import { StokHareketFisiModule } from './stok-hareket-fisi/stok-hareket-fisi.module';
 import { RaporModule } from './rapor/rapor.module';
 import { KolonSecimiModule } from './kolon-secimi/kolon-secimi.module';
 import { KaliteKontrolModule } from './kalite-kontrol/kalite-kontrol.module';
@@ -39,7 +38,7 @@ import { RenkTransferModule } from './renk-transfer/renk-transfer.module';
 import { CariTransferModule } from './cari-transfer/cari-transfer.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, StokHareketFisiModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, FormSabloniModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule],
+  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, FormSabloniModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule],
   controllers: [AppController],
   providers: [AppService],
 })

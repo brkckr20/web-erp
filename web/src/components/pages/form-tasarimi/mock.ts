@@ -87,7 +87,7 @@ export function bosForm(ad = 'Yeni Form'): FormTasarimDraft {
   return {
     id: uidYeni(),
     ad,
-    ekranTuru: 'Stok Hareket Fişleri',
+    ekranTuru: 'Malzeme Yönetim Fişleri',
     sorgular,
     layout: bandTipiSirasi.map(yeniBand),
     sayfa: { boyut: 'A4', yon: 'dikey', kenarUst: 8, kenarAlt: 8, kenarSol: 10, kenarSag: 10 },
@@ -95,8 +95,8 @@ export function bosForm(ad = 'Yeni Form'): FormTasarimDraft {
 }
 
 function ornekStokFisi(): FormTasarimDraft {
-  const form = bosForm('Stok Hareket Fişi')
-  form.ekranTuru = 'Stok Hareket Fişleri'
+  const form = bosForm('Malzeme Yönetim Fişi')
+  form.ekranTuru = 'Malzeme Yönetim Fişleri'
 
   const s1: FormSorguDraft = { id: uidYeni(), sirano: 1, ad: 'Fiş Başlığı', sorguMetni: 'SELECT * FROM stok_hareket_fisi WHERE id = :id', kolonlar: [], satirlar: [] }
   const s2: FormSorguDraft = { id: uidYeni(), sirano: 2, ad: 'Fiş Kalemleri', sorguMetni: 'SELECT * FROM stok_hareket_fisi_kalem WHERE fis_id = :id', kolonlar: [], satirlar: [] }

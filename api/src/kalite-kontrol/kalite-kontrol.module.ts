@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common'
 import { KaliteKontrolController } from './kalite-kontrol.controller'
 import { KaliteKontrolService } from './kalite-kontrol.service'
-import { StokHareketFisiModule } from '../stok-hareket-fisi/stok-hareket-fisi.module'
+import { IrsaliyeModule } from '../irsaliye/irsaliye.module'
 
 @Module({
-  imports: [StokHareketFisiModule],
+  imports: [IrsaliyeModule],
   controllers: [KaliteKontrolController],
   providers: [KaliteKontrolService],
 })

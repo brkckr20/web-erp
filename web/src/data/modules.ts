@@ -49,7 +49,7 @@ export const modules: Module[] = [
         title: 'Stok İşlemleri',
         items: [
           { key: 'kalite-kontrol-giris', label: 'Kalite Kontrol Girişleri', isForm: true },
-          { key: 'stok-hareket-fisleri', label: 'Stok Hareket Fişleri', isForm: true },
+          { key: 'stok-hareket-fisleri', label: 'Malzeme Yönetim Fişleri', isForm: true },
         ],
       },
       {

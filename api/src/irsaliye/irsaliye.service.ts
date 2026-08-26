@@ -27,8 +27,14 @@ export class IrsaliyeService {
     return { irsaliyeNo: padIrsaliyeNo(next) }
   }
 
-  findAll() {
+  findAll(irsaliyeTipi?: string) {
+    const where: any = {}
+    if (irsaliyeTipi) {
+      const tipler = irsaliyeTipi.split(',').map((t) => t.trim())
+      where.irsaliyeTipi = { in: tipler }
+    }
     return this.prisma.irsaliye.findMany({
+      where,
       orderBy: [{ irsaliyeTipi: 'asc' }, { irsaliyeNo: 'desc' }],
       include: { cariHesap: true, depo: true, fasonTipi: true, kalemler: { include: { malzeme: true } } },
     })

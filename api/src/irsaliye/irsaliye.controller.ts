@@ -25,8 +25,8 @@ export class IrsaliyeController {
   }
 
   @Get()
-  findAll() {
-    return this.service.findAll()
+  findAll(@Query('irsaliyeTipi') irsaliyeTipi?: string) {
+    return this.service.findAll(irsaliyeTipi)
   }
 
   @Get(':id')
