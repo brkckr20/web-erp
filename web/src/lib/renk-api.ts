@@ -28,7 +28,7 @@ export type UpdateRenk = Partial<CreateRenk>
 export const renkApi = {
   list: (tip?: number) => api.get<Renk[]>(tip != null ? `/renk?tip=${tip}` : '/renk'),
   getById: (id: number) => api.get<Renk>(`/renk/${id}`),
-  getByKod: (kod: string) => api.get<Renk>(`/renk/by-kod/${encodeURIComponent(kod)}`),
+  getByKod: (kod: string, tip?: number) => api.get<Renk>(`/renk/by-kod/${encodeURIComponent(kod)}${tip != null ? `?tip=${tip}` : ''}`),
   create: (dto: CreateRenk) => api.post<Renk>('/renk', dto),
   update: (id: number, dto: UpdateRenk) => api.put<Renk>(`/renk/${id}`, dto),
   remove: (id: number) => api.delete<void>(`/renk/${id}`),

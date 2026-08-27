@@ -13,8 +13,8 @@ export class RenkController {
   }
 
   @Get('by-kod/:kod')
-  findByKod(@Param('kod') kod: string) {
-    return this.renkService.findByKod(kod)
+  findByKod(@Param('kod') kod: string, @Query('tip') tip?: string) {
+    return this.renkService.findByKod(kod, tip != null ? Number(tip) : undefined)
   }
 
   @Get(':id')

@@ -55,17 +55,17 @@ export default function RenkKarti({ isNew, kod, tip = 1 }: RenkKartiProps) {
 
   useEffect(() => {
     if (kod && !isNew) {
-      loadByKod(kod)
+      loadByKod(kod, tip)
     } else {
       setForm({ ...emptyData, tip })
       setId(null)
     }
   }, [kod, isNew, tip])
 
-  const loadByKod = useCallback(async (kod: string) => {
+  const loadByKod = useCallback(async (kod: string, tipValue?: number) => {
     setLoading(true)
     try {
-      const data = await renkApi.getByKod(kod)
+      const data = await renkApi.getByKod(kod, tipValue)
       setId(data.id)
       setForm({
         kod: data.kod,

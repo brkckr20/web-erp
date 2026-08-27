@@ -85,20 +85,22 @@ export class RenkTransferService {
   async importRenkler(satirlar: TransferSatir[]): Promise<TransferSonuc> {
     const atlanan: TransferAtlanan[] = []
     const gecerli: Record<string, unknown>[] = []
-    const gorulenKodlar = new Set<string>()
+    const gorulenKodTip = new Set<string>()
 
     for (const satir of satirlar) {
       const { veri, neden } = this.normalize(satir)
       const kod = veri?.kod as string
+      const tip = (veri?.tip as number) ?? 1
+      const kodTipKey = `${kod}__${tip}`
       if (!veri) {
         atlanan.push({ kod: (this.bosla(satir.kod) ?? '') || '(boş)', neden: neden ?? 'Geçersiz satır' })
         continue
       }
-      if (gorulenKodlar.has(kod)) {
-        atlanan.push({ kod, neden: 'Excel içinde tekrar eden kod' })
+      if (gorulenKodTip.has(kodTipKey)) {
+        atlanan.push({ kod, neden: 'Excel içinde aynı tipte tekrar eden kod' })
         continue
       }
-      gorulenKodlar.add(kod)
+      gorulenKodTip.add(kodTipKey)
       gecerli.push(veri)
     }
 
@@ -106,13 +108,15 @@ export class RenkTransferService {
       return { toplam: satirlar.length, eklenen: 0, atlanan }
     }
 
-    const kods = gecerli.map((v) => v.kod as string)
+    const tipKodPairs = gecerli.map((v) => ({ kod: v.kod as string, tip: (v.tip ?? 1) as number }))
 
     const mevcut = await this.prisma.renk.findMany({
-      where: { kod: { in: kods } },
-      select: { kod: true },
+      where: {
+        OR: tipKodPairs.map((p) => ({ kod: p.kod, tip: p.tip })),
+      },
+      select: { kod: true, tip: true },
     })
-    const mevcutKodlar = new Set(mevcut.map((r) => r.kod))
+    const mevcutKodTipSet = new Set(mevcut.map((r) => `${r.kod}__${r.tip}`))
 
     const cariKodlar = [...new Set(gecerli.map((v) => v.cariKodu as string | null).filter((c): c is string => !!c))]
     let mevcutCariler = new Set<string>()
@@ -127,9 +131,11 @@ export class RenkTransferService {
     const eklenecek: Record<string, unknown>[] = []
     for (const veri of gecerli) {
       const kod = veri.kod as string
+      const tip = (veri.tip as number) ?? 1
       const cariKodu = veri.cariKodu as string | null
-      if (mevcutKodlar.has(kod)) {
-        atlanan.push({ kod, neden: 'Sistemde zaten kayıtlı' })
+      const kodTipKey = `${kod}__${tip}`
+      if (mevcutKodTipSet.has(kodTipKey)) {
+        atlanan.push({ kod, neden: 'Sistemde bu tipte zaten kayıtlı' })
         continue
       }
       if (cariKodu && !mevcutCariler.has(cariKodu)) {

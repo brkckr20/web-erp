@@ -19,6 +19,8 @@ import type { KKSelectRow } from '@/components/shared/KKSecimModal'
 import type { DepoBazliStokSatir } from '@/lib/depo-bazli-stok-api'
 import { malzemeYonetimFisleriApi } from '@/lib/malzeme-yonetim-fisleri-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
+import { cariHesapApi } from '@/lib/cari-hesap-api'
+import { depoApi } from '@/lib/depo-api'
 import { formSabloniApi } from '@/lib/form-sabloni-api'
 import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
 import { generatePdf, previewPdf } from '@/lib/reports/pdf-common'
@@ -224,6 +226,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const [sablonSecenekleri, setSablonSecenekleri] = useState<{ id: number; ad: string }[]>([])
   const [stokSecimiModalAcik, setStokSecimiModalAcik] = useState(false)
   const [kkSecimModalAcik, setKkSecimModalAcik] = useState(false)
+  const [kayitliId, setKayitliId] = useState<number | null>(id ?? null)
   const isCikis = cikisTipleri.has(fisTipi)
   const isGiris = fisTipi === '10'
 
@@ -351,9 +354,9 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
         }),
       )
 
-      let savedFisId = id
-      if (id) {
-        await malzemeYonetimFisleriApi.update(id, {
+      const mevcutId = id ?? kayitliId
+      if (mevcutId) {
+        await malzemeYonetimFisleriApi.update(mevcutId, {
           irsaliyeTarihi: fisTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi.format('YYYY-MM-DD'),
           tamamlandi: true,
@@ -375,7 +378,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
           kayitYapan,
           kalemler: kalemPayload,
         } as any)
-        savedFisId = created.id
+        setKayitliId(created.id)
         message.success('Fiş ve kalemler kaydedildi')
       }
     } catch (err: any) {
@@ -536,15 +539,21 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   }
 
   const cariHesapIdBul = async (kod: string): Promise<number | null> => {
-    const list = await cariHesapListesi()
-    return list.find((c) => c.kod === kod)?.id ?? null
+    try {
+      const record = await cariHesapApi.getByKod(kod)
+      return record?.id ?? null
+    } catch {
+      return null
+    }
   }
   const depoIdBul = async (kod: string): Promise<number | null> => {
-    const list = await depoListesi()
-    return list.find((d) => d.kod === kod)?.id ?? null
+    try {
+      const record = await depoApi.getByKod(kod)
+      return record?.id ?? null
+    } catch {
+      return null
+    }
   }
-  const cariHesapListesi = async () => (await import('@/lib/cari-hesap-api')).cariHesapApi.list()
-  const depoListesi = async () => (await import('@/lib/depo-api')).depoApi.list()
 
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
 

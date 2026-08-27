@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateRenkDto } from './dto/create-renk.dto'
 import { UpdateRenkDto } from './dto/update-renk.dto'
@@ -55,16 +55,25 @@ export class RenkService {
     return this.formatResult(renk)
   }
 
-  async findByKod(kod: string) {
-    const renk = await this.prisma.renk.findUnique({ where: { kod }, select: this.selectWithCari })
+  async findByKod(kod: string, tip?: number) {
+    const where = tip != null ? { kod, tip } : { kod }
+    const renk = await this.prisma.renk.findFirst({ where, select: this.selectWithCari })
     if (!renk) throw new NotFoundException('Renk bulunamadı')
     return this.formatResult(renk)
   }
 
-  create(dto: CreateRenkDto) {
+  async create(dto: CreateRenkDto) {
+    const mevcut = await this.prisma.renk.findFirst({
+      where: { kod: dto.kod, tip: dto.tip ?? 1 },
+    })
+    if (mevcut) {
+      throw new BadRequestException(`"${dto.kod}" kodlu renk bu tipte zaten kayıtlı (ID: ${mevcut.id})`)
+    }
+
     return this.prisma.renk.create({
       data: {
         ...dto,
+        cariKodu: dto.cariKodu || null,
         talepTarihi: dto.talepTarihi ? new Date(dto.talepTarihi) : null,
         okeyTarihi: dto.okeyTarihi ? new Date(dto.okeyTarihi) : null,
         tarih: dto.tarih ? new Date(dto.tarih) : null,
@@ -78,6 +87,7 @@ export class RenkService {
       where: { id },
       data: {
         ...dto,
+        cariKodu: dto.cariKodu || null,
         talepTarihi: dto.talepTarihi ? new Date(dto.talepTarihi) : dto.talepTarihi === null ? null : undefined,
         okeyTarihi: dto.okeyTarihi ? new Date(dto.okeyTarihi) : dto.okeyTarihi === null ? null : undefined,
         tarih: dto.tarih ? new Date(dto.tarih) : dto.tarih === null ? null : undefined,

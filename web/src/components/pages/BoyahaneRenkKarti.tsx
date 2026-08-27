@@ -69,7 +69,7 @@ export default function BoyahaneRenkKarti({ isNew, kod }: BoyahaneRenkKartiProps
   const loadByKod = useCallback(async (kod: string) => {
     setLoading(true)
     try {
-      const data = await renkApi.getByKod(kod)
+      const data = await renkApi.getByKod(kod, 2)
       setId(data.id)
       setForm({
         kod: data.kod,

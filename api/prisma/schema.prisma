@@ -555,7 +555,7 @@ model KaliteKontrolHata {
 
 model Renk {
   id                Int      @id @default(autoincrement())
-  kod               String   @unique @db.VarChar(50)
+  kod               String   @db.VarChar(50)
   ad                String   @db.VarChar(200)
   tip               Int      @default(1)
   aciklama          String?  @db.VarChar(1000)
@@ -581,6 +581,7 @@ model Renk {
   childRenkler      Renk[]     @relation("RenkParent")
   siparisRenkler    SiparisRenkKumasGrup[] @relation("SiparisRenkRenkRef")
 
+  @@unique([kod, tip])
   @@map("renk")
 }
 
