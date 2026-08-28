@@ -11,7 +11,6 @@ import {
   ApartmentOutlined,
   ExportOutlined,
   ProfileOutlined,
-  BgColorsOutlined,
 } from '@ant-design/icons'
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
@@ -32,7 +31,7 @@ const fisTipiAdlari: Record<string, string> = {
   '201': 'Satın Alma Siparişi',
 }
 
-export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void }) {
+export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: { onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void; onIrsaliyeAc?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void }) {
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
   const [arama, setArama] = useState('')
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
@@ -41,13 +40,14 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
   const [hareketSatir, setHareketSatir] = useState<KumasPlanlamaSatir | null>(null)
   const [hareketler, setHareketler] = useState<KumasHareketSatiri[]>([])
   const [hareketLoading, setHareketLoading] = useState(false)
+  const [hareketContextMenu, setHareketContextMenu] = useState<{ x: number; y: number; satir: KumasHareketSatiri } | null>(null)
 
   const hareketAc = useCallback((r: KumasPlanlamaSatir) => {
     setHareketSatir(r)
     setHareketler([])
     setHareketLoading(true)
     tedarikApi
-      .planlamaKumasHareketler(r.siparisNo, r.malzemeKod)
+      .planlamaIplikHareketler(r.siparisNo, r.malzemeKod)
       .then(setHareketler)
       .catch((err: unknown) =>
         message.error('Hareketler yüklenemedi: ' + (err instanceof Error ? err.message : String(err))),
@@ -103,7 +103,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
 
   const load = useCallback(() => {
     tedarikApi
-      .planlamaKumas()
+      .planlamaIplik()
       .then(setSatirlar)
       .catch((err: unknown) =>
         message.error('Veriler yüklenemedi: ' + (err instanceof Error ? err.message : String(err))),
@@ -183,13 +183,12 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
       label: 'Fason İşlemleri',
       icon: <ApartmentOutlined />,
       children: fasonTipleri
-        .filter((f) => parseKategoriler(f.kategoriler).includes('kumas'))
+        .filter((f) => parseKategoriler(f.kategoriler).includes('iplik'))
         .map((f) => ({ key: `fason:${f.id}`, label: f.ad })),
     },
     { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
     { type: 'divider' },
     { key: 'hareket-detaylari', label: 'Hareket Detayları', icon: <ProfileOutlined /> },
-    { key: 'renkler', label: 'Renkler', icon: <BgColorsOutlined /> },
   ]
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -203,7 +202,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
         malzemeKod: r.malzemeKod,
         malzemeAd: r.malzemeAd,
         miktar: Number(r.gerekenMiktar) || 0,
-        birim: r.birim || 'mt',
+        birim: 'kg',
         aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
       }))
       onYeniSatinalmaSiparis?.(kalemler)
@@ -226,10 +225,6 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
       hareketAc(secili[0])
       return
     }
-    if (key === 'renkler') {
-      message.info('Renkler yakında')
-      return
-    }
     if (key.startsWith('fason:')) {
       const fason = fasonTipleri.find((f) => `fason:${f.id}` === key)
       message.info(`${fason?.ad ?? 'Fason'} işlemi yakında`)
@@ -246,7 +241,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
       <div className="!p-3 !flex !flex-col !h-full">
         <div className="!flex !items-center !justify-between !mb-3">
           <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
-            Kumaş Planlama
+            İplik Planlama
           </div>
           <div className="!flex !items-center !gap-1.5">
             <Input
@@ -276,8 +271,8 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
                 rowData={filtrelenmis}
                 columnDefs={columns}
                 domLayout="normal"
-                storageKey="kumas-planlama"
-                exportFileName="kumas-planlama"
+                storageKey="iplik-planlama"
+                exportFileName="iplik-planlama"
                 enableRowSelection
                 onCellContextMenu={(e: CellContextMenuEvent<KumasPlanlamaSatir>) => {
                   e.node?.setSelected(true)
@@ -299,7 +294,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
 
       <Modal
         open={!!hareketSatir}
-        onCancel={() => setHareketSatir(null)}
+        onCancel={() => { setHareketSatir(null); setHareketContextMenu(null) }}
         footer={null}
         width="100vw"
         style={{ top: 0, maxWidth: '100vw', paddingBottom: 0 }}
@@ -309,16 +304,46 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
             ? `Hareket Detayları - ${hareketSatir.siparisNo} / ${hareketSatir.malzemeKod}`
             : 'Hareket Detayları'
         }
+        afterClose={() => setHareketContextMenu(null)}
       >
-        <Table<KumasHareketSatiri>
-          size="small"
-          columns={hareketColumns}
-          dataSource={hareketler}
-          loading={hareketLoading}
-          rowKey={(r) => `${r.fisNo}-${r.fisTipi}`}
-          pagination={{ pageSize: 25, size: 'small', showSizeChanger: false }}
-          locale={{ emptyText: 'Hareket bulunamadı' }}
-        />
+        <div>
+          <Table<KumasHareketSatiri>
+            size="small"
+            columns={hareketColumns}
+            dataSource={hareketler}
+            loading={hareketLoading}
+            rowKey={(r) => `${r.fisNo}-${r.fisTipi}`}
+            pagination={{ pageSize: 25, size: 'small', showSizeChanger: false }}
+            locale={{ emptyText: 'Hareket bulunamadı' }}
+            onRow={(record) => ({
+              onContextMenu: (e) => {
+                e.preventDefault()
+                setHareketContextMenu({ x: e.clientX, y: e.clientY, satir: record })
+              },
+            })}
+          />
+          {hareketContextMenu && (
+            <div
+              className="fixed z-50 bg-white border border-gray-200 rounded shadow-lg py-1"
+              style={{ left: hareketContextMenu.x, top: hareketContextMenu.y }}
+            >
+              <div
+                className="px-4 py-1.5 text-[12px] hover:bg-blue-50 cursor-pointer"
+                onClick={() => {
+                  onIrsaliyeAc?.({
+                    id: hareketContextMenu.satir.irsaliyeId,
+                    irsaliyeTipi: hareketContextMenu.satir.fisTipi,
+                    irsaliyeNo: hareketContextMenu.satir.fisNo,
+                  })
+                  setHareketSatir(null)
+                  setHareketContextMenu(null)
+                }}
+              >
+                Detaya Git
+              </div>
+            </div>
+          )}
+        </div>
       </Modal>
     </>
   )

@@ -17,6 +17,19 @@ export class KullaniciController {
     return this.kullaniciService.findByKod(kod)
   }
 
+  @Get(':id/favoriler')
+  getFavoriler(@Param('id', ParseIntPipe) id: number) {
+    return this.kullaniciService.getFavoriler(id)
+  }
+
+  @Put(':id/favoriler')
+  toggleFavori(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { favoriKey: string }
+  ) {
+    return this.kullaniciService.toggleFavori(id, body.favoriKey)
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.kullaniciService.findOne(id)

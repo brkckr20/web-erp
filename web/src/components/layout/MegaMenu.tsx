@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
 import { Module, Tab, modules } from '@/data/modules'
 import { useAuth } from '@/context/AuthContext'
-import { getShortcuts, toggleShortcut, isShortcut, ShortcutItem } from '@/lib/shortcuts'
+import { getShortcuts, toggleShortcut, ShortcutItem } from '@/lib/shortcuts'
 
 interface MegaMenuProps {
   module: Module | null
@@ -15,16 +15,22 @@ interface MegaMenuProps {
 export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuProps) {
   const { kullanici } = useAuth()
   const { message } = App.useApp()
-  const userCode = kullanici?.girisKodu || kullanici?.kod || ''
+  const kullaniciId = kullanici?.id
 
-  const allShortcuts = useMemo(() => {
-    if (!userCode) return []
-    return getShortcuts(userCode)
-  }, [userCode])
+  const [shortcuts, setShortcuts] = useState<ShortcutItem[]>([])
+  const [starredKeys, setStarredKeys] = useState<Set<string>>(new Set())
 
-  const groupedShortcuts = useMemo(() => {
+  useEffect(() => {
+    if (!kullaniciId) return
+    getShortcuts(kullaniciId).then((items) => {
+      setShortcuts(items)
+      setStarredKeys(new Set(items.map((s) => s.key)))
+    })
+  }, [kullaniciId])
+
+  const groupedShortcuts = useCallback(() => {
     const grouped: { modLabel: string; items: ShortcutItem[] }[] = []
-    for (const item of allShortcuts) {
+    for (const item of shortcuts) {
       const mod = modules.find((m) => m.key === item.moduleKey)
       const modLabel = mod?.label || item.moduleKey
       const existing = grouped.find((g) => g.modLabel === modLabel)
@@ -35,7 +41,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
       }
     }
     return grouped
-  }, [allShortcuts])
+  }, [shortcuts])
 
   if (!module) return null
 
@@ -49,21 +55,23 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
     onClose()
   }
 
-  const handleStarToggle = useCallback((e: React.MouseEvent, item: { key: string; label: string; isForm?: boolean }, modKey: string) => {
+  const handleStarToggle = useCallback(async (e: React.MouseEvent, item: { key: string; label: string; isForm?: boolean }, modKey: string) => {
     e.stopPropagation()
-    if (!userCode) return
-    const next = toggleShortcut(userCode, {
+    if (!kullaniciId) return
+    const next = await toggleShortcut(kullaniciId, {
       key: item.key,
       label: item.label,
       moduleKey: modKey,
       isForm: item.isForm,
     })
+    setShortcuts(next)
+    setStarredKeys(new Set(next.map((s) => s.key)))
     const exists = next.some((s) => s.key === item.key)
     message.success(exists ? 'Kısayollara eklendi' : 'Kısayollardan çıkarıldı')
-  }, [userCode])
+  }, [kullaniciId])
 
   const renderItemRow = (item: { key: string; label: string; isForm?: boolean; isFavorite?: boolean }, modKey: string, width = '220px') => {
-    const starred = userCode ? isShortcut(userCode, item.key) : !!item.isFavorite
+    const starred = kullaniciId ? starredKeys.has(item.key) : !!item.isFavorite
     return (
       <div key={item.key} className="!flex !items-center !group" style={{ width }}>
         <button
@@ -113,8 +121,8 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
             style={{ maxHeight: 'calc(100vh - 64px)', width: 'fit-content', gap: '2px 16px' }}
           >
             {module.key === 'kisayollar' ? (
-              groupedShortcuts.length > 0 ? (
-                groupedShortcuts.map((group) => (
+              groupedShortcuts().length > 0 ? (
+                groupedShortcuts().map((group) => (
                   <div key={group.modLabel} className="!w-[220px] !mb-2">
                     <div className="!w-full !bg-[#f0f1f3] !px-2 !py-1.5 !rounded-sm !mb-1">
                       <div className="!text-[10px] !font-bold !text-[#374151] !uppercase !tracking-wider !whitespace-nowrap">

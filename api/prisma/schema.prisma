@@ -97,6 +97,7 @@ model Kullanici {
   ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
   aciklama          String?  @db.VarChar(500)
   kullaniciTipi     String?  @map("kullanici_tipi") @db.VarChar(100)
+  favoriler          String?  @db.NVarChar(MAX)
 
   satisElemani          Boolean @default(false) @map("satis_elemani")
   mobilKullanici        Boolean @default(false) @map("mobil_kullanici")

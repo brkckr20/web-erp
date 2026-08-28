@@ -58,6 +58,7 @@ import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
 import TedarikEkrani from '@/components/pages/TedarikEkrani'
 import KumasPlanlama from '@/components/pages/KumasPlanlama'
+import IplikPlanlama from '@/components/pages/IplikPlanlama'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
@@ -671,10 +672,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
-  const openSiparisKarti = useCallback((id: number) => {
+  const openSiparisKarti = useCallback((id: number, siparisNo: string) => {
     const key = 'siparis-karti-' + id
     setTabs((prev) => {
-      const tab: Tab = { key, label: 'Sipariş Kartı - ' + id, moduleKey: 'siparis', isForm: true }
+      const tab: Tab = { key, label: 'Sipariş Kartı - ' + siparisNo, moduleKey: 'siparis', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -998,6 +999,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'kumas-planlama') {
       return <KumasPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} />
+    }
+    if (tab.key === 'iplik-planlama') {
+      return <IplikPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onIrsaliyeAc={openIrsaliyeKarti} />
     }
     if (tab.key === 'siparis-karti-yeni') {
       return <SiparisKarti isNew key={`yeni-${yeniSiparisKey}`} onTedarik={openTedarik} />

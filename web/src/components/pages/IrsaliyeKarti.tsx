@@ -64,6 +64,9 @@ export interface IrsaliyeBaslangicKalem {
   malzemeAd: string
   miktar: number
   birim: string
+  birimFiyat?: number
+  cariHesapKod?: string
+  depoKod?: string
   aciklama?: string
 }
 
@@ -240,8 +243,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
   const [fasonTipiKayit, setFasonTipiKayit] = useState<number | null>(fasonTipiId ?? null)
 
   const [irsaliyeNo, setIrsaliyeNo] = useState('')
-  const [cariKod, setCariKod] = useState<string>('')
-  const [depoKod, setDepoKod] = useState<string>('')
+  const [cariKod, setCariKod] = useState<string>(() => baslangicKalemler?.[0]?.cariHesapKod ?? '')
+  const [depoKod, setDepoKod] = useState<string>(() => baslangicKalemler?.[0]?.depoKod ?? '')
   const [irsaliyeTarihi, setIrsaliyeTarihi] = useState(dayjs())
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
   const [belgeNo, setBelgeNo] = useState('')
@@ -251,7 +254,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '' }
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0 }
           const val = b.miktar || 0
           if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
           else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
@@ -909,6 +912,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
         malzemeAd: k.malzemeAd,
         miktar,
         birim,
+        birimFiyat: k.birimFiyat || undefined,
+        cariHesapKod: cariKod || undefined,
+        depoKod: depoKod || undefined,
         aciklama: k.aciklama || undefined,
       })
     }

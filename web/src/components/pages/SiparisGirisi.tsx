@@ -21,7 +21,7 @@ interface SiparisRow {
 }
 
 interface SiparisGirisiProps {
-  onSelect?: (id: number) => void
+  onSelect?: (id: number, siparisNo: string) => void
   onNew?: () => void
   onTedarik?: (tip: 'kumas' | 'iplik' | 'aksesuar', id: number, siparisNo: string) => void
 }
@@ -93,7 +93,10 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'yeni') return onNew?.()
     if (key === 'duzenle') {
-      if (selectedRow) onSelect?.(selectedRow)
+      if (selectedRow) {
+        const row = data.find((d) => d.id === selectedRow)
+        if (row) onSelect?.(selectedRow, row.siparisNo)
+      }
       return
     }
     if (key.startsWith('tedarik-')) {
@@ -165,7 +168,7 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
                 const sel = e.api.getSelectedRows()
                 setSelectedRow(sel[0]?.id ?? null)
               }}
-              onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.id)}
+              onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.id, e.data.siparisNo)}
               onCellContextMenu={(e) => {
                 if (e.data) {
                   e.node?.setSelected(true)

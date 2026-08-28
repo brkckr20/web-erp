@@ -37,12 +37,25 @@ export class TedarikController {
     return this.service.planlamaKumas()
   }
 
+  @Get('planlama/iplik')
+  planlamaIplik() {
+    return this.service.planlamaIplik()
+  }
+
   @Get('planlama/kumas/hareketler')
   planlamaKumasHareketler(
     @Query('siparisNo') siparisNo: string,
     @Query('malzemeKod') malzemeKod: string,
   ) {
     return this.service.planlamaKumasHareketler(siparisNo, malzemeKod)
+  }
+
+  @Get('planlama/iplik/hareketler')
+  planlamaIplikHareketler(
+    @Query('siparisNo') siparisNo: string,
+    @Query('malzemeKod') malzemeKod: string,
+  ) {
+    return this.service.planlamaIplikHareketler(siparisNo, malzemeKod)
   }
 
   @Get()

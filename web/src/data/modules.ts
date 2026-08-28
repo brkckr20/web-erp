@@ -34,7 +34,7 @@ export const modules: Module[] = [
       {
         title: 'Tanımlamalar',
         items: [
-          { key: 'kumas-kartlari', label: 'Kumaş Kartları', isFavorite: true, isForm: true },
+          { key: 'kumas-kartlari', label: 'Kumaş Kartları', isForm: true },
           { key: 'iplik-kartlari', label: 'İplik Kartları', isForm: true },
           { key: 'aksesuar-kartlari', label: 'Aksesuar Kartları', isForm: true },
           { key: 'aksesuar-tipi-kartlari', label: 'Aksesuar Tipi Kartları', isForm: true },
@@ -58,7 +58,7 @@ export const modules: Module[] = [
           { key: 'stok-ozeti', label: 'Stok Özeti' },
           { key: 'hareket-gecmisi', label: 'Hareket Geçmişi' },
           { key: 'depo-bazli-stok', label: 'Depo Bazlı Stok' },
-          { key: 'kumas-lot-takip', label: 'Kumaş Lot Takibi', isFavorite: true },
+          { key: 'kumas-lot-takip', label: 'Kumaş Lot Takibi' },
           { key: 'fire-raporu', label: 'Fire Raporu' },
           { key: 'stok-deger', label: 'Stok Değer Raporu' },
           { key: 'kritik-stok', label: 'Kritik Stok Raporu' },
@@ -77,7 +77,7 @@ export const modules: Module[] = [
       {
         title: 'Tanımlamalar',
         items: [
-          { key: 'model-kartlari', label: 'Model Kartları', isFavorite: true, isForm: true },
+          { key: 'model-kartlari', label: 'Model Kartları', isForm: true },
           { key: 'renk-kartlari', label: 'Renk Kartları', isForm: true },
           { key: 'boyahane-renk-kartlari', label: 'Boyahane Renk Kartları', isForm: true },
           { key: 'marka-kartlari', label: 'Marka Kartları', isForm: true },
@@ -95,15 +95,25 @@ export const modules: Module[] = [
       {
         title: 'Hareketler',
         items: [
-          { key: 'siparis-girisi', label: 'Sipariş Girişi', isFavorite: true, isForm: true },
+          { key: 'siparis-girisi', label: 'Sipariş Girişi', isForm: true },
+          { key: 'fason-hareket', label: 'Fason Hareket Fişleri', isForm: true },
+          { key: 'uretim-hareket', label: 'Üretim Hareket Fişleri', isForm: true },
+        ],
+      },
+      {
+        title: 'Tedarik İşlemleri',
+        items: [
           { key: 'kumas-tedarik', label: 'Kumaş Tedarik' },
           { key: 'iplik-tedarik', label: 'İplik Tedarik' },
           { key: 'aksesuar-tedarik', label: 'Aksesuar Tedarik' },
-          { key: 'kumas-planlama', label: 'Kumaş Planlama', isFavorite: true },
-          { key: 'iplik-planlama', label: 'İplik Planlama', isFavorite: true },
+        ],
+      },
+      {
+        title: 'Planlama',
+        items: [
+          { key: 'kumas-planlama', label: 'Kumaş Planlama' },
+          { key: 'iplik-planlama', label: 'İplik Planlama' },
           { key: 'aksesuar-planlama', label: 'Aksesuar Planlama' },
-          { key: 'fason-hareket', label: 'Fason Hareket Fişleri', isFavorite: true, isForm: true },
-          { key: 'uretim-hareket', label: 'Üretim Hareket Fişleri', isForm: true },
         ],
       },
       {
@@ -125,7 +135,7 @@ export const modules: Module[] = [
         items: [
           { key: 'is-emri-tanimlari', label: 'İş Emri Tanımları', isForm: true },
           { key: 'uretim-plani', label: 'Üretim Planı', isForm: true },
-          { key: 'is-emri', label: 'İş Emirleri', isFavorite: true, isForm: true },
+          { key: 'is-emri', label: 'İş Emirleri', isForm: true },
           { key: 'kapasite-plan', label: 'Kapasite Planlama' },
         ],
       },
@@ -146,7 +156,7 @@ export const modules: Module[] = [
       {
         title: 'İşlemler',
         items: [
-          { key: 'satinalma-siparis', label: 'Satın Alma Siparişi', isFavorite: true, isForm: true },
+          { key: 'satinalma-siparis', label: 'Satın Alma Siparişi', isForm: true },
           { key: 'teslimat-takip', label: 'Teslimat Takibi' },
           { key: 'tedarikci-degerlendirme', label: 'Tedarikçi Değerlendirme' },
         ],
@@ -209,7 +219,7 @@ export const modules: Module[] = [
         items: [
           { key: 'odeme-takip', label: 'Ödeme Takibi' },
           { key: 'banka-islem', label: 'Banka İşlemleri' },
-          { key: 'maliyet-analiz', label: 'Maliyet Analizi', isFavorite: true },
+          { key: 'maliyet-analiz', label: 'Maliyet Analizi' },
         ],
       },
     ],

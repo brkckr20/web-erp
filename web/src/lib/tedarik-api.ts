@@ -66,6 +66,7 @@ export interface KumasPlanlamaSatir {
 }
 
 export interface KumasHareketSatiri {
+  irsaliyeId: number
   fisNo: string
   fisTipi: string
   fisTarihi: string
@@ -95,5 +96,10 @@ export const tedarikApi = {
   planlamaKumasHareketler: (siparisNo: string, malzemeKod: string) =>
     api.get<KumasHareketSatiri[]>(
       `/tedarik/planlama/kumas/hareketler?siparisNo=${encodeURIComponent(siparisNo)}&malzemeKod=${encodeURIComponent(malzemeKod)}`,
+    ),
+  planlamaIplik: () => api.get<KumasPlanlamaSatir[]>('/tedarik/planlama/iplik'),
+  planlamaIplikHareketler: (siparisNo: string, malzemeKod: string) =>
+    api.get<KumasHareketSatiri[]>(
+      `/tedarik/planlama/iplik/hareketler?siparisNo=${encodeURIComponent(siparisNo)}&malzemeKod=${encodeURIComponent(malzemeKod)}`,
     ),
 }

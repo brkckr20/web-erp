@@ -169,11 +169,12 @@ export class TedarikService {
         NULL                  AS renkAd,
         d.recete_kalem_id     AS receteKalemId,
         d.siparis_kalem_id    AS siparisKalemId,
-        N'ADET'               AS birim,
-        CAST(CEILING(d.brut) AS FLOAT) AS brutMiktar,
-        CAST(CEILING(d.brut) AS FLOAT) AS netMiktar,
-        CAST(CEILING(SUM(d.brut) OVER (PARTITION BY d.malzeme_id)) AS FLOAT) AS kumasNetToplam
+        N'KG'                AS birim,
+        CAST(d.brut AS FLOAT) AS brutMiktar,
+        CAST(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0) AS FLOAT) AS netMiktar,
+        CAST(SUM(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) OVER (PARTITION BY d.malzeme_id) AS FLOAT) AS kumasNetToplam
       FROM detay d
+      JOIN siparis s ON s.id = ${siparisId}
       ORDER BY d.malzeme_kod
     `
 
@@ -244,6 +245,112 @@ export class TedarikService {
     }))
   }
 
+  async planlamaIplik() {
+    const rows = await this.prisma.$queryRaw<
+      {
+        siparisNo: string
+        modelKod: string | null
+        modelAd: string | null
+        siparisMiktar: unknown
+        musteriAd: string | null
+        malzemeKod: string
+        malzemeAd: string
+        islem: string | null
+        varyant1: string
+        varyant1Aciklama: string
+        gerekenMiktar: unknown
+        birim: string
+      }[]
+    >`
+      SELECT
+        s.siparis_no        AS siparisNo,
+        mm.kod              AS modelKod,
+        mm.ad               AS modelAd,
+        sk.miktar           AS siparisMiktar,
+        ch.ad               AS musteriAd,
+        ti.malzeme_kod      AS malzemeKod,
+        ti.malzeme_ad       AS malzemeAd,
+        rk.islem            AS islem,
+        ti.renk_kod         AS varyant1,
+        ti.renk_ad          AS varyant1Aciklama,
+        SUM(ti.net_miktar)  AS gerekenMiktar,
+        MIN(ti.birim)       AS birim
+      FROM tedarik_ihtiyac ti
+      JOIN siparis s          ON s.id = ti.siparis_id
+      LEFT JOIN cari_hesap ch ON ch.id = s.cari_hesap_id
+      JOIN siparis_kalem sk   ON sk.id = ti.siparis_kalem_id
+      LEFT JOIN malzeme mm    ON mm.id = sk.malzeme_id
+      LEFT JOIN recete_kalem rk ON rk.id = ti.recete_kalem_id
+      WHERE ti.tip = N'iplik'
+      GROUP BY
+        s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad,
+        ti.malzeme_kod, ti.malzeme_ad, rk.islem,
+        ti.renk_kod, ti.renk_ad
+      ORDER BY s.siparis_no, mm.kod, ti.malzeme_kod, ti.renk_kod
+    `
+
+    return rows.map((r) => ({
+      siparisNo: r.siparisNo,
+      modelKod: r.modelKod,
+      modelAd: r.modelAd,
+      siparisMiktar: Number(r.siparisMiktar) || 0,
+      musteriAd: r.musteriAd,
+      malzemeKod: r.malzemeKod,
+      malzemeAd: r.malzemeAd,
+      islem: r.islem,
+      varyant1: r.varyant1,
+      varyant1Aciklama: r.varyant1Aciklama,
+      gerekenMiktar: Number(r.gerekenMiktar) || 0,
+      birim: r.birim,
+    }))
+  }
+
+  async planlamaIplikHareketler(siparisNo: string, malzemeKod: string) {
+    const rows = await this.prisma.$queryRaw<
+      {
+        irsaliyeId: number
+        fisNo: string
+        fisTipi: string
+        fisTarihi: Date
+        miktar: unknown
+        birim: string | null
+        depoAd: string | null
+        cariAd: string | null
+        aciklama: string | null
+      }[]
+    >`
+      SELECT
+        i.id                AS irsaliyeId,
+        i.irsaliye_no       AS fisNo,
+        i.irsaliye_tipi     AS fisTipi,
+        i.irsaliye_tarihi   AS fisTarihi,
+        ik.miktar           AS miktar,
+        ik.olcu_birimi      AS birim,
+        d.ad                AS depoAd,
+        ch.ad               AS cariAd,
+        ik.aciklama         AS aciklama
+      FROM irsaliye_kalem ik
+      JOIN irsaliye i          ON i.id = ik.irsaliye_id
+      LEFT JOIN malzeme m      ON m.id = ik.malzeme_id
+      LEFT JOIN depo d         ON d.id = i.depo_id
+      LEFT JOIN cari_hesap ch  ON ch.id = i.cari_hesap_id
+      WHERE m.kod = ${malzemeKod}
+      ORDER BY i.irsaliye_tarihi DESC, i.irsaliye_no DESC
+    `
+
+    return rows.map((r) => ({
+      irsaliyeId: r.irsaliyeId,
+      fisNo: r.fisNo,
+      fisTipi: r.fisTipi,
+      fisTarihi: r.fisTarihi,
+      miktar: Number(r.miktar) || 0,
+      birim: r.birim,
+      depoAd: r.depoAd,
+      cariAd: r.cariAd,
+      aciklama: r.aciklama,
+    }))
+  }
+
   async planlamaKumasHareketler(siparisNo: string, malzemeKod: string) {
     const rows = await this.prisma.$queryRaw<
       {
@@ -258,40 +365,21 @@ export class TedarikService {
       }[]
     >`
       SELECT
-        f.fis_no                               AS fisNo,
-        f.fis_tipi                             AS fisTipi,
-        f.fis_tarihi                           AS fisTarihi,
-        k.miktar                               AS miktar,
-        k.olcu_birimi                          AS birim,
-        d.ad                                   AS depoAd,
-        ch.ad                                  AS cariAd,
-        COALESCE(k.satir_aciklama, k.aciklama) AS aciklama
-      FROM stok_hareket_fisi_kalem k
-      JOIN stok_hareket_fisi f ON f.id = k.fis_id
-      LEFT JOIN malzeme m      ON m.id = k.malzeme_id
-      LEFT JOIN depo d         ON d.id = f.depo_id
-      LEFT JOIN cari_hesap ch  ON ch.id = f.cari_hesap_id
-      WHERE m.kod = ${malzemeKod}
-
-      UNION ALL
-
-      SELECT
-        i.irsaliye_no     AS fisNo,
-        i.irsaliye_tipi   AS fisTipi,
-        i.irsaliye_tarihi AS fisTarihi,
-        ik.miktar         AS miktar,
-        ik.olcu_birimi    AS birim,
-        d.ad              AS depoAd,
-        ch.ad             AS cariAd,
-        ik.aciklama       AS aciklama
+        i.irsaliye_no       AS fisNo,
+        i.irsaliye_tipi     AS fisTipi,
+        i.irsaliye_tarihi   AS fisTarihi,
+        ik.miktar           AS miktar,
+        ik.olcu_birimi      AS birim,
+        d.ad                AS depoAd,
+        ch.ad               AS cariAd,
+        ik.aciklama         AS aciklama
       FROM irsaliye_kalem ik
       JOIN irsaliye i          ON i.id = ik.irsaliye_id
-      LEFT JOIN malzeme m2     ON m2.id = ik.malzeme_id
+      LEFT JOIN malzeme m      ON m.id = ik.malzeme_id
       LEFT JOIN depo d         ON d.id = i.depo_id
       LEFT JOIN cari_hesap ch  ON ch.id = i.cari_hesap_id
-      WHERE m2.kod = ${malzemeKod}
-        AND ik.aciklama LIKE ${'%' + siparisNo + '%'}
-      ORDER BY fisTarihi DESC, fisNo DESC
+      WHERE m.kod = ${malzemeKod}
+      ORDER BY i.irsaliye_tarihi DESC, i.irsaliye_no DESC
     `
 
     return rows.map((r) => ({
