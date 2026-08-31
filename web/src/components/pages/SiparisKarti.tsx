@@ -17,6 +17,7 @@ import { modelKumasGrupApi, type ModelKumasGrup } from '@/lib/model-kumas-grup-a
 import { numaratorApi } from '@/lib/numarator-api'
 import { parametreApi } from '@/lib/parametre-api'
 import { siparisApi, type SiparisKalem, type SiparisRenk } from '@/lib/siparis-api'
+import { barkodApi } from '@/lib/barkod-api'
 import { useAuth } from '@/context/AuthContext'
 import type { ColDef, CellValueChangedEvent, RowClickedEvent, CellDoubleClickedEvent } from 'ag-grid-community'
 
@@ -809,16 +810,29 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         kalemler: buildKalemler(),
         aciklamalar: [{ tip: aciklamaTip, metin: aciklamaMetin || null }],
       }
+      let savedId: number | null = null
       if (aktifId) {
         await siparisApi.update(aktifId, { ...payload, guncelleyen: kayitYapan || null })
+        savedId = aktifId
         message.success('Sipariş güncellendi')
       } else {
         const created = await siparisApi.create({ ...payload, kayitYapan: kayitYapan || null })
+        savedId = created.id
         setKayitliId(created.id)
         if (created?.siparisNo && created.siparisNo !== payload.siparisNo) {
           setForm((prev) => ({ ...prev, siparisNo: created.siparisNo }))
         }
         message.success(`Sipariş kaydedildi (${created.siparisNo})`)
+      }
+      if (savedId) {
+        try {
+          const sonuc = await barkodApi.uret(savedId)
+          if (sonuc.toplam > 0) {
+            message.info(`${sonuc.toplam} barkod üretildi`)
+          }
+        } catch {
+          // barkod üretimi başarısız olsa bile sipariş kaydı tamamlandı
+        }
       }
       setIsDirty(false)
     } catch {

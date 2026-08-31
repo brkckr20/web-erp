@@ -57,6 +57,11 @@ import DovizKarti from '@/components/pages/DovizKarti'
 import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
 import TedarikEkrani from '@/components/pages/TedarikEkrani'
+import UretimHareketGirisi from '@/components/pages/UretimHareketGirisi'
+import IslemKartlari from '@/components/pages/IslemKartlari'
+import SiparisDurumu from '@/components/pages/SiparisDurumu'
+import KesimKarti from '@/components/pages/KesimKarti'
+import IadeTalepleri from '@/components/pages/IadeTalepleri'
 import KumasPlanlama from '@/components/pages/KumasPlanlama'
 import IplikPlanlama from '@/components/pages/IplikPlanlama'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
@@ -1008,6 +1013,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('siparis-karti-')) {
       return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} onTedarik={openTedarik} />
+    }
+    if (tab.key === 'uretim-hareket') {
+      return <UretimHareketGirisi />
+    }
+    if (tab.key === 'islem-kartlari') {
+      return <IslemKartlari />
+    }
+    if (tab.key === 'siparis-durum') {
+      return <SiparisDurumu />
+    }
+    if (tab.key === 'kesim-emri') {
+      return <KesimKarti />
+    }
+    if (tab.key === 'iade-talepleri') {
+      return <IadeTalepleri onIrsaliyeAc={openIrsaliyeKarti} />
     }
     if (tab.key === 'satis-irsaliyeleri') {
       return <IrsaliyeListesi onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />

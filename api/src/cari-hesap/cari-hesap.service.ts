@@ -7,20 +7,31 @@ import { UpdateCariHesapDto } from './dto/update-cari-hesap.dto'
 export class CariHesapService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(search?: string, page?: number, limit?: number) {
+  async findAll(search?: string, page?: number, limit?: number, prefix?: string) {
     const pageNum = Math.max(Number(page) || 1, 1)
     const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 50)
     const skip = (pageNum - 1) * limitNum
 
+    const prefixFilter = prefix
+      ? prefix.split(',').map((p) => ({ kod: { startsWith: p.trim() } }))
+      : undefined
+
     return this.prisma.cariHesap.findMany({
-      where: search
-        ? {
-            OR: [
-              { kod: { contains: search } },
-              { ad: { contains: search } },
-            ],
-          }
-        : undefined,
+      where: {
+        ...(prefixFilter ? { OR: prefixFilter } : {}),
+        ...(search
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { kod: { contains: search } },
+                    { ad: { contains: search } },
+                  ],
+                },
+              ],
+            }
+          : {}),
+      },
       skip,
       take: limitNum,
       orderBy: { kod: 'asc' }

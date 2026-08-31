@@ -36,9 +36,11 @@ import { TedarikModule } from './tedarik/tedarik.module';
 import { ParametreModule } from './parametre/parametre.module';
 import { RenkTransferModule } from './renk-transfer/renk-transfer.module';
 import { CariTransferModule } from './cari-transfer/cari-transfer.module';
+import { IadeTalepModule } from './iade-talep/iade-talep.module';
+import { BarkodModule } from './barkod/barkod.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, FormSabloniModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule],
+  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, RaporModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, FormSabloniModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule],
   controllers: [AppController],
   providers: [AppService],
 })

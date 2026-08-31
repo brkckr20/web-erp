@@ -11,9 +11,10 @@ export class CariHesapController {
   findAll(
     @Query('search') search?: string,
     @Query('page') page?: number,
-    @Query('limit') limit?: number
+    @Query('limit') limit?: number,
+    @Query('prefix') prefix?: string
   ) {
-    return this.cariHesapService.findAll(search, page, limit)
+    return this.cariHesapService.findAll(search, page, limit, prefix)
   }
 
   @Get('by-kod/:kod')

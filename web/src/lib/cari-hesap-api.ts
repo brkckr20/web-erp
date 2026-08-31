@@ -40,11 +40,12 @@ export interface CariHesap {
 export type CariHesapFormData = Omit<CariHesap, 'id'>
 
 export const cariHesapApi = {
-  list: (search?: string, page?: number, limit?: number) => {
+  list: (search?: string, page?: number, limit?: number, prefix?: string) => {
     const params: string[] = []
     if (search) params.push(`search=${search}`)
     if (page) params.push(`page=${page}`)
     if (limit) params.push(`limit=${limit}`)
+    if (prefix) params.push(`prefix=${prefix}`)
     const paramStr = params.join('&')
     return api.get<CariHesap[]>(`/cari-hesap${paramStr ? `?${paramStr}` : ''}`)
   },

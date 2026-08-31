@@ -426,6 +426,44 @@ model IrsaliyeKalem {
   @@map("irsaliye_kalem")
 }
 
+model IadeTalep {
+  id                Int      @id @default(autoincrement())
+  siparisNo         String   @map("siparis_no") @db.NVarChar(50)
+  modelKod          String   @map("model_kod") @db.NVarChar(50)
+  modelAd           String?  @map("model_ad") @db.NVarChar(200)
+  renkAd            String   @map("renk_ad") @db.NVarChar(100)
+  beden             String   @db.NVarChar(20)
+  kumasAd           String?  @map("kumas_ad") @db.NVarChar(200)
+  kumasRenk         String?  @map("kumas_renk") @db.NVarChar(100)
+  kalanMT           Float    @map("kalan_mt")
+  durum             String   @default("BEKLEMEDE") @db.NVarChar(20)
+  olusturanKullanici Int?    @map("olusturan_kullanici")
+  olusturmaTarihi   DateTime @default(now()) @map("olusturma_tarihi")
+  islenmeTarihi     DateTime? @map("islenme_tarihi")
+  irsaliyeId        Int?     @map("irsaliye_id")
+  aciklama          String?  @db.NVarChar(500)
+
+  @@map("iade_talep")
+}
+
+model BarkodEslesme {
+  id              Int      @id @default(autoincrement())
+  barkodKodu      String   @unique @map("barkod_kodu") @db.NVarChar(10)
+  siparisNo       String   @map("siparis_no") @db.NVarChar(50)
+  modelKod        String   @map("model_kod") @db.NVarChar(25)
+  renkKod         String   @map("renk_kod") @db.NVarChar(25)
+  beden           String   @db.NVarChar(20)
+  kumasKod        String   @map("kumas_kod") @db.NVarChar(25)
+  kumasRenkKod    String   @map("kumas_renk_kod") @db.NVarChar(25)
+  modelAd         String?  @map("model_ad") @db.NVarChar(200)
+  renkAd          String?  @map("renk_ad") @db.NVarChar(100)
+  kumasAd         String?  @map("kumas_ad") @db.NVarChar(200)
+  kumasRenkAd     String?  @map("kumas_renk_ad") @db.NVarChar(100)
+  olusturmaTarihi DateTime @default(now()) @map("olusturma_tarihi")
+
+  @@map("barkod_eslesme")
+}
+
 model KaliteKontrol {
   id                Int      @id @default(autoincrement())
   fisNo             String   @map("fis_no") @db.VarChar(50)

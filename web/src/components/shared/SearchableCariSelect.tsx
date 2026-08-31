@@ -14,7 +14,7 @@ interface SearchableCariSelectProps {
 
 export default function SearchableCariSelect(props: SearchableCariSelectProps) {
   const fetchPage = useCallback(async (search?: string) => {
-    const data = await cariHesapApi.list(search)
+    const data = await cariHesapApi.list(search, undefined, undefined, '120,320')
     return data.map((d) => ({ id: d.id, kod: d.kod, ad: d.ad } as CariHesap))
   }, [])
 
