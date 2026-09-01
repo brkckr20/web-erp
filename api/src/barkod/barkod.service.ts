@@ -94,7 +94,7 @@ export class BarkodService {
   }
 
   async createBatch(dtos: CreateBarkodDto[]) {
-    const results = []
+    const results: any[] = []
     for (const dto of dtos) {
       const result = await this.create(dto)
       results.push(result)

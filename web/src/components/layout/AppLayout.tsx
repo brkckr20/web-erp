@@ -74,6 +74,7 @@ import FormTasarimi from '@/components/pages/FormTasarimi'
 import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
 import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
 import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
+import HtmlSablonEditor from '@/components/pages/HtmlSablonEditor'
 
 const { Content } = Layout
 
@@ -787,6 +788,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'form-tasarim-editor') {
       return <FormTasarimi baslangicForm={formEditorForm ?? undefined} />
+    }
+    if (tab.key === 'html-sablon-editor') {
+      return <HtmlSablonEditor />
     }
     if (tab.key === 'stok-hareket-fisleri') {
       return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />

@@ -14,6 +14,8 @@ import { formSabloniApi } from '@/lib/form-sabloni-api'
 import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
 import { previewPdf, generatePdf } from '@/lib/reports/pdf-common'
 import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
+import { htmlRaporApi, type HtmlRaporTemplate } from '@/lib/html-rapor-api'
+import { htmlToPdf, htmlToPdfPreview } from '@/lib/html-rapor-utils'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
@@ -267,6 +269,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
   const [raporModalAcik, setRaporModalAcik] = useState(false)
   const [sablonSecenekleri, setSablonSecenekleri] = useState<{ id: number; ad: string }[]>([])
+  const [htmlSablonlari, setHtmlSablonlari] = useState<HtmlRaporTemplate[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -403,18 +406,57 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       return
     }
     try {
-      const list = await formSabloniApi.listByEkranTuru(raporEkranTuru)
-      if (list.length === 0) {
+      const [eskiList, htmlList] = await Promise.all([
+        formSabloniApi.listByEkranTuru(raporEkranTuru).catch(() => []),
+        htmlRaporApi.list(raporEkranTuru).catch(() => []),
+      ])
+      setSablonSecenekleri(eskiList.map((f) => ({ id: f.id, ad: f.ad })))
+      setHtmlSablonlari(htmlList)
+      if (eskiList.length === 0 && htmlList.length === 0) {
         modal.info({
           title: 'Form tasarımı yok',
-          content: `Bu ekran için form tasarımı bulunamadı. Form Tasarımı ekranından "${raporEkranTuru}" için bir form hazırlayıp kaydedin.`,
+          content: `Bu ekran için form tasarımı bulunamadı.`,
         })
         return
       }
-      setSablonSecenekleri(list.map((f) => ({ id: f.id, ad: f.ad })))
       setRaporModalAcik(true)
     } catch {
       message.error('Form şablonları yüklenemedi')
+    }
+  }
+
+  const handleHtmlOnizle = async (templateId: string) => {
+    if (!id) return
+    try {
+      const tmpl = await htmlRaporApi.getById(templateId)
+      const data = await htmlRaporApi.getData(templateId, id)
+      const header = data[0] ?? {}
+      const kalemler = data.slice(1)
+      await htmlToPdfPreview(tmpl.html, header, kalemler, {
+        boyut: (tmpl.sayfaBoyut as 'A5' | 'A4') ?? 'A5',
+        yon: (tmpl.sayfaYon as 'yatay' | 'dikey') ?? 'yatay',
+        logo: tmpl.logoBase64 || '',
+      })
+    } catch (e) {
+      message.error('HTML rapor hazırlanamadı: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
+    }
+  }
+
+  const handleHtmlIndir = async (templateId: string) => {
+    if (!id) return
+    try {
+      const tmpl = await htmlRaporApi.getById(templateId)
+      const data = await htmlRaporApi.getData(templateId, id)
+      const header = data[0] ?? {}
+      const kalemler = data.slice(1)
+      await htmlToPdf(tmpl.html, header, kalemler, {
+        fileName: `rapor-${irsaliyeNo || 'yeni'}.pdf`,
+        boyut: (tmpl.sayfaBoyut as 'A5' | 'A4') ?? 'A5',
+        yon: (tmpl.sayfaYon as 'yatay' | 'dikey') ?? 'yatay',
+        logo: tmpl.logoBase64 || '',
+      })
+    } catch (e) {
+      message.error('HTML rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
     }
   }
 
@@ -1088,14 +1130,27 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
         <RaporSecimModal
           open={raporModalAcik}
           baslik={irsaliyeTipiLabel}
-          tasarimlar={sablonSecenekleri.map((s) => ({
-            id: String(s.id),
-            label: s.ad,
-            aciklama: 'Form tasarım editöründe hazırlandı',
-          }))}
+          tasarimlar={[
+            ...htmlSablonlari.map((h) => ({
+              id: `html:${h.id}`,
+              label: `${h.ad} (HTML)`,
+              aciklama: h.aciklama || 'HTML tabanlı rapor',
+            })),
+            ...sablonSecenekleri.map((s) => ({
+              id: String(s.id),
+              label: s.ad,
+              aciklama: 'Form tasarım editöründe hazırlandı',
+            })),
+          ]}
           onCancel={() => setRaporModalAcik(false)}
-          onOnizle={(tid) => handleSabloniOnizle(Number(tid))}
-          onIndir={(tid) => handleSabloniIndir(Number(tid))}
+          onOnizle={(tid) => {
+            if (tid.startsWith('html:')) handleHtmlOnizle(tid.slice(5))
+            else handleSabloniOnizle(Number(tid))
+          }}
+          onIndir={(tid) => {
+            if (tid.startsWith('html:')) handleHtmlIndir(tid.slice(5))
+            else handleSabloniIndir(Number(tid))
+          }}
         />
         <div className="!flex-1 !min-h-0 !flex !flex-col">
           <div className="!flex-shrink-0 !space-y-1.5">

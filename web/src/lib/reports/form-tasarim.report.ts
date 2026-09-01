@@ -69,6 +69,16 @@ function elemanPdf(h: BandHucre, x: number, y: number, veri?: VeriMap): Content 
       return { text: `[Barkod Hata: ${deger}]`, fontSize: 8, color: 'red', absolutePosition: { x, y } }
     }
   }
+  if (h.bilesen === 'resim') {
+    const deger = h.deger || ''
+    if (!deger) return { text: '', absolutePosition: { x, y } }
+    return {
+      image: deger,
+      width: h.genislik * MM,
+      height: h.yukseklik * MM,
+      absolutePosition: { x, y },
+    }
+  }
   const s = h.stil ?? {}
   return {
     text: hucreMetin(h, veri) || ' ',
@@ -88,7 +98,7 @@ function kalemTabloPdf(
 ): { content: Content; yukseklik: number } {
   const kolonlar = band.tabloKolonlari ?? []
   const widths: (string | number)[] = kolonlar.map((k) => (k.genislik && k.genislik > 0 ? k.genislik : '*'))
-  const baslikArkaPlan = band.baslikArkaPlan === 'yok' ? undefined : '#f3f4f6'
+  const baslikArkaPlan = band.baslikArkaPlan === 'yok' ? undefined : (band.baslikArkaPlan || '#f3f4f6')
   const basliklar = kolonlar.map((k) => ({
     text: k.baslik || (k.alan ? alanEtiket(k.alan) : ''),
     bold: true,

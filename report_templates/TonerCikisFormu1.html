@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #000; background: #fff; }
+  .page { width: 210mm; height: 148mm; padding: 20px; position: relative; }
+
+  /* Header */
+  .header { display: flex; align-items: flex-start; justify-content: space-between; height: 38mm; border-bottom: 1px solid #ccc; padding-bottom: 4mm; }
+  .header-left { display: flex; align-items: center; gap: 6mm; }
+  .logo img { height: 22mm; width: auto; }
+  .title { font-size: 20px; font-weight: bold; white-space: nowrap; text-align: center; }
+
+  .info-box { border: 1px solid #000; font-size: 9px; }
+  .info-box table { border-collapse: collapse; }
+  .info-box td { padding: 1.5mm 3mm; border: 1px solid #000; }
+  .info-box .label { font-weight: bold; background: #e0e0e0; width: 22mm; }
+
+  /* Sayın */
+  .sayin-section { margin-top: 3mm; }
+  .sayin-badge { display: inline-block; background: #c47a32; color: #fff; font-weight: bold; font-size: 10px; padding: 1mm 3mm; margin-bottom: 1mm; }
+  .sayin-content { font-size: 10px; line-height: 1.6; }
+
+  /* Tablo */
+  .table-section { margin-top: 3mm; }
+  .table-section table { width: 100%; border-collapse: collapse; font-size: 9px; }
+  .table-section th { background: #c47a32; color: #fff; font-weight: bold; text-align: left; padding: 2mm 2mm; border: 0.5px solid #b06a28; }
+  .table-section td { padding: 2mm; border-bottom: 0.5px solid #ddd; }
+  .table-section td.right { text-align: right; }
+  .table-section tr:last-child td { border-bottom: 1px solid #999; }
+
+  /* Genel Açıklamalar */
+  .aciklama-section { margin-top: 4mm; }
+  .aciklama-badge { display: inline-block; background: #c47a32; color: #fff; font-weight: bold; font-size: 10px; padding: 1mm 3mm; margin-bottom: 1mm; }
+  .aciklama-content { border: 1px solid #999; padding: 2mm; min-height: 18mm; font-size: 9px; }
+
+  /* Footer */
+  .footer { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8px; border-top: 1px solid #999; padding-top: 1mm; }
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">
+        <img src="{{logo}}" alt="Nakosan">
+      </div>
+      <div class="title">Toner Çıkış Formu</div>
+    </div>
+    <div class="info-box">
+      <table>
+        <tr><td class="label">Tarih:</td><td>{{irsaliyeTarihi}}</td></tr>
+        <tr><td class="label">İrs. No:</td><td>{{irsaliyeNo}}</td></tr>
+        <tr><td class="label">Fiş No :</td><td>{{fisNo}}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sayın -->
+  <div class="sayin-section">
+    <div class="sayin-badge">Sayın</div>
+    <div class="sayin-content">
+      {{cariUnvan}}<br>
+      {{cariAd}}
+    </div>
+  </div>
+
+  <!-- Ürünler Tablosu -->
+  <div class="table-section">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:22%">Malzeme Kodu</th>
+          <th style="width:42%">Malzeme Adı</th>
+          <th style="width:12%; text-align:right">Miktar</th>
+          <th style="width:24%">Açıklama</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{kalemler}}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Genel Açıklamalar -->
+  <div class="aciklama-section">
+    <div class="aciklama-badge">Genel Açıklamalar</div>
+    <div class="aciklama-content">{{aciklama}}</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>NAKOSAN NAKIŞ KONFEKSİYON TEKSTİL SAN. VE TİC. A.S</span>
+    <span>{{bugun}}</span>
+  </div>
+</div>
+</body>
+</html>
