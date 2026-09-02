@@ -9,13 +9,6 @@ import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
 import { PlusOutlined, DeleteOutlined, SettingOutlined, SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
-import RaporSecimModal from '@/components/shared/RaporSecimModal'
-import { formSabloniApi } from '@/lib/form-sabloni-api'
-import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
-import { previewPdf, generatePdf } from '@/lib/reports/pdf-common'
-import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
-import { htmlRaporApi, type HtmlRaporTemplate } from '@/lib/html-rapor-api'
-import { htmlToPdf, htmlToPdfPreview } from '@/lib/html-rapor-utils'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
@@ -267,9 +260,6 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
   )
   const [loading, setLoading] = useState<boolean>(() => Boolean(id))
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
-  const [raporModalAcik, setRaporModalAcik] = useState(false)
-  const [sablonSecenekleri, setSablonSecenekleri] = useState<{ id: number; ad: string }[]>([])
-  const [htmlSablonlari, setHtmlSablonlari] = useState<HtmlRaporTemplate[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -367,123 +357,6 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       return [...prev, emptyKalem()]
     })
     setTimeout(() => focusCellEditor('malzemeKod', newIndex), 50)
-  }
-
-  const raporEkranTuru = useMemo(() => {
-    if (irsaliyeTipi === '201') return 'Satın Alma Siparişleri'
-    const satisTipleri = ['2', '3', '4', '8', '12', '23', '120', '121', '123', '125', '126', '134', '138', '192']
-    return satisTipleri.includes(irsaliyeTipi) ? 'Satış İrsaliyeleri' : 'Satın Alma İrsaliyeleri'
-  }, [irsaliyeTipi])
-
-  const raporVerisiTopla = async (sablonId: number, irsaliyeId: number) => {
-    const d = await formSabloniApi.getById(sablonId)
-    const draft: FormTasarimDraft = {
-      id: String(d.id),
-      ad: d.ad,
-      ekranTuru: d.ekranTuru,
-      sorgular: (d.sorgular as FormTasarimDraft['sorgular']) ?? [],
-      layout: (d.layout as FormTasarimDraft['layout']) ?? [],
-      sayfa: (d.sayfa as FormTasarimDraft['sayfa']) ?? { boyut: 'A4', yon: 'dikey', kenarUst: 8, kenarAlt: 8, kenarSol: 10, kenarSag: 10 },
-      sablonId: d.id,
-      kod: d.kod,
-    }
-    const veri: Record<number, Record<string, unknown>[]> = {}
-    for (const s of draft.sorgular) {
-      if (!s.sorguMetni?.trim()) continue
-      try {
-        const sonuc = await formSabloniApi.sorguTest({ sorguMetni: s.sorguMetni, parametreler: { id: irsaliyeId } })
-        veri[s.sirano] = sonuc.satirlar
-      } catch {
-        veri[s.sirano] = []
-      }
-    }
-    return { draft, veri }
-  }
-
-  const handleRapor = async () => {
-    if (!id) {
-      modal.warning({ title: 'Yazdırma', content: 'İrsaliyeyi yazdırmak için önce kaydetmelisiniz.' })
-      return
-    }
-    try {
-      const [eskiList, htmlList] = await Promise.all([
-        formSabloniApi.listByEkranTuru(raporEkranTuru).catch(() => []),
-        htmlRaporApi.list(raporEkranTuru).catch(() => []),
-      ])
-      setSablonSecenekleri(eskiList.map((f) => ({ id: f.id, ad: f.ad })))
-      setHtmlSablonlari(htmlList)
-      if (eskiList.length === 0 && htmlList.length === 0) {
-        modal.info({
-          title: 'Form tasarımı yok',
-          content: `Bu ekran için form tasarımı bulunamadı.`,
-        })
-        return
-      }
-      setRaporModalAcik(true)
-    } catch {
-      message.error('Form şablonları yüklenemedi')
-    }
-  }
-
-  const handleHtmlOnizle = async (templateId: string) => {
-    if (!id) return
-    try {
-      const tmpl = await htmlRaporApi.getById(templateId)
-      const data = await htmlRaporApi.getData(templateId, id)
-      const header = data[0] ?? {}
-      const kalemler = data.slice(1)
-      await htmlToPdfPreview(tmpl.html, header, kalemler, {
-        boyut: (tmpl.sayfaBoyut as 'A5' | 'A4') ?? 'A5',
-        yon: (tmpl.sayfaYon as 'yatay' | 'dikey') ?? 'yatay',
-        logo: tmpl.logoBase64 || '',
-      })
-    } catch (e) {
-      message.error('HTML rapor hazırlanamadı: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
-    }
-  }
-
-  const handleHtmlIndir = async (templateId: string) => {
-    if (!id) return
-    try {
-      const tmpl = await htmlRaporApi.getById(templateId)
-      const data = await htmlRaporApi.getData(templateId, id)
-      const header = data[0] ?? {}
-      const kalemler = data.slice(1)
-      await htmlToPdf(tmpl.html, header, kalemler, {
-        fileName: `rapor-${irsaliyeNo || 'yeni'}.pdf`,
-        boyut: (tmpl.sayfaBoyut as 'A5' | 'A4') ?? 'A5',
-        yon: (tmpl.sayfaYon as 'yatay' | 'dikey') ?? 'yatay',
-        logo: tmpl.logoBase64 || '',
-      })
-    } catch (e) {
-      message.error('HTML rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
-    }
-  }
-
-  const handleSabloniOnizle = async (sablonId: number) => {
-    if (!id) {
-      modal.warning({ title: 'Yazdırma', content: 'İrsaliyeyi yazdırmak için önce kaydetmelisiniz.' })
-      return
-    }
-    try {
-      const { draft, veri } = await raporVerisiTopla(sablonId, id)
-      await previewPdf(formTasarimDoc(draft, veri))
-    } catch (e) {
-      message.error('Rapor hazırlanamadı: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
-    }
-  }
-
-  const handleSabloniIndir = async (sablonId: number) => {
-    if (!id) {
-      modal.warning({ title: 'Yazdırma', content: 'İrsaliyeyi yazdırmak için önce kaydetmelisiniz.' })
-      return
-    }
-    try {
-      const { draft, veri } = await raporVerisiTopla(sablonId, id)
-      await generatePdf(formTasarimDoc(draft, veri), `irsaliye-${irsaliyeNo || 'yeni'}.pdf`)
-    } catch (e) {
-      message.error('Rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
-    }
   }
 
   const handleKaydet = async () => {
@@ -1121,37 +994,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
             buttons={createToolbarButtons({
               onSave: handleKaydet,
               onDelete: handleSil,
-              onReport: handleRapor,
             }, {
               delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
             })}
           />
         </div>
-        <RaporSecimModal
-          open={raporModalAcik}
-          baslik={irsaliyeTipiLabel}
-          tasarimlar={[
-            ...htmlSablonlari.map((h) => ({
-              id: `html:${h.id}`,
-              label: `${h.ad} (HTML)`,
-              aciklama: h.aciklama || 'HTML tabanlı rapor',
-            })),
-            ...sablonSecenekleri.map((s) => ({
-              id: String(s.id),
-              label: s.ad,
-              aciklama: 'Form tasarım editöründe hazırlandı',
-            })),
-          ]}
-          onCancel={() => setRaporModalAcik(false)}
-          onOnizle={(tid) => {
-            if (tid.startsWith('html:')) handleHtmlOnizle(tid.slice(5))
-            else handleSabloniOnizle(Number(tid))
-          }}
-          onIndir={(tid) => {
-            if (tid.startsWith('html:')) handleHtmlIndir(tid.slice(5))
-            else handleSabloniIndir(Number(tid))
-          }}
-        />
         <div className="!flex-1 !min-h-0 !flex !flex-col">
           <div className="!flex-shrink-0 !space-y-1.5">
             <div className="!flex !gap-2">

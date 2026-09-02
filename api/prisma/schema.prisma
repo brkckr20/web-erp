@@ -1047,3 +1047,15 @@ model DovizKuru {
   @@unique([tarih, dovizKodu])
   @@map("doviz_kuru")
 }
+
+model Logo {
+  id        Int      @id @default(autoincrement())
+  ad        String   @db.VarChar(100)
+  dosyaYolu String   @map("dosya_yolu") @db.VarChar(500)
+  mimetype  String   @db.VarChar(100)
+  boyut     Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([ad])
+  @@map("logo")
+}

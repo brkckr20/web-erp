@@ -235,8 +235,6 @@ export const modules: Module[] = [
         title: 'Sistem',
         items: [
           { key: 'kullanici-tanimlari', label: 'Kullanıcı Tanımları', isForm: true },
-          { key: 'form-tasarimi', label: 'Form Tasarımı', isForm: true },
-          { key: 'html-sablon-editor', label: 'HTML Şablon Editörü', isForm: true },
           { key: 'genel-ayarlar', label: 'Genel Ayarlar', isForm: true },
           { key: 'veritabani-yedek', label: 'Veritabanı Yedek' },
         ],

@@ -69,12 +69,8 @@ import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
 import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
-import FormListesi from '@/components/pages/FormListesi'
-import FormTasarimi from '@/components/pages/FormTasarimi'
 import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
 import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
-import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
-import HtmlSablonEditor from '@/components/pages/HtmlSablonEditor'
 
 const { Content } = Layout
 
@@ -83,22 +79,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
-  const [formEditorForm, setFormEditorForm] = useState<FormTasarimDraft | null>(null)
   const [yeniSiparisKey, setYeniSiparisKey] = useState(0)
   const [satinalmaBaslangicKalemler, setSatinalmaBaslangicKalemler] = useState<IrsaliyeBaslangicKalem[]>([])
   const [satinalmaSiparisKey, setSatinalmaSiparisKey] = useState(0)
-
-  const openFormEditor = useCallback((form: FormTasarimDraft | null) => {
-    setFormEditorForm(form)
-    const key = 'form-tasarim-editor'
-    setTabs((prev) => {
-      const tab: Tab = { key, label: 'Form Tasarım Editörü', moduleKey: 'ayarlar', isForm: true }
-      const exists = prev.find((t) => t.key === key)
-      if (!exists) return [...prev, tab]
-      return prev
-    })
-    setActiveTab(key)
-  }, [])
 
   const handleModuleSelect = (mod: Module) => {
     setSelectedModule((prev) => (prev?.key === mod.key ? null : mod))
@@ -782,15 +765,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'cari-hesap-transferi') {
       return <CariHesapKartiTransferi />
-    }
-    if (tab.key === 'form-tasarimi') {
-      return <FormListesi onSelect={(f) => openFormEditor(f)} onNew={() => openFormEditor(null)} />
-    }
-    if (tab.key === 'form-tasarim-editor') {
-      return <FormTasarimi baslangicForm={formEditorForm ?? undefined} />
-    }
-    if (tab.key === 'html-sablon-editor') {
-      return <HtmlSablonEditor />
     }
     if (tab.key === 'stok-hareket-fisleri') {
       return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />

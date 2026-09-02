@@ -12,7 +12,6 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
-import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import StokSecimiModal from '@/components/shared/StokSecimiModal'
 import KKSecimModal from '@/components/shared/KKSecimModal'
 import type { KKSelectRow } from '@/components/shared/KKSecimModal'
@@ -21,10 +20,6 @@ import { malzemeYonetimFisleriApi } from '@/lib/malzeme-yonetim-fisleri-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
 import { depoApi } from '@/lib/depo-api'
-import { formSabloniApi } from '@/lib/form-sabloni-api'
-import { formTasarimDoc } from '@/lib/reports/form-tasarim.report'
-import { generatePdf, previewPdf } from '@/lib/reports/pdf-common'
-import type { FormTasarimDraft } from '@/components/pages/form-tasarimi/types'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { useAuth } from '@/context/AuthContext'
@@ -222,8 +217,6 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [raporModalAcik, setRaporModalAcik] = useState(false)
-  const [sablonSecenekleri, setSablonSecenekleri] = useState<{ id: number; ad: string }[]>([])
   const [stokSecimiModalAcik, setStokSecimiModalAcik] = useState(false)
   const [kkSecimModalAcik, setKkSecimModalAcik] = useState(false)
   const [kayitliId, setKayitliId] = useState<number | null>(id ?? null)
@@ -385,79 +378,6 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
       message.error('Hata: ' + (err?.message || err))
     } finally {
       setSaving(false)
-    }
-  }
-
-  const raporVerisiTopla = async (sablonId: number, fisId: number) => {
-    const d = await formSabloniApi.getById(sablonId)
-    const draft: FormTasarimDraft = {
-      id: String(d.id),
-      ad: d.ad,
-      ekranTuru: d.ekranTuru,
-      sorgular: (d.sorgular as FormTasarimDraft['sorgular']) ?? [],
-      layout: (d.layout as FormTasarimDraft['layout']) ?? [],
-      sayfa: (d.sayfa as FormTasarimDraft['sayfa']) ?? { boyut: 'A4', yon: 'dikey', kenarUst: 8, kenarAlt: 8, kenarSol: 10, kenarSag: 10 },
-      sablonId: d.id,
-      kod: d.kod,
-    }
-    const veri: Record<number, Record<string, unknown>[]> = {}
-    for (const s of draft.sorgular) {
-      if (!s.sorguMetni?.trim()) continue
-      try {
-        const sonuc = await formSabloniApi.sorguTest({ sorguMetni: s.sorguMetni, parametreler: { id: fisId } })
-        veri[s.sirano] = sonuc.satirlar
-      } catch {
-        veri[s.sirano] = []
-      }
-    }
-    return { draft, veri }
-  }
-
-  const handleRapor = async () => {
-    if (!id) {
-      modal.warning({ title: 'Yazdırma', content: 'Fişi yazdırmak için önce kaydetmelisiniz.' })
-      return
-    }
-    try {
-      const list = await formSabloniApi.listByEkranTuru('Malzeme Yönetim Fişleri')
-      if (list.length === 0) {
-        modal.info({
-          title: 'Form tasarımı yok',
-          content:
-            'Bu ekran için form tasarımı bulunamadı. Form Tasarımı ekranından "Malzeme Yönetim Fişleri" için bir form hazırlayıp kaydedin.',
-        })
-        return
-      }
-      setSablonSecenekleri(list.map((f) => ({ id: f.id, ad: f.ad })))
-      setRaporModalAcik(true)
-    } catch {
-      message.error('Form şablonları yüklenemedi')
-    }
-  }
-
-  const handleSabloniOnizle = async (sablonId: number) => {
-    if (!id) {
-      modal.warning({ title: 'Yazdırma', content: 'Fişi yazdırmak için önce kaydetmelisiniz.' })
-      return
-    }
-    try {
-      const { draft, veri } = await raporVerisiTopla(sablonId, id)
-      await previewPdf(formTasarimDoc(draft, veri))
-    } catch (e) {
-      message.error('Rapor hazırlanamadı: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
-    }
-  }
-
-  const handleSabloniIndir = async (sablonId: number) => {
-    if (!id) {
-      modal.warning({ title: 'Yazdırma', content: 'Fişi yazdırmak için önce kaydetmelisiniz.' })
-      return
-    }
-    try {
-      const { draft, veri } = await raporVerisiTopla(sablonId, id)
-      await generatePdf(formTasarimDoc(draft, veri), `malzeme-yonetim-fisleri-${fisNo || 'yeni'}.pdf`)
-    } catch (e) {
-      message.error('Rapor indirilemedi: ' + (e instanceof Error ? e.message : 'bilinmeyen hata'))
     }
   }
 
@@ -922,22 +842,9 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
             buttons={createToolbarButtons({
               onSave: handleKaydet,
               onDelete: handleSil,
-              onReport: handleRapor,
             }, {
               delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
             })}
-          />
-          <RaporSecimModal
-            open={raporModalAcik}
-            baslik={fisTipiLabel}
-            tasarimlar={sablonSecenekleri.map((s) => ({
-              id: String(s.id),
-              label: s.ad,
-              aciklama: 'Form tasarım editöründe hazırlandı',
-            }))}
-            onCancel={() => setRaporModalAcik(false)}
-            onOnizle={(id) => handleSabloniOnizle(Number(id))}
-            onIndir={(id) => handleSabloniIndir(Number(id))}
           />
           <StokSecimiModal
             open={stokSecimiModalAcik}
