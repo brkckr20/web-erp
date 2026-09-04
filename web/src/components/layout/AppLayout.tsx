@@ -72,6 +72,8 @@ import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
 import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
 import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
 import LogoYonetimi from '@/components/pages/LogoYonetimi'
+import SablonListesi from '@/components/pages/SablonListesi'
+import SablonEditori from '@/components/pages/SablonEditori'
 
 const { Content } = Layout
 
@@ -769,6 +771,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'logo-yonetimi') {
       return <LogoYonetimi />
+    }
+    if (tab.key === 'rapor-tasarimi') {
+      return (
+        <SablonListesi
+          onYeni={() => {
+            setTabs((prev) => {
+              const t: Tab = { key: 'rapor-tasarimi-yeni', label: 'Yeni Rapor', moduleKey: 'ayarlar', isForm: true }
+              const exists = prev.find((x) => x.key === t.key)
+              if (!exists) return [...prev, t]
+              return prev
+            })
+            setActiveTab('rapor-tasarimi-yeni')
+          }}
+          onDuzenle={(id) => {
+            const key = 'rapor-tasarimi-' + id
+            setTabs((prev) => {
+              const t: Tab = { key, label: 'Rapor Düzenle - ' + id, moduleKey: 'ayarlar', isForm: true }
+              const exists = prev.find((x) => x.key === key)
+              if (!exists) return [...prev, t]
+              return prev
+            })
+            setActiveTab(key)
+          }}
+        />
+      )
+    }
+    if (tab.key === 'rapor-tasarimi-yeni') {
+      return (
+        <SablonEditori
+          geriDon={() => {
+            setTabs((prev) => prev.filter((t) => t.key !== 'rapor-tasarimi-yeni'))
+            setActiveTab('rapor-tasarimi')
+          }}
+        />
+      )
     }
     if (tab.key === 'stok-hareket-fisleri') {
       return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />

@@ -237,6 +237,7 @@ export const modules: Module[] = [
           { key: 'kullanici-tanimlari', label: 'Kullanıcı Tanımları', isForm: true },
           { key: 'genel-ayarlar', label: 'Genel Ayarlar', isForm: true },
           { key: 'logo-yonetimi', label: 'Logo Yönetimi' },
+          { key: 'rapor-tasarimi', label: 'Rapor Tasarımı' },
           { key: 'veritabani-yedek', label: 'Veritabanı Yedek' },
         ],
       },
