@@ -71,6 +71,7 @@ import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParame
 import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
 import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
 import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
+import LogoYonetimi from '@/components/pages/LogoYonetimi'
 
 const { Content } = Layout
 
@@ -765,6 +766,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'cari-hesap-transferi') {
       return <CariHesapKartiTransferi />
+    }
+    if (tab.key === 'logo-yonetimi') {
+      return <LogoYonetimi />
     }
     if (tab.key === 'stok-hareket-fisleri') {
       return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />
