@@ -91,7 +91,7 @@ export default function LogoYonetimi() {
         Logo Yönetimi
       </div>
       <Card size="small" className="!mb-3">
-        <Space direction="vertical" className="!w-full">
+        <Space orientation="vertical" className="!w-full">
           <Space>
             <input
               className="!border !rounded !px-2 !py-1 !text-xs"

@@ -16,7 +16,11 @@ export class LogoService {
   }
 
   async list() {
-    return this.prisma.logo.findMany({ orderBy: { ad: 'asc' } })
+    try {
+      return await this.prisma.logo.findMany({ orderBy: { ad: 'asc' } })
+    } catch {
+      return []
+    }
   }
 
   async getByAd(ad: string) {
