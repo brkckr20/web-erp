@@ -807,6 +807,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
       )
     }
+    if (tab.key.startsWith('rapor-tasarimi-') && tab.key !== 'rapor-tasarimi') {
+      const id = Number(tab.key.replace('rapor-tasarimi-', ''))
+      if (!isNaN(id)) {
+        return (
+          <SablonEditori
+            sablonId={id}
+            geriDon={() => {
+              setTabs((prev) => prev.filter((t) => t.key !== tab.key))
+              setActiveTab('rapor-tasarimi')
+            }}
+          />
+        )
+      }
+    }
     if (tab.key === 'stok-hareket-fisleri') {
       return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />
     }

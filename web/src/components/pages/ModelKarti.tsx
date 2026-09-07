@@ -7,6 +7,7 @@ import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-communi
 import type { ColDef, GridApi } from 'ag-grid-community'
 import { PlusOutlined, DeleteOutlined, UploadOutlined, DownloadOutlined, SettingOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableGrupSelect from '@/components/shared/SearchableGrupSelect'
@@ -158,6 +159,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   const [dovizList, setDovizList] = useState<{ value: string; label: string }[]>([])
   const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
 
   const handleDosyaSec = () => fileInputRef.current?.click()
 
@@ -639,6 +641,9 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+    onReport: () => setRaporModalAcik(true),
+  }, {
+    report: { disabled: !model?.kod },
   })
 
   const [kolonPopoverOpen, setKolonPopoverOpen] = useState(false)
@@ -1690,6 +1695,12 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           )}
         </div>
       </Modal>
+      <RaporSecimModal
+        open={raporModalAcik}
+        ekranAdi="model-kartlari"
+        parametreler={model?.id ? { id: model.id } : undefined}
+        onCancel={() => setRaporModalAcik(false)}
+      />
     </div>
   )
 }

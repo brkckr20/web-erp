@@ -12,11 +12,6 @@ export class MalzemeController {
     return this.malzemeService.findAll(tip ? Number(tip) : undefined)
   }
 
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.malzemeService.findOne(id)
-  }
-
   @Get('kod/:kod')
   findByKod(@Param('kod') kod: string) {
     return this.malzemeService.findByKod(kod)
@@ -25,6 +20,11 @@ export class MalzemeController {
   @Get('next-kod/:numaratorId')
   nextKod(@Param('numaratorId', ParseIntPipe) numaratorId: number) {
     return this.malzemeService.nextKod(numaratorId)
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.malzemeService.findOne(id)
   }
 
   @Post()

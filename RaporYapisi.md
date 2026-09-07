@@ -91,6 +91,34 @@ Kullanıcı şablon editöründe sorguları tanımlar:
 | Çok satır | `{{#each sorgu}}...{{/each}}` | Tablo satırları |
 | Boş sonuç | `{{sorgu.kolon}}` → boş string | `{{baslik.fis_no}}` → "" |
 
+### Parametre Geçirme Kuralları
+
+- **Tüm ekranlarda `id` parametresi kullanılır.** Frontend her zaman kaydın `id` değerini gönderir.
+- SQL sorgularında `@id` parametresi kullanılır.
+- Backend string interpolation ile `@id` değerini SQL'e inserter eder.
+
+```ts
+// Frontend - ModelKarti
+<RaporSecimModal
+  ekranAdi="model-kartlari"
+  parametreler={model?.id ? { id: model.id } : undefined}
+/>
+
+// SQL sorgusu
+select kod, ad from malzeme where id = @id
+```
+
+```ts
+// Frontend - IrsaliyeKarti
+<RaporSecimModal
+  ekranAdi="irsaliye"
+  parametreler={id ? { id } : undefined}
+/>
+
+// SQL sorgusu
+select irsaliye_no, cari_adi from irsaliye where id = @id
+```
+
 ---
 
 ## 3. Backend PDF Üretimi
@@ -281,11 +309,12 @@ Barkod HTML içinde SVG olarak yerleştirilir:
 
 | Bileşen | Durum |
 |---|---|
-| Prisma Schema (sablon, sablon_sorgu) | ✅ Tanımlandı |
-| SQL Tabloları | ⏳ sqlcmd ile oluşturulacak |
-| Backend Modülü (sablon) | ⏳ Sırada |
-| PDF Üretimi (Puppeteer) | ⏳ Sırada |
-| Frontend API Client | ⏳ Sırada |
-| SablonListesi (API bağlantısı) | ⏳ Sırada |
-| SablonEditori (API bağlantısı) | ⏳ Sırada |
-| RaporModal (çalışma ekranları) | ⏳ Sırada |
+| Prisma Schema (sablon, sablon_sorgu) | ✅ Tamamlandı |
+| SQL Tabloları | ✅ sqlcmd ile oluşturuldu |
+| Backend Modülü (sablon) | ✅ Tamamlandı |
+| PDF Üretimi (Puppeteer) | ✅ Tamamlandı |
+| Frontend API Client | ✅ Tamamlandı |
+| SablonListesi (API bağlantısı) | ✅ Tamamlandı |
+| SablonEditori (API bağlantısı) | ✅ Tamamlandı |
+| RaporModal (çalışma ekranları) | ✅ Tamamlandı |
+| Parametre Kuralı (her zaman `id`) | ✅ Eklendi |

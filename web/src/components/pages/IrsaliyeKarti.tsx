@@ -20,6 +20,7 @@ import { depoApi } from '@/lib/depo-api'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { useAuth } from '@/context/AuthContext'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -259,6 +260,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       : [],
   )
   const [loading, setLoading] = useState<boolean>(() => Boolean(id))
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
 
   useEffect(() => {
@@ -994,8 +996,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
             buttons={createToolbarButtons({
               onSave: handleKaydet,
               onDelete: handleSil,
+              onReport: () => setRaporModalAcik(true),
             }, {
               delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
+              report: { disabled: !id },
             })}
           />
         </div>
@@ -1194,6 +1198,12 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
           </div>
         </Spin>
       </Modal>
+      <RaporSecimModal
+        open={raporModalAcik}
+        ekranAdi="irsaliye"
+        parametreler={id ? { id } : undefined}
+        onCancel={() => setRaporModalAcik(false)}
+      />
     </Spin>
   )
 }

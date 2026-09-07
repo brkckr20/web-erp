@@ -1,18 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { Card, Button, Table, Space, Popconfirm, message, Tag } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
-
-export interface RaporSablonu {
-  id: number
-  ad: string
-  aciklama: string | null
-  tur: string
-  pdfBoyut: string
-  pdfYon: string
-  olusturmaTarihi: string
-}
+import { useEffect, useState } from 'react'
+import { Card, Button, Table, Space, Popconfirm, message, Tag, Input } from 'antd'
+import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { sablonApi, type Sablon } from '@/lib/sablon-api'
 
 interface Props {
   onYeni: () => void
@@ -20,16 +11,44 @@ interface Props {
 }
 
 export default function SablonListesi({ onYeni, onDuzenle }: Props) {
-  const [sablonlar] = useState<RaporSablonu[]>([])
+  const [sablonlar, setSablonlar] = useState<Sablon[]>([])
+  const [yukleniyor, setYukleniyor] = useState(true)
+  const [arama, setArama] = useState('')
 
-  const handleSil = (_id: number) => {
-    message.success('Şablon silindi')
+  const yukle = async () => {
+    setYukleniyor(true)
+    try {
+      const data = await sablonApi.list()
+      setSablonlar(data)
+    } catch {
+      message.error('Şablonlar yüklenemedi')
+    } finally {
+      setYukleniyor(false)
+    }
   }
 
-  const turTag: Record<string, { color: string; label: string }> = {
+  useEffect(() => { yukle() }, [])
+
+  const filtrelenmis = sablonlar.filter(s =>
+    s.ad.toLowerCase().includes(arama.toLowerCase()) ||
+    s.ekranAdi.toLowerCase().includes(arama.toLowerCase())
+  )
+
+  const handleSil = async (id: number) => {
+    try {
+      await sablonApi.remove(id)
+      message.success('Şablon silindi')
+      yukle()
+    } catch {
+      message.error('Silinemedi')
+    }
+  }
+
+  const ekranEtiket: Record<string, { color: string; label: string }> = {
     irsaliye: { color: 'blue', label: 'İrsaliye' },
-    rapor: { color: 'green', label: 'Rapor' },
+    siparis: { color: 'green', label: 'Sipariş' },
     etiket: { color: 'orange', label: 'Etiket' },
+    toner: { color: 'purple', label: 'Toner' },
   }
 
   const columns = [
@@ -38,18 +57,22 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
       dataIndex: 'ad',
       render: (ad: string) => <span className="!font-medium">{ad}</span>,
     },
-    { title: 'Açıklama', dataIndex: 'aciklama', render: (v: string | null) => v || '-' },
     {
-      title: 'Tür',
-      dataIndex: 'tur',
-      render: (tur: string) => {
-        const t = turTag[tur]
-        return t ? <Tag color={t.color}>{t.label}</Tag> : <Tag>{tur}</Tag>
+      title: 'Ekran',
+      dataIndex: 'ekranAdi',
+      render: (ekran: string) => {
+        const t = ekranEtiket[ekran]
+        return t ? <Tag color={t.color}>{t.label}</Tag> : <Tag>{ekran}</Tag>
       },
     },
     {
       title: 'PDF',
-      render: (_: unknown, r: RaporSablonu) => `${r.pdfBoyut} / ${r.pdfYon === 'yatay' ? 'Yatay' : 'Dikey'}`,
+      render: (_: unknown, r: Sablon) => `${r.sayfaEn}x${r.sayfaBoy}mm / ${r.yon === 'yatay' ? 'Yatay' : 'Dikey'}`,
+    },
+    {
+      title: 'Durum',
+      dataIndex: 'aktif',
+      render: (aktif: boolean) => <Tag color={aktif ? 'green' : 'default'}>{aktif ? 'Aktif' : 'Pasif'}</Tag>,
     },
     {
       title: 'Tarih',
@@ -58,7 +81,7 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
     },
     {
       title: 'İşlem',
-      render: (_: unknown, r: RaporSablonu) => (
+      render: (_: unknown, r: Sablon) => (
         <Space size="small">
           <Button size="small" icon={<EditOutlined />} onClick={() => onDuzenle(r.id)} />
           <Popconfirm title="Silmek istediğinize emin misiniz?" onConfirm={() => handleSil(r.id)}>
@@ -75,17 +98,30 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
         <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
           Rapor Tasarımı
         </div>
-        <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onYeni}>
-          Yeni Rapor
-        </Button>
+        <div className="!flex !items-center !gap-1.5">
+          <Input
+            size="small"
+            placeholder="Ara..."
+            allowClear
+            prefix={<SearchOutlined style={{ fontSize: 12, color: '#9ca3af' }} />}
+            className="!w-52 !text-[12px]"
+            value={arama}
+            onChange={e => setArama(e.target.value)}
+          />
+          <Button size="small" icon={<ReloadOutlined />} onClick={yukle} className="!text-[12px] !h-7" />
+          <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onYeni} className="!text-[12px] !h-7">
+            Yeni
+          </Button>
+        </div>
       </div>
       <Card size="small">
         <Table
-          dataSource={sablonlar}
+          dataSource={filtrelenmis}
           columns={columns}
           rowKey="id"
           size="small"
           pagination={false}
+          loading={yukleniyor}
           locale={{ emptyText: 'Henüz rapor oluşturulmadı' }}
         />
       </Card>

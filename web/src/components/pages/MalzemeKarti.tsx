@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Tabs, Input, Switch, Select, Row, Col, InputNumber, App, Spin, Button } from 'antd'
 import { SearchOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import SearchableGrupSelect from '@/components/shared/SearchableGrupSelect'
 import { malzemeApi } from '@/lib/malzeme-api'
@@ -75,6 +76,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
   const [ekList, setEkList] = useState<MalzemeEk[]>([])
   const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
 
   const handleDosyaSec = () => fileInputRef.current?.click()
 
@@ -311,6 +313,9 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+    onReport: () => setRaporModalAcik(true),
+  }, {
+    report: { disabled: !id },
   })
 
   const kdvOptions = [
@@ -611,6 +616,12 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
           />
         </Spin>
       </div>
+      <RaporSecimModal
+        open={raporModalAcik}
+        ekranAdi="malzeme-kartlari"
+        parametreler={id ? { id } : undefined}
+        onCancel={() => setRaporModalAcik(false)}
+      />
     </div>
   )
 }
