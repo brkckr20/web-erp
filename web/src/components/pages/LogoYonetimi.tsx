@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, Button, Upload, Table, Space, Popconfirm, message, Tag } from 'antd'
+import { Card, Button, Upload, Table, Space, Popconfirm, App, Tag } from 'antd'
 import { UploadOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { logoApi, Logo } from '@/lib/logo-api'
 
 export default function LogoYonetimi() {
+  const { message } = App.useApp()
   const [logolar, setLogolar] = useState<Logo[]>([])
   const [yukleniyor, setYukleniyor] = useState(true)
   const [ad, setAd] = useState('')

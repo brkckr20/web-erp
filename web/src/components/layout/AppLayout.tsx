@@ -74,6 +74,7 @@ import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
 import LogoYonetimi from '@/components/pages/LogoYonetimi'
 import SablonListesi from '@/components/pages/SablonListesi'
 import SablonEditori from '@/components/pages/SablonEditori'
+import MalzemeStokEkstresi from '@/components/pages/MalzemeStokEkstresi'
 
 const { Content } = Layout
 
@@ -221,11 +222,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 
   const openIrsaliyeKarti = useCallback(
-    (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => {
+    (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string; ekranAdi?: string }) => {
       const key = 'satis-irsaliye-karti-' + info.id
       const label = (irsaliyeTipiLabelMap[info.irsaliyeTipi] || info.irsaliyeTipi) + '-' + info.irsaliyeNo
       setTabs((prev) => {
-        const tab: Tab = { key, label, moduleKey: 'satis', isForm: true, irsaliyeTipi: info.irsaliyeTipi }
+        const tab: Tab = { key, label, moduleKey: 'satis', isForm: true, irsaliyeTipi: info.irsaliyeTipi, ekranAdi: info.ekranAdi }
         const exists = prev.find((t) => t.key === key)
         if (!exists) return [...prev, tab]
         return prev
@@ -272,6 +273,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'malzeme-karti-' + kod
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Malzeme Kartı - ' + kod, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openMalzemeStokEkstresi = useCallback((kod: string) => {
+    const key = 'malzeme-stok-ekstresi-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Ekstre - ' + kod, moduleKey: 'stok', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -836,13 +848,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <MalzemeYonetimFisleriKarti id={fisId} onDeleted={(ft) => handleMalzemeYonetimFisiDeleted(ft)} />
     }
     if (tab.key === 'malzeme-kartlari') {
-      return <MalzemeListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} />
+      return <MalzemeListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} onStokEkstresi={openMalzemeStokEkstresi} />
     }
     if (tab.key === 'malzeme-karti-yeni') {
       return <MalzemeKarti isNew />
     }
-    if (tab.key.startsWith('malzeme-karti-')) {
+    if (tab.key.startsWith('malzeme-karti-') && !tab.key.startsWith('malzeme-karti-yeni')) {
       return <MalzemeKarti kod={tab.key.replace('malzeme-karti-', '')} />
+    }
+    if (tab.key.startsWith('malzeme-stok-ekstresi-')) {
+      return <MalzemeStokEkstresi malzemeKod={tab.key.replace('malzeme-stok-ekstresi-', '')} />
     }
     if (tab.key === 'makina-kartlari') {
       return <MakinaListesi onSelect={openMakinaKarti} onNew={openYeniMakina} />
@@ -1088,7 +1103,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} />
     }
     return (
       <div className="!p-3">

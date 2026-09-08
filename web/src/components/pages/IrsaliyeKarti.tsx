@@ -50,6 +50,7 @@ interface IrsaliyeKartiProps {
   irsaliyeTipi?: string
   fasonTipiId?: number | null
   id?: number
+  ekranAdi?: string
   onDeleted?: (irsaliyeTipi: string) => void
   baslangicKalemler?: IrsaliyeBaslangicKalem[]
   onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[]) => void
@@ -228,7 +229,7 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, onDeleted, baslangicKalemler, onCreateIrsaliye }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -1200,7 +1201,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, o
       </Modal>
       <RaporSecimModal
         open={raporModalAcik}
-        ekranAdi="irsaliye"
+        ekranAdi={ekranAdi || 'irsaliye'}
         parametreler={id ? { id } : undefined}
         onCancel={() => setRaporModalAcik(false)}
       />

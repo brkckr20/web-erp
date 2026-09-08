@@ -827,9 +827,6 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       if (savedId) {
         try {
           const sonuc = await barkodApi.uret(savedId)
-          if (sonuc.toplam > 0) {
-            message.info(`${sonuc.toplam} barkod üretildi`)
-          }
         } catch {
           // barkod üretimi başarısız olsa bile sipariş kaydı tamamlandı
         }

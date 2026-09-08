@@ -29,7 +29,7 @@ export default function DepoBazliStok() {
   }, [])
 
   const filtrelenmis = useMemo(() => {
-    let rows = satirlar
+    let rows = satirlar.filter((r) => Math.abs(r.brutKg) > 0.0001 || Math.abs(r.kg) > 0.0001 || Math.abs(r.brutMt) > 0.0001 || Math.abs(r.mt) > 0.0001 || Math.abs(r.adet) > 0.0001)
     if (depoFiltre) rows = rows.filter((r) => r.depoKod === depoFiltre)
     const q = arama.trim().toLowerCase()
     if (q) {

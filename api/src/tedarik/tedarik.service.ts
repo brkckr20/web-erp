@@ -9,7 +9,9 @@ export class TedarikService {
   constructor(private prisma: PrismaService) {}
 
   async hesapla(params: HesaplaParamsDto): Promise<HesaplaSonuc> {
-    const { satirlar, toplamNet } = await this.hesaplaRaw(params)
+    const { satirlar: tumSatirlar, toplamNet } = await this.hesaplaRaw(params)
+
+    const satirlar = tumSatirlar.filter((s) => Math.abs(Number(s.netMiktar) || 0) > 0.0001)
 
     await this.prisma.$transaction(async (tx) => {
       const where: { siparisId: number; siparisKalemId?: number; tip?: string } = {
@@ -354,6 +356,8 @@ export class TedarikService {
   async planlamaKumasHareketler(siparisNo: string, malzemeKod: string) {
     const rows = await this.prisma.$queryRaw<
       {
+        kalemId: number
+        irsaliyeId: number
         fisNo: string
         fisTipi: string
         fisTarihi: Date
@@ -365,6 +369,8 @@ export class TedarikService {
       }[]
     >`
       SELECT
+        ik.id                AS kalemId,
+        i.id                 AS irsaliyeId,
         i.irsaliye_no       AS fisNo,
         i.irsaliye_tipi     AS fisTipi,
         i.irsaliye_tarihi   AS fisTarihi,
@@ -383,6 +389,8 @@ export class TedarikService {
     `
 
     return rows.map((r) => ({
+      kalemId: r.kalemId,
+      irsaliyeId: r.irsaliyeId,
       fisNo: r.fisNo,
       fisTipi: r.fisTipi,
       fisTarihi: r.fisTarihi,

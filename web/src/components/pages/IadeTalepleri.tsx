@@ -14,7 +14,7 @@ import {
 import { iadeTalepApi, type IadeTalep } from '@/lib/iade-talep-api'
 
 interface IadeTalepleriProps {
-  onIrsaliyeAc?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
+  onIrsaliyeAc?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string; ekranAdi?: string }) => void
 }
 
 const mockTalepler: IadeTalep[] = []

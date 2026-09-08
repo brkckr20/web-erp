@@ -1,10 +1,11 @@
 'use client'
 
-import { Table, Tag, Dropdown, Button, Spin } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import { Dropdown, Button, Spin } from 'antd'
 import type { MenuProps } from 'antd'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { useState, useEffect } from 'react'
+import { PlusOutlined, ReloadOutlined, FileTextOutlined } from '@ant-design/icons'
+import { useState, useEffect, useMemo } from 'react'
+import type { ColDef } from 'ag-grid-community'
+import DataGrid from '@/components/shared/DataGrid'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 
 interface MalzemeRow {
@@ -13,15 +14,18 @@ interface MalzemeRow {
   kod: string
   ad: string
   malzemeTuru: string | null
+  tipi: string | null
+  kategori: string | null
   kullanimda: boolean
 }
 
 interface MalzemeListesiProps {
   onSelect?: (kod: string) => void
   onNew?: () => void
+  onStokEkstresi?: (kod: string) => void
 }
 
-export default function MalzemeListesi({ onSelect, onNew }: MalzemeListesiProps) {
+export default function MalzemeListesi({ onSelect, onNew, onStokEkstresi }: MalzemeListesiProps) {
   const [data, setData] = useState<MalzemeRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -37,6 +41,8 @@ export default function MalzemeListesi({ onSelect, onNew }: MalzemeListesiProps)
           kod: d.kod,
           ad: d.ad,
           malzemeTuru: d.malzemeTuru,
+          tipi: d.tipi,
+          kategori: d.kategori,
           kullanimda: d.kullanimda,
         })),
       )
@@ -55,42 +61,31 @@ export default function MalzemeListesi({ onSelect, onNew }: MalzemeListesiProps)
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
-    { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
+    { key: 'stok-ekstresi', label: 'Ekstre', icon: <FileTextOutlined />, disabled: !selectedRow, onClick: () => selectedRow && onStokEkstresi?.(selectedRow) },
   ]
 
-  const columns: ColumnsType<MalzemeRow> = [
-    {
-      title: 'Kodu',
-      dataIndex: 'kod',
-      key: 'kod',
-      width: 100,
-      render: (text) => <span className="!text-[11px] !font-medium !text-[#f57c00]">{text}</span>,
-    },
-    {
-      title: 'Adı',
-      dataIndex: 'ad',
-      key: 'ad',
-      render: (text) => <span className="!text-[11px]">{text}</span>,
-    },
-    {
-      title: 'Türü',
-      dataIndex: 'malzemeTuru',
-      key: 'malzemeTuru',
-      width: 110,
-      render: (text) => <span className="!text-[11px]">{text ?? '-'}</span>,
-    },
-    {
-      title: 'Durum',
-      dataIndex: 'kullanimda',
-      key: 'kullanimda',
-      width: 90,
-      render: (val: boolean) => (
-        <Tag color={val ? 'green' : 'default'} className="!text-[10px]">
-          {val ? 'Aktif' : 'Pasif'}
-        </Tag>
-      ),
-    },
-  ]
+  const columns = useMemo<ColDef<MalzemeRow>[]>(
+    () => [
+      {
+        headerName: 'Kodu',
+        field: 'kod',
+        width: 110,
+        cellStyle: { color: '#e65100', fontWeight: 500 },
+      },
+      { headerName: 'Adı', field: 'ad', flex: 1, minWidth: 160 },
+      { headerName: 'Türü', field: 'malzemeTuru', width: 120, valueFormatter: (p) => p.value ?? '-' },
+      { headerName: 'Tipi', field: 'tipi', width: 120, valueFormatter: (p) => p.value ?? '-' },
+      { headerName: 'Kategori', field: 'kategori', width: 120, valueFormatter: (p) => p.value ?? '-' },
+      {
+        headerName: 'Durum',
+        field: 'kullanimda',
+        width: 90,
+        valueFormatter: (p) => (p.value ? 'Aktif' : 'Pasif'),
+        cellStyle: (p) => (p.value ? { color: '#16a34a' } : { color: '#9ca3af' }),
+      },
+    ],
+    [],
+  )
 
   return (
     <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
@@ -100,12 +95,7 @@ export default function MalzemeListesi({ onSelect, onNew }: MalzemeListesiProps)
             Malzeme Kartları Listesi
           </div>
           <div className="!flex !items-center !gap-1.5">
-            <Button
-              size="small"
-              icon={<ReloadOutlined />}
-              onClick={load}
-              className="!text-[11px] !h-7"
-            />
+            <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
             <Button
               type="primary"
               size="small"
@@ -118,24 +108,21 @@ export default function MalzemeListesi({ onSelect, onNew }: MalzemeListesiProps)
           </div>
         </div>
 
-        <div className="!bg-white !rounded-sm !flex-1 !min-h-0 !overflow-y-auto" style={{ minHeight: 300 }}>
-          <Spin spinning={loading} classNames={{ root: '!h-full [&_.ant-spin-container]:!h-full' }}>
-          <Table
-            columns={columns}
-            dataSource={data}
-            size="small"
-            pagination={false}
-            rowSelection={{
-              type: 'radio',
-              selectedRowKeys: selectedRow ? [selectedRow] : [],
-              onChange: (keys) => setSelectedRow(keys[0] as string),
-            }}
-            onRow={(record) => ({
-              onDoubleClick: () => onSelect?.(record.kod),
-              className: '!cursor-pointer',
-            })}
-            className="[&_.ant-table-thead>tr>th]:!text-[10px] [&_.ant-table-thead>tr>th]:!font-semibold [&_.ant-table-thead>tr>th]:!text-[#6b7280] [&_.ant-table-thead>tr>th]:!uppercase [&_.ant-table-thead>tr>th]:!bg-[#f9fafb] [&_.ant-table-tbody>tr>td]:!text-[11px] [&_.ant-table-tbody>tr>td]:!py-1.5"
-          />
+        <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
+          <Spin spinning={loading} classNames={{ root: "!h-full [&_.ant-spin-container]:!h-full" }}>
+            <DataGrid
+              rowData={data}
+              columnDefs={columns}
+              domLayout="normal"
+              exportFileName="malzeme-kartlari"
+              storageKey="malzemeKarti"
+              rowSelection="single"
+              onSelectionChanged={(e) => {
+                const sel = e.api.getSelectedRows()
+                setSelectedRow(sel[0]?.kod ?? null)
+              }}
+              onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.kod)}
+            />
           </Spin>
         </div>
       </div>

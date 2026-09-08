@@ -179,20 +179,21 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         hesapBirimi: data.hesapBirimi ?? '',
         barkod: data.barkod ?? '',
       })
+      setDosyalar([])
+      let ekData: MalzemeEk[] = []
       try {
-        const ekData = await malzemeEkApi.list(data.id)
+        ekData = await malzemeEkApi.list(data.id)
         setEkList(ekData)
       } catch {
         setEkList([])
       }
-      setDosyalar([])
       setSelectedDosya(ekData.length > 0 ? { type: 'existing', ek: ekData[0] } : null)
     } catch {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [message])
 
   const set = <K extends keyof MalzemeFormData>(key: K, value: MalzemeFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))

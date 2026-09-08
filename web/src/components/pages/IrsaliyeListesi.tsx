@@ -93,7 +93,7 @@ const satinalmaSiparisTipleri = Object.keys(satinalmaSiparisTipiMap)
 interface IrsaliyeListesiProps {
   mod?: 'satis' | 'satinalma' | 'satinalma-siparis'
   onNew?: (irsaliyeTipi: string, fasonTipiId?: number | null) => void
-  onSelect?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
+  onSelect?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string; ekranAdi?: string }) => void
 }
 
 const fasonFisTipleri = {
@@ -106,6 +106,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
   const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : satisTipleri
   const irsaliyeTipiOptions = gorselTipler.map((value) => ({ value, label: irsaliyeTipiMap[value] }))
   const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : 'Satış İrsaliyeleri'
+  const ekranAdi = mod === 'satinalma' ? 'satinalma-irsaliyeleri' : mod === 'satinalma-siparis' ? 'satinalma-siparis' : 'satis-irsaliyeleri'
   const [data, setData] = useState<IrsaliyeRow[]>([])
   const [yeniIrsaliyeTipi, setYeniIrsaliyeTipi] = useState(mod === 'satinalma' ? '1' : mod === 'satinalma-siparis' ? '201' : '120')
   const [yeniFasonTipiId, setYeniFasonTipiId] = useState<number | null>(null)
@@ -161,7 +162,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
 
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
-    { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.(r) } },
+    { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.({ ...r, ekranAdi }) } },
     { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
   ]
@@ -268,7 +269,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
                 rowSelection="single"
                 onCellDoubleClicked={(e: CellDoubleClickedEvent<IrsaliyeRow>) => {
                   const row = e.data as IrsaliyeRow | undefined
-                  if (row?.id != null) onSelect?.(row)
+                  if (row?.id != null) onSelect?.({ ...row, ekranAdi })
                 }}
                 onCellContextMenu={(e: CellContextMenuEvent<IrsaliyeRow>) => {
                   const row = e.data as IrsaliyeRow | undefined

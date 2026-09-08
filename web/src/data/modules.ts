@@ -23,6 +23,7 @@ export interface Tab {
   moduleKey: string
   isForm?: boolean
   irsaliyeTipi?: string
+  ekranAdi?: string
 }
 
 export const modules: Module[] = [

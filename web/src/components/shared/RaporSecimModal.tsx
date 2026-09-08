@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Modal, Select, Button, Typography, Spin, Input, message } from 'antd'
+import { Modal, Select, Button, Typography, Spin, Input, App } from 'antd'
 import { EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import { sablonApi, type Sablon } from '@/lib/sablon-api'
 
@@ -18,6 +18,7 @@ export default function RaporSecimModal({
   parametreler,
   onCancel,
 }: RaporSecimModalProps) {
+  const { message } = App.useApp()
   const [sablonlar, setSablonlar] = useState<Sablon[]>([])
   const [seciliId, setSeciliId] = useState<number | null>(null)
   const [yukleniyor, setYukleniyor] = useState(false)

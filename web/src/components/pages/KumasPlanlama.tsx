@@ -315,7 +315,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
           columns={hareketColumns}
           dataSource={hareketler}
           loading={hareketLoading}
-          rowKey={(r) => `${r.fisNo}-${r.fisTipi}`}
+          rowKey={(r) => r.kalemId}
           pagination={{ pageSize: 25, size: 'small', showSizeChanger: false }}
           locale={{ emptyText: 'Hareket bulunamadı' }}
         />

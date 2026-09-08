@@ -66,6 +66,7 @@ export interface KumasPlanlamaSatir {
 }
 
 export interface KumasHareketSatiri {
+  kalemId: number
   irsaliyeId: number
   fisNo: string
   fisTipi: string
