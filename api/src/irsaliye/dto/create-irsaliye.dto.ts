@@ -39,6 +39,7 @@ export class CreateIrsaliyeDto {
   cariHesapId?: number
   depoId?: number
   fasonTipiId?: number
+  yetkili?: string
   kalemler?: CreateIrsaliyeKalemDto[]
 }
 

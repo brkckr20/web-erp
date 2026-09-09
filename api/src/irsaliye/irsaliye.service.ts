@@ -85,6 +85,18 @@ export class IrsaliyeService {
     if (dto.guncellemeTarihi) data.guncellemeTarihi = new Date(dto.guncellemeTarihi)
     const kalemler = (dto as any).kalemler
     delete data.kalemler
+
+    const cariHesapId = data.cariHesapId
+    const depoId = data.depoId
+    const fasonTipiId = data.fasonTipiId
+    delete data.cariHesapId
+    delete data.depoId
+    delete data.fasonTipiId
+
+    data.cariHesap = cariHesapId ? { connect: { id: cariHesapId } } : { disconnect: true }
+    data.depo = depoId ? { connect: { id: depoId } } : { disconnect: true }
+    data.fasonTipi = fasonTipiId ? { connect: { id: fasonTipiId } } : { disconnect: true }
+
     return this.prisma.$transaction(async (tx) => {
       await tx.irsaliye.update({ where: { id }, data })
       if (Array.isArray(kalemler)) {

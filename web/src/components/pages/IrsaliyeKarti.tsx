@@ -246,6 +246,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
   const [belgeNo, setBelgeNo] = useState('')
   const [aciklama, setAciklama] = useState('')
+  const [yetkili, setYetkili] = useState('')
   const [onaylandi, setOnaylandi] = useState(false)
   const [tamamlandi, setTamamlandi] = useState(false)
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
@@ -276,6 +277,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
           if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
           setBelgeNo(i.sevkNo ?? '')
           setAciklama(i.aciklama ?? '')
+          setYetkili((i as Irsaliye).yetkili ?? '')
           setOnaylandi(!!i.onaylandi)
           setTamamlandi(!!i.tamamlandi)
           setFasonTipiKayit((i as Irsaliye).fasonTipiId ?? null)
@@ -411,6 +413,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
           cariHesapId,
           depoId,
           fasonTipiId: fasonTipiKayit,
+          yetkili: yetkili || null,
           guncelleyen: kayitYapan,
           kalemler: kalemPayload,
          } as Irsaliye)
@@ -428,6 +431,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
         cariHesapId,
         depoId,
         fasonTipiId: fasonTipiKayit,
+        yetkili: yetkili || null,
         kayitYapan,
         kalemler: kalemPayload,
       })
@@ -1070,6 +1074,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
                   <div className="!flex !items-center !gap-3">
                     <div className="!text-[12px] !text-[red] !w-24 !shrink-0">Depo</div>
                     <SearchableDepoSelect value={depoKod} onChange={(kod) => setDepoKod(kod)} />
+                  </div>
+                  <div className="!flex !items-center !gap-3">
+                    <div className="!text-[12px] !text-[#333] !w-24 !shrink-0">Yetkili</div>
+                    <Input size="small" value={yetkili} onChange={(e) => setYetkili(e.target.value)} className="!w-48 !text-[11px]" />
                   </div>
                 </div>
               </div>

@@ -377,6 +377,7 @@ model Irsaliye {
   kayitTarihi       DateTime? @map("kayit_tarihi")
   guncelleyen       String?  @db.VarChar(100)
   guncellemeTarihi  DateTime? @map("guncelleme_tarihi")
+  yetkili           String?  @db.VarChar(200)
 
   cariHesapId       Int?     @map("cari_hesap_id")
   cariHesap         CariHesap? @relation("IrsaliyeCariHesap", fields: [cariHesapId], references: [id])

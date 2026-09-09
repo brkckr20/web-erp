@@ -21,6 +21,7 @@ export interface Irsaliye {
   cariHesapId: number | null
   depoId: number | null
   fasonTipiId: number | null
+  yetkili: string | null
   cariHesap?: { id: number; kod: string; ad: string } | null
   depo?: { id: number; kod: string; ad: string } | null
   fasonTipi?: { id: number; ad: string } | null
