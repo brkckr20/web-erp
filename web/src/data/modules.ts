@@ -167,6 +167,7 @@ export const modules: Module[] = [
       {
         title: 'İrsaliyeler',
         items: [
+          { key: 'hizmet-kartlari', label: 'Alınan Hizmet Kartları', isForm: true },
           { key: 'satinalma-kumas-irsaliyeleri', label: 'Kumaş İrsaliyeleri', isForm: true },
           { key: 'satinalma-iplik-irsaliyeleri', label: 'İplik İrsaliyeleri', isForm: true },
           { key: 'satinalma-aksesuar-irsaliyeleri', label: 'Aksesuar İrsaliyeleri', isForm: true },
@@ -223,6 +224,19 @@ export const modules: Module[] = [
           { key: 'odeme-takip', label: 'Ödeme Takibi' },
           { key: 'banka-islem', label: 'Banka İşlemleri' },
           { key: 'maliyet-analiz', label: 'Maliyet Analizi' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'hizmet-talep',
+    label: 'Hizmet Talep',
+    icon: '📋',
+    categories: [
+      {
+        title: 'İşlemler',
+        items: [
+          { key: 'hizmet-talepleri', label: 'Hizmet Talepleri' },
         ],
       },
     ],

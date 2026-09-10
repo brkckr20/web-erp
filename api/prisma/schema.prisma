@@ -1094,3 +1094,49 @@ model SablonSorgu {
 
   @@map("sablon_sorgu")
 }
+
+model HizmetTalep {
+  id               Int       @id @default(autoincrement())
+  baslik           String    @db.NVarChar(200)
+  aciklama         String?   @db.NVarChar(4000)
+  durum            String    @default("Açık") @db.NVarChar(50)
+  oncelik          String    @default("Normal") @db.NVarChar(50)
+  tarih            DateTime  @default(now())
+  kullanici        String?   @db.NVarChar(100)
+  gorusmeKisi      String?   @map("gorusme_kisi") @db.NVarChar(200)
+  olusturmaTarihi  DateTime  @default(now()) @map("olusturma_tarihi")
+  guncellemeTarihi DateTime? @map("guncelleme_tarihi")
+
+  notlar           HizmetTalepNot[]
+  dosyalar         HizmetTalepDosya[]
+
+  @@map("hizmet_talep")
+}
+
+model HizmetTalepNot {
+  id               Int      @id @default(autoincrement())
+  hizmetTalepId    Int      @map("hizmet_talep_id")
+  icerik           String   @db.NVarChar(4000)
+  gorusmeTarihi    DateTime? @map("gorusme_tarihi")
+  iletisimKisi     String?  @map("iletisim_kisi") @db.NVarChar(200)
+  olusturmaTarihi  DateTime @default(now()) @map("olusturma_tarihi")
+
+  talep            HizmetTalep @relation(fields: [hizmetTalepId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dosyalar         HizmetTalepDosya[]
+
+  @@map("hizmet_talep_not")
+}
+
+model HizmetTalepDosya {
+  id                  Int      @id @default(autoincrement())
+  hizmetTalepId       Int      @map("hizmet_talep_id")
+  hizmetTalepNotId    Int?     @map("hizmet_talep_not_id")
+  dosyaAdi            String   @map("dosya_adi") @db.NVarChar(255)
+  dosyaYolu           String   @map("dosya_yolu") @db.NVarChar(500)
+  olusturmaTarihi     DateTime @default(now()) @map("olusturma_tarihi")
+
+  talep               HizmetTalep @relation(fields: [hizmetTalepId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  not                 HizmetTalepNot? @relation(fields: [hizmetTalepNotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("hizmet_talep_dosya")
+}

@@ -108,6 +108,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
   const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : 'Satış İrsaliyeleri'
   const ekranAdi = mod === 'satinalma' ? 'satinalma-irsaliyeleri' : mod === 'satinalma-siparis' ? 'satinalma-siparis' : 'satis-irsaliyeleri'
   const [data, setData] = useState<IrsaliyeRow[]>([])
+  const [loading, setLoading] = useState(false)
   const [yeniIrsaliyeTipi, setYeniIrsaliyeTipi] = useState(mod === 'satinalma' ? '1' : mod === 'satinalma-siparis' ? '201' : '120')
   const [yeniFasonTipiId, setYeniFasonTipiId] = useState<number | null>(null)
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
@@ -149,11 +150,13 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
   }
 
   const load = () => {
+    setLoading(true)
     const tipler = new Set(mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : satisTipleri)
     irsaliyeApi
       .list()
       .then((res) => setData(res.filter((i) => tipler.has(String(i.irsaliyeTipi))).map(mapIrsaliye)))
       .catch(() => setData([]))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -261,6 +264,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
           <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
             <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
               <DataGrid
+                loading={loading}
                 rowData={data}
                 columnDefs={columns}
                 domLayout="normal"

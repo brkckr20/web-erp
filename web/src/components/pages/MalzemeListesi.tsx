@@ -1,6 +1,6 @@
 'use client'
 
-import { Dropdown, Button, Spin } from 'antd'
+import { Dropdown, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
@@ -109,8 +109,8 @@ export default function MalzemeListesi({ onSelect, onNew, onStokEkstresi }: Malz
         </div>
 
         <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
-          <Spin spinning={loading} classNames={{ root: "!h-full [&_.ant-spin-container]:!h-full" }}>
             <DataGrid
+              loading={loading}
               rowData={data}
               columnDefs={columns}
               domLayout="normal"
@@ -123,7 +123,6 @@ export default function MalzemeListesi({ onSelect, onNew, onStokEkstresi }: Malz
               }}
               onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.kod)}
             />
-          </Spin>
         </div>
       </div>
     </Dropdown>

@@ -1,6 +1,6 @@
 'use client'
 
-import { Dropdown, Button, Spin, App } from 'antd'
+import { Dropdown, Button, App } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
@@ -157,8 +157,8 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
         </div>
 
         <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
-          <Spin spinning={loading} classNames={{ root: "!h-full [&_.ant-spin-container]:!h-full" }}>
             <DataGrid
+              loading={loading}
               rowData={data}
               columnDefs={columns}
               domLayout="normal"
@@ -176,7 +176,6 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
                 }
               }}
             />
-          </Spin>
         </div>
       </div>
     </Dropdown>

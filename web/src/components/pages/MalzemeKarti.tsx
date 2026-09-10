@@ -333,6 +333,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
     { value: 2, label: 'Kumaş' },
     { value: 3, label: 'Aksesuar' },
     { value: 4, label: 'İplik' },
+    { value: 5, label: 'Hizmet' },
   ]
 
   const malzemeTuruOptions = [

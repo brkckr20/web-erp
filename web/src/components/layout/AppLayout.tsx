@@ -75,6 +75,9 @@ import LogoYonetimi from '@/components/pages/LogoYonetimi'
 import SablonListesi from '@/components/pages/SablonListesi'
 import SablonEditori from '@/components/pages/SablonEditori'
 import MalzemeStokEkstresi from '@/components/pages/MalzemeStokEkstresi'
+import HizmetTalepListesi from '@/components/pages/HizmetTalepListesi'
+import HizmetTalepKarti from '@/components/pages/HizmetTalepKarti'
+import HizmetListesi from '@/components/pages/HizmetListesi'
 
 const { Content } = Layout
 
@@ -784,6 +787,57 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'logo-yonetimi') {
       return <LogoYonetimi />
     }
+    if (tab.key === 'hizmet-talepleri') {
+      return (
+        <HizmetTalepListesi
+          onOpen={(talepId) => {
+            const key = talepId ? `hizmet-talep-${talepId}` : 'hizmet-talep-yeni'
+            setTabs((prev) => {
+              const t: Tab = { key, label: talepId ? `Talep #${talepId}` : 'Yeni Talep', moduleKey: 'hizmet-talep', isForm: true }
+              const exists = prev.find((x) => x.key === t.key)
+              if (!exists) return [...prev, t]
+              return prev
+            })
+            setActiveTab(key)
+          }}
+        />
+      )
+    }
+    if (tab.key === 'hizmet-talep-yeni') {
+      return (
+        <HizmetTalepKarti
+          onClose={() => {
+            setTabs((prev) => prev.filter((t) => t.key !== 'hizmet-talep-yeni'))
+            setActiveTab('hizmet-talepleri')
+          }}
+          onKaydet={(yeniId) => {
+            const key = `hizmet-talep-${yeniId}`
+            setTabs((prev) => {
+              const filtered = prev.filter((t) => t.key !== 'hizmet-talep-yeni')
+              const t: Tab = { key, label: `Talep #${yeniId}`, moduleKey: 'hizmet-talep', isForm: true }
+              const exists = filtered.find((x) => x.key === key)
+              if (exists) return filtered
+              return [...filtered, t]
+            })
+            setActiveTab(key)
+          }}
+        />
+      )
+    }
+    if (tab.key.startsWith('hizmet-talep-') && tab.key !== 'hizmet-talepleri' && tab.key !== 'hizmet-talep-yeni') {
+      const talepId = Number(tab.key.replace('hizmet-talep-', ''))
+      if (!isNaN(talepId)) {
+        return (
+          <HizmetTalepKarti
+            id={talepId}
+            onClose={() => {
+              setTabs((prev) => prev.filter((t) => t.key !== tab.key))
+              setActiveTab('hizmet-talepleri')
+            }}
+          />
+        )
+      }
+    }
     if (tab.key === 'rapor-tasarimi') {
       return (
         <SablonListesi
@@ -849,6 +903,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'malzeme-kartlari') {
       return <MalzemeListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} onStokEkstresi={openMalzemeStokEkstresi} />
+    }
+    if (tab.key === 'hizmet-kartlari') {
+      return <HizmetListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} />
     }
     if (tab.key === 'malzeme-karti-yeni') {
       return <MalzemeKarti isNew />

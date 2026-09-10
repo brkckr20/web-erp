@@ -1,6 +1,6 @@
 'use client'
 
-import { Dropdown, Button, Spin } from 'antd'
+import { Dropdown, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
@@ -131,21 +131,20 @@ export default function KumasListesi({ onSelect, onNew }: KumasListesiProps) {
         </div>
 
         <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
-          <Spin spinning={loading} classNames={{ root: "!h-full [&_.ant-spin-container]:!h-full" }}>
-            <DataGrid
-              rowData={data}
-              columnDefs={columns}
-              domLayout="normal"
-              exportFileName="kumas-kartlari"
-              storageKey="kumasKarti"
-              rowSelection="single"
-              onSelectionChanged={(e) => {
-                const sel = e.api.getSelectedRows()
-                setSelectedRow(sel[0]?.kod ?? null)
-              }}
-              onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.kod)}
-            />
-          </Spin>
+          <DataGrid
+            loading={loading}
+            rowData={data}
+            columnDefs={columns}
+            domLayout="normal"
+            exportFileName="kumas-kartlari"
+            storageKey="kumasKarti"
+            rowSelection="single"
+            onSelectionChanged={(e) => {
+              const sel = e.api.getSelectedRows()
+              setSelectedRow(sel[0]?.kod ?? null)
+            }}
+            onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.kod)}
+          />
         </div>
       </div>
     </Dropdown>

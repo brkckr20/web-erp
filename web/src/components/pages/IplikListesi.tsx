@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Spin } from 'antd'
+import { Button } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
@@ -90,21 +90,20 @@ export default function IplikListesi({ onSelect, onNew }: IplikListesiProps) {
       </div>
 
       <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
-        <Spin spinning={loading} classNames={{ root: "!h-full [&_.ant-spin-container]:!h-full" }}>
-          <DataGrid
-            rowData={data}
-            columnDefs={columns}
-            domLayout="normal"
-            exportFileName="iplik-kartlari"
-            storageKey="iplikKarti"
-            rowSelection="single"
-            onSelectionChanged={(e) => {
-              const sel = e.api.getSelectedRows()
-              setSelectedRow(sel[0]?.kod ?? null)
-            }}
-            onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.kod)}
-          />
-        </Spin>
+        <DataGrid
+          loading={loading}
+          rowData={data}
+          columnDefs={columns}
+          domLayout="normal"
+          exportFileName="iplik-kartlari"
+          storageKey="iplikKarti"
+          rowSelection="single"
+          onSelectionChanged={(e) => {
+            const sel = e.api.getSelectedRows()
+            setSelectedRow(sel[0]?.kod ?? null)
+          }}
+          onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.kod)}
+        />
       </div>
     </div>
   )

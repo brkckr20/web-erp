@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Spin, App } from 'antd'
+import { Button, App } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
@@ -168,15 +168,14 @@ export default function MalzemeStokEkstresi({ malzemeKod }: MalzemeStokEkstresiP
       </div>
 
       <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
-        <Spin spinning={loading} classNames={{ root: "!h-full [&_.ant-spin-container]:!h-full" }}>
-          <DataGrid
-            rowData={data}
-            columnDefs={columns}
-            domLayout="normal"
-            exportFileName={`stok-ekstresi-${malzemeKod}`}
-            storageKey={`stokEkstresi-${malzemeKod}`}
-          />
-        </Spin>
+        <DataGrid
+          loading={loading}
+          rowData={data}
+          columnDefs={columns}
+          domLayout="normal"
+          exportFileName={`stok-ekstresi-${malzemeKod}`}
+          storageKey={`stokEkstresi-${malzemeKod}`}
+        />
       </div>
     </div>
   )

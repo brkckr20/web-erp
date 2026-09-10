@@ -13,15 +13,18 @@ export default function DepoBazliStok() {
   const [depoList, setDepoList] = useState<Depo[]>([])
   const [depoFiltre, setDepoFiltre] = useState<string>('')
   const [arama, setArama] = useState('')
+  const [loading, setLoading] = useState(false)
   const { message } = App.useApp()
 
   const load = () => {
+    setLoading(true)
     Promise.all([depoBazliStokApi.list(), depoApi.list()])
       .then(([s, d]) => {
         setSatirlar(s)
         setDepoList(d)
       })
       .catch((err: any) => message.error('Veriler yüklenemedi: ' + (err?.message || err)))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -111,6 +114,7 @@ export default function DepoBazliStok() {
         <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
           <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
             <DataGrid
+              loading={loading}
               rowData={filtrelenmis}
               columnDefs={columns}
               domLayout="normal"
