@@ -16,7 +16,7 @@ export interface UretimHareket {
   islemKod: string
   islemAd: string
   miktar: number
-  kalite: number
+  kalite: string
   birimFiyat: number | null
   cariAd: string | null
   tarih: string
@@ -96,7 +96,7 @@ export default function UretimHareketGirisi() {
   const [seciliBeden, setSeciliBeden] = useState<string>('')
   const [seciliIslem, setSeciliIslem] = useState<string>('')
   const [miktar, setMiktar] = useState<number>(1)
-  const [kalite, setKalite] = useState<number>(1)
+  const [kalite, setKalite] = useState<string>('Sağlam')
   const [birimFiyat, setBirimFiyat] = useState<number | null>(null)
   const [cariAd, setCariAd] = useState<string>('')
   const [aciklama, setAciklama] = useState('')
@@ -113,8 +113,8 @@ export default function UretimHareketGirisi() {
       setSeciliSiparis(parsed.siparisNo)
       setSeciliModel(parsed.modelKod)
       setSeciliRenk(parsed.renkAd)
-      setSeciliBeden(parsed.beden)
-      message.success(`Barkod okundu: ${parsed.siparisNo} / ${parsed.modelKod}`)
+      setSeciliBeden('')
+      message.success(`Barkod okundu: ${parsed.siparisNo} / ${parsed.modelKod} — bedeni listeden seçin`)
     } else {
       message.error('Geçersiz barkod formatı')
     }
@@ -168,7 +168,7 @@ export default function UretimHareketGirisi() {
         cariAd: cariAd || null,
         tarih: new Date().toISOString(),
         aciklama,
-        barkod: generateBarkod(seciliSiparis, seciliModel, seciliRenk, seciliBeden),
+        barkod: generateBarkod(seciliSiparis, seciliModel, seciliRenk),
         kayitYapan: 'Kullanıcı',
       }
       setHareketler((prev) => [yeniHareket, ...prev])
@@ -180,7 +180,7 @@ export default function UretimHareketGirisi() {
   const temizle = () => {
     setSeciliIslem('')
     setMiktar(1)
-    setKalite(1)
+    setKalite('Sağlam')
     setBirimFiyat(null)
     setCariAd('')
     setAciklama('')
@@ -201,8 +201,13 @@ export default function UretimHareketGirisi() {
       width: 80,
       align: 'center',
       render: (_: unknown, r: UretimHareket) => (
-        <Tag color={r.kalite === 1 ? 'green' : 'orange'}>
-          {r.kalite}. Kalite
+        <Tag color={
+          r.kalite === 'Sağlam' ? 'green' :
+          r.kalite === '2. Kalite' ? 'orange' :
+          r.kalite === 'Defolu' ? 'red' :
+          r.kalite === 'Fire' ? 'default' : 'blue'
+        }>
+          {r.kalite}
         </Tag>
       ),
     },
@@ -246,48 +251,119 @@ export default function UretimHareketGirisi() {
         />
       </div>
 
+      {/* Beden Progress Strip */}
+      {seciliRenkData && (
+        <div className="bg-white border border-gray-200 rounded-md px-3 py-2">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[9px] text-gray-400 uppercase font-medium">Beden Seçimi</span>
+            <span className="text-[8px] text-gray-300">•</span>
+            <span className="text-[9px] text-gray-400">
+              {seciliRenkData.bedenler.length} beden • {
+                hareketler.filter(
+                  (h) =>
+                    h.siparisNo === seciliSiparis &&
+                    h.modelKod === seciliModel &&
+                    h.renkAd === seciliRenk
+                ).reduce((sum, h) => sum + h.miktar, 0)
+              } adet girildi
+            </span>
+            {seciliBeden && (
+              <>
+                <span className="text-[8px] text-gray-300">•</span>
+                <span className="text-[9px] text-blue-500 font-medium">
+                  Aktif: {seciliBeden}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="flex gap-1.5">
+            {seciliRenkData.bedenler.map((beden) => {
+              const bedenMiktar = hareketler
+                .filter(
+                  (h) =>
+                    h.siparisNo === seciliSiparis &&
+                    h.modelKod === seciliModel &&
+                    h.renkAd === seciliRenk &&
+                    h.beden === beden
+                )
+                .reduce((sum, h) => sum + h.miktar, 0)
+              const secili = seciliBeden === beden
+              const varMi = bedenMiktar > 0
+              return (
+                <div
+                  key={beden}
+                  onClick={() => setSeciliBeden(secili ? '' : beden)}
+                  className={`
+                    relative flex flex-col items-center justify-center px-3 py-1.5 rounded-md cursor-pointer border transition-all min-w-[48px]
+                    ${secili
+                      ? 'border-blue-500 bg-blue-50 shadow-sm'
+                      : varMi
+                        ? 'border-green-300 bg-green-50 hover:border-green-400'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <span className={`text-[11px] font-bold ${secili ? 'text-blue-600' : 'text-gray-700'}`}>
+                    {beden}
+                  </span>
+                  {varMi && (
+                    <span className={`text-[8px] mt-0.5 ${secili ? 'text-blue-500' : 'text-green-600'}`}>
+                      {bedenMiktar} adet
+                    </span>
+                  )}
+                  {secili && (
+                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 3 Kolonlu Yapı */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         {/* Sol Kolon: Sipariş Bilgileri */}
         <Card size="small" className="!mb-0" title={<span className="text-[10px] text-gray-500">Sipariş Bilgileri</span>}>
-          <div className="space-y-2">
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Sipariş</div>
-              <Select
-                className="!w-full"
-                size="small"
-                placeholder="Sipariş seçin"
-                value={seciliSiparis || undefined}
-                onChange={(v) => {
-                  setSeciliSiparis(v)
-                  setSeciliModel('')
-                  setSeciliRenk('')
-                  setSeciliBeden('')
-                }}
-                options={mockSiparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
-              />
-            </div>
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Model</div>
-              <Select
-                className="!w-full"
-                size="small"
-                placeholder="Model seçin"
-                value={seciliModel || undefined}
-                onChange={(v) => {
-                  setSeciliModel(v)
-                  setSeciliRenk('')
-                  setSeciliBeden('')
-                }}
-                disabled={!seciliSiparis}
-                options={seciliSiparisData?.modeller.map((m) => ({ label: `${m.modelKod} - ${m.modelAd}`, value: m.modelKod })) ?? []}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+          <div className="flex gap-3">
+            {/* Input Alanları */}
+            <div className="space-y-1.5 w-[50%]">
               <div>
-                <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Renk</div>
+                <div className="text-[9px] text-black mb-0 font-medium">Sipariş</div>
                 <Select
-                  className="!w-full"
+                  className="!w-[70%]"
+                  size="small"
+                  placeholder="Sipariş seçin"
+                  value={seciliSiparis || undefined}
+                  onChange={(v) => {
+                    setSeciliSiparis(v)
+                    setSeciliModel('')
+                    setSeciliRenk('')
+                    setSeciliBeden('')
+                  }}
+                  options={mockSiparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
+                />
+              </div>
+              <div>
+                <div className="text-[9px] text-black mb-0 font-medium">Model</div>
+                <Select
+                  className="!w-[70%]"
+                  size="small"
+                  placeholder="Model seçin"
+                  value={seciliModel || undefined}
+                  onChange={(v) => {
+                    setSeciliModel(v)
+                    setSeciliRenk('')
+                    setSeciliBeden('')
+                  }}
+                  disabled={!seciliSiparis}
+                  options={seciliSiparisData?.modeller.map((m) => ({ label: `${m.modelKod} - ${m.modelAd}`, value: m.modelKod })) ?? []}
+                />
+              </div>
+              <div>
+                <div className="text-[9px] text-black mb-0 font-medium">Renk</div>
+                <Select
+                  className="!w-[70%]"
                   size="small"
                   placeholder="Renk"
                   value={seciliRenk || undefined}
@@ -300,19 +376,27 @@ export default function UretimHareketGirisi() {
                   options={seciliModelData?.renkler.map((r) => ({ label: r.renkAd, value: r.renkAd })) ?? []}
                 />
               </div>
-              <div>
-                <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Beden</div>
-                <Select
-                  className="!w-full"
-                  size="small"
-                  placeholder="Beden"
-                  value={seciliBeden || undefined}
-                  onChange={setSeciliBeden}
-                  allowClear
-                  disabled={!seciliRenk}
-                  options={seciliRenkData?.bedenler.map((b) => ({ label: b, value: b })) ?? []}
+              {seciliBeden && (
+                <div>
+                  <div className="text-[9px] text-black mb-0 font-medium">Aktif Beden</div>
+                  <div className="!w-[70%] !h-[24px] !leading-[24px] !px-2 !bg-blue-50 !border !border-blue-200 !rounded text-[11px] text-blue-600 font-medium">
+                    {seciliBeden}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Ürün Görseli */}
+            <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-gray-200 rounded bg-gray-50 overflow-hidden self-stretch">
+              {seciliModel ? (
+                <img
+                  src="https://picsum.photos/150/150"
+                  alt={seciliModel}
+                  className="w-[150px] h-[150px] object-cover rounded"
                 />
-              </div>
+              ) : (
+                <div className="text-[8px] text-gray-400 text-center px-1">Görsel</div>
+              )}
             </div>
           </div>
         </Card>
@@ -364,33 +448,28 @@ export default function UretimHareketGirisi() {
             </div>
             <div>
               <div className="text-[9px] text-gray-400 mb-1 uppercase">Kalite</div>
-              <div className="flex gap-2">
-                <div
-                  onClick={() => setKalite(1)}
-                  className={`
-                    flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded cursor-pointer border transition-all
-                    ${kalite === 1
-                      ? 'border-green-500 bg-green-50 text-green-600'
-                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <CheckCircleOutlined className="text-[12px]" />
-                  <span className="text-[10px] font-medium">1. Kalite</span>
-                </div>
-                <div
-                  onClick={() => setKalite(2)}
-                  className={`
-                    flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded cursor-pointer border transition-all
-                    ${kalite === 2
-                      ? 'border-orange-500 bg-orange-50 text-orange-600'
-                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <CheckCircleOutlined className="text-[12px]" />
-                  <span className="text-[10px] font-medium">2. Kalite</span>
-                </div>
+              <div className="flex gap-1">
+                {[
+                  { value: 'Sağlam', active: 'border-green-500 bg-green-50 text-green-600' },
+                  { value: '2. Kalite', active: 'border-orange-500 bg-orange-50 text-orange-600' },
+                  { value: 'Defolu', active: 'border-red-500 bg-red-50 text-red-600' },
+                  { value: 'Fire', active: 'border-gray-500 bg-gray-100 text-gray-600' },
+                  { value: 'Diğer', active: 'border-blue-500 bg-blue-50 text-blue-600' },
+                ].map((k) => (
+                  <div
+                    key={k.value}
+                    onClick={() => setKalite(k.value)}
+                    className={`
+                      flex-1 flex items-center justify-center py-1 rounded cursor-pointer border transition-all
+                      ${kalite === k.value
+                        ? k.active
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <span className="text-[8px] font-medium whitespace-nowrap">{k.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -463,27 +542,18 @@ export default function UretimHareketGirisi() {
   )
 }
 
-function parseBarkod(barkod: string): { siparisNo: string; modelKod: string; renkAd: string; beden: string } | null {
+function parseBarkod(barkod: string): { siparisNo: string; modelKod: string; renkAd: string } | null {
   const parts = barkod.split('-')
-  if (parts.length >= 4) {
-    return {
-      siparisNo: parts.slice(0, 2).join('-'),
-      modelKod: parts[2] || '',
-      renkAd: parts[3] || '',
-      beden: parts[4] || '',
-    }
-  }
-  if (parts.length === 3) {
-    return {
-      siparisNo: parts[0],
-      modelKod: parts[1],
-      renkAd: parts[2],
-      beden: '',
-    }
-  }
-  return null
+  if (parts.length < 3) return null
+
+  // Son eleman renkAd, bir önceki modelKod, kalanı siparisNo
+  const renkAd = parts[parts.length - 1]
+  const modelKod = parts[parts.length - 2]
+  const siparisNo = parts.slice(0, parts.length - 2).join('-')
+
+  return { siparisNo, modelKod, renkAd }
 }
 
-function generateBarkod(siparisNo: string, modelKod: string, renkAd: string, beden: string): string {
-  return `${siparisNo}-${modelKod}-${renkAd}-${beden}`.replace(/\s+/g, '')
+function generateBarkod(siparisNo: string, modelKod: string, renkAd: string): string {
+  return `${siparisNo}-${modelKod}-${renkAd}`.replace(/\s+/g, '')
 }
