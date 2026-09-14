@@ -12,6 +12,11 @@ export class DovizController {
     return this.dovizService.findAll()
   }
 
+  @Get('kurlar/son')
+  findLatestKurlar() {
+    return this.dovizService.findLatestKurlar()
+  }
+
   @Get(':kod')
   findOne(@Param('kod') kod: string) {
     return this.dovizService.findOne(kod)

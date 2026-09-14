@@ -229,12 +229,14 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
   const irsaliyeTipiLabel = irsaliyeTipiMap[irsaliyeTipi] || irsaliyeTipi
+  const [localId, setLocalId] = useState<number | undefined>(propId)
+  const id = localId
 
   const [fasonTipiAd, setFasonTipiAd] = useState('')
   const [fasonTipiKayit, setFasonTipiKayit] = useState<number | null>(fasonTipiId ?? null)
@@ -261,15 +263,15 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
         })
       : [],
   )
-  const [loading, setLoading] = useState<boolean>(() => Boolean(id))
+  const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
   const [raporModalAcik, setRaporModalAcik] = useState(false)
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    if (id) {
+    if (propId) {
       irsaliyeApi
-        .get(id)
+        .get(propId)
         .then((i) => {
           if (cancelled) return
           setIrsaliyeNo(i.irsaliyeNo)
@@ -314,7 +316,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
         .catch(() => setIrsaliyeNo('00000001'))
     }
     return () => { cancelled = true }
-  }, [id, irsaliyeTipi, message])
+  }, [propId, irsaliyeTipi, message])
+
+  useEffect(() => {
+    setLocalId(propId)
+  }, [propId])
 
   useEffect(() => {
     if (!id && fasonTipiId) {
@@ -419,7 +425,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
          } as Irsaliye)
       message.success('İrsaliye güncellendi')
     } else {
-      await irsaliyeApi.create({
+      const created = await irsaliyeApi.create({
         irsaliyeNo,
         irsaliyeTipi,
         irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
@@ -435,6 +441,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
         kayitYapan,
         kalemler: kalemPayload,
       })
+      setLocalId(created.id)
       message.success('İrsaliye ve kalemler kaydedildi')
     }
   } catch (err: unknown) {
@@ -797,6 +804,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
 
   const [fasonGidenlerOpen, setFasonGidenlerOpen] = useState(false)
   const [fasonGidenlerData, setFasonGidenlerData] = useState<Irsaliye[]>([])
+  const [fasonGidenGirislerData, setFasonGidenGirislerData] = useState<Irsaliye[]>([])
   const [fasonGidenlerYukleniyor, setFasonGidenlerYukleniyor] = useState(false)
   const [fasonGidenArama, setFasonGidenArama] = useState('')
   const fasonGidenGridRef = useRef<GridApi>(null)
@@ -807,8 +815,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
     setFasonGidenArama('')
     irsaliyeApi
       .list()
-      .then((res) => setFasonGidenlerData(res.filter((i) => String(i.irsaliyeTipi) === '134')))
-      .catch(() => setFasonGidenlerData([]))
+      .then((res) => {
+        setFasonGidenlerData(res.filter((i) => String(i.irsaliyeTipi) === '134'))
+        setFasonGidenGirislerData(res.filter((i) => String(i.irsaliyeTipi) === '11'))
+      })
+      .catch(() => {
+        setFasonGidenlerData([])
+        setFasonGidenGirislerData([])
+      })
       .finally(() => setFasonGidenlerYukleniyor(false))
   }
 
@@ -894,17 +908,32 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
 
   const fasonGidenSatirlar = useMemo(() => {
     const gorilenMiktar = new Map<string, number>()
+
+    const miktarHesapla = (olcuBirimi: string | null | undefined, brutKg: number, kg: number, brutMt: number, mt: number, adet: number): number => {
+      switch (olcuBirimi) {
+        case 'brutKg': return brutKg
+        case 'kg': return kg
+        case 'brutMt': return brutMt
+        case 'mt': return mt
+        case 'adet': return adet
+        default: return 0
+      }
+    }
+
+    for (const giris of fasonGidenGirislerData) {
+      for (const k of giris.kalemler ?? []) {
+        if (!k.takipNo) continue
+        const m = miktarHesapla(k.olcuBirimi, Number(k.brutAgirlik) || 0, Number(k.netAgirlik) || 0, Number(k.brutMetre) || 0, Number(k.netMetre) || 0, Number(k.adet) || 0)
+        gorilenMiktar.set(k.takipNo, (gorilenMiktar.get(k.takipNo) ?? 0) + m)
+      }
+    }
+
     for (const k of kalemler) {
       if (!k.barkod) continue
-      const birim = k.hesapBirimi
-      let m = 0
-      if (birim === 'brutKg') m = k.brutKg
-      else if (birim === 'kg') m = k.kg
-      else if (birim === 'brutMt') m = k.brutMt
-      else if (birim === 'mt') m = k.mt
-      else if (birim === 'adet') m = k.adet
+      const m = miktarHesapla(k.hesapBirimi, k.brutKg, k.kg, k.brutMt, k.mt, k.adet)
       gorilenMiktar.set(k.barkod, (gorilenMiktar.get(k.barkod) ?? 0) + m)
     }
+
     const kaynakMiktar = (k: IrsaliyeKalem): number => {
       switch (k.olcuBirimi) {
         case 'brutKg': return Number(k.brutAgirlik) || 0
@@ -940,7 +969,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id, e
       }
     }
     return rows
-  }, [fasonGidenlerFiltreli, kalemler])
+  }, [fasonGidenlerFiltreli, fasonGidenGirislerData, kalemler])
 
   const fasonGidenSatirKolonlar = useMemo<ColDef<any>[]>(
     () => [

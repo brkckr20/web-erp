@@ -12,8 +12,17 @@ export interface Doviz {
 export type CreateDoviz = Doviz
 export type UpdateDoviz = Partial<CreateDoviz>
 
+export interface DovizKuruSatir {
+  dovizKodu: string
+  dovizAd: string
+  alisKuru: number | null
+  satisKuru: number | null
+  tarih: string | null
+}
+
 export const dovizApi = {
   list: () => api.get<Doviz[]>('/doviz'),
+  getSonKurlar: () => api.get<DovizKuruSatir[]>('/doviz/kurlar/son'),
   getByKod: (kod: string) => api.get<Doviz>(`/doviz/${encodeURIComponent(kod)}`),
   create: (dto: CreateDoviz) => api.post<Doviz>('/doviz', dto),
   update: (kod: string, dto: UpdateDoviz) => api.put<Doviz>(`/doviz/${encodeURIComponent(kod)}`, dto),

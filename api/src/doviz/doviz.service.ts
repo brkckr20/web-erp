@@ -30,4 +30,27 @@ export class DovizService {
     await this.findOne(kod)
     return this.prisma.doviz.delete({ where: { kod } })
   }
+
+  async findLatestKurlar() {
+    const dovizler = await this.prisma.doviz.findMany({
+      where: { kullanimda: true },
+      orderBy: { sira: 'asc' },
+    })
+
+    const results: { dovizKodu: string; dovizAd: string; alisKuru: number | null; satisKuru: number | null; tarih: Date | null }[] = []
+    for (const d of dovizler) {
+      const sonKur = await this.prisma.dovizKuru.findFirst({
+        where: { dovizKodu: d.kod },
+        orderBy: { tarih: 'desc' },
+      })
+      results.push({
+        dovizKodu: d.kod,
+        dovizAd: d.ad,
+        alisKuru: sonKur ? Number(sonKur.alisKuru) : null,
+        satisKuru: sonKur ? Number(sonKur.satisKuru) : null,
+        tarih: sonKur?.tarih ?? null,
+      })
+    }
+    return results
+  }
 }

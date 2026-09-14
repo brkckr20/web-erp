@@ -10,6 +10,7 @@ interface SearchableCariSelectProps {
   placeholder?: string
   className?: string
   widthClass?: string
+  hideAdLabel?: boolean
 }
 
 export default function SearchableCariSelect(props: SearchableCariSelectProps) {
