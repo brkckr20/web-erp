@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Button, Input, InputNumber, Select, DatePicker, Table, App, Tag, Card, Divider, Dropdown } from 'antd'
+import { useState, useMemo, useEffect } from 'react'
+import { Button, Input, InputNumber, Select, DatePicker, Table, App, Tag, Card, Divider, Dropdown, Modal } from 'antd'
 import type { ColumnsType, MenuProps } from 'antd/es/table'
 import {
   ScissorOutlined,
@@ -11,10 +11,13 @@ import {
   UndoOutlined,
   FireOutlined,
   ScanOutlined,
+  ClearOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { iadeTalepApi } from '@/lib/iade-talep-api'
 import { barkodApi, type BarkodEslesme } from '@/lib/barkod-api'
+import { malzemeYonetimFisleriApi, type MalzemeYonetimFisi, type MalzemeYonetimFisiKalem } from '@/lib/malzeme-yonetim-fisleri-api'
 
 export interface KesimKartiRecord {
   id: number
@@ -38,6 +41,10 @@ export interface KesimKartiRecord {
   iadeTalep: boolean
   tarih: string
   durum: 'KESILDI' | 'DIKIME_GONDERILDI'
+  kaynakFisId?: number | null
+  kaynakFisNo?: string | null
+  kaynakKalemId?: number | null
+  manuelFire?: boolean
 }
 
 const mockSiparisler = [
@@ -109,20 +116,38 @@ export default function KesimKarti() {
   const [seciliSiparis, setSeciliSiparis] = useState<string>('')
   const [seciliModel, setSeciliModel] = useState<string>('')
   const [seciliRenk, setSeciliRenk] = useState<string>('')
-  const [seciliBeden, setSeciliBeden] = useState<string>('')
-  const [seciliKumas, setSeciliKumas] = useState<string>('')
-  const [kumasMiktar, setKumasMiktar] = useState<number>(0)
-  const [kesilenMiktar, setKesilenMiktar] = useState<number>(0)
+  // Beden kırılımlı kesilen adetleri (beden → adet)
+  const [kesilenAdetler, setKesilenAdetler] = useState<Record<string, number | null>>({})
   const [fireMiktar, setFireMiktar] = useState<number>(0)
+  const [fireOtomatik, setFireOtomatik] = useState<boolean>(true)
   const [duzenlenenId, setDuzenlenenId] = useState<number | null>(null)
+  // Faz A: 140-Üretime Çıkış Fişi kaynağı (fiş → kalem → modele paylaştırma)
+  const [fisListesi, setFisListesi] = useState<MalzemeYonetimFisi[]>([])
+  const [fisYukleniyor, setFisYukleniyor] = useState(false)
+  const [seciliFisId, setSeciliFisId] = useState<number | null>(null)
+  const [seciliFis, setSeciliFis] = useState<MalzemeYonetimFisi | null>(null)
+  const [seciliFisKalemId, setSeciliFisKalemId] = useState<number | null>(null)
+  // Üretime Çıkılanlar modalı
+  const [cikisModalAcik, setCikisModalAcik] = useState(false)
+  const [modalFisId, setModalFisId] = useState<number | null>(null)
+  const [modalFis, setModalFis] = useState<MalzemeYonetimFisi | null>(null)
+  const [modalYukleniyor, setModalYukleniyor] = useState(false)
 
   const seciliSiparisData = mockSiparisler.find((s) => s.siparisNo === seciliSiparis)
   const seciliModelData = seciliSiparisData?.modeller.find((m) => m.modelKod === seciliModel)
   const seciliRenkData = seciliModelData?.renkler.find((r) => r.renkAd === seciliRenk)
-  const seciliBedenData = seciliRenkData?.bedenler.find((b) => b.beden === seciliBeden)
-  const seciliKumasGrubu = seciliModelData?.kumasGruplari.find((k) => `${k.kumasAd}-${k.renk}` === seciliKumas)
+  // Kumaş grubu seçimsiz: renkle eşleşen, yoksa ilk grup (fiş kalemi kumaşı Üretime Çıkılanlar'dan gelir)
+  const seciliKumasGrubu = seciliModelData?.kumasGruplari.find((k) => k.renk === seciliRenk)
+    ?? seciliModelData?.kumasGruplari[0]
 
-  const toplamPlanlanan = seciliBedenData?.miktar ?? 0
+  // Fiş kalem MT'si: netMetre > brutMetre > miktar > adet
+  const kalemMT = (k: MalzemeYonetimFisiKalem): number =>
+    Number(k.netMetre) || Number(k.brutMetre) || Number(k.miktar) || Number(k.adet) || 0
+  const seciliFisKalem = seciliFis?.kalemler?.find((k) => k.id === seciliFisKalemId) ?? null
+  const seciliKalemMT = seciliFisKalem ? kalemMT(seciliFisKalem) : 0
+  // Verilen kumaş listeden gelir (Üretime Çıkılanlar'da seçilen kalem) — elle girilmez
+  const kumasMiktar = seciliKalemMT
+
   const gerekliMT = seciliKumasGrubu?.gerekliMT ?? 0
   const kesimFazlasi = seciliKumasGrubu?.kesimFazlasi ?? 0
   const brutMT = gerekliMT * (1 + kesimFazlasi / 100)
@@ -131,88 +156,242 @@ export default function KesimKarti() {
     ? seciliModelData.renkler.reduce((acc, r) => acc + r.bedenler.reduce((a, b) => a + (b.miktar ?? 0), 0), 0)
     : 0
   const birimTuketim = toplamRenkAdet > 0 ? gerekliMT / toplamRenkAdet : 0
+  // Renk toplamı (beden planlananları toplamı)
+  const renkPlanlananToplam = seciliRenkData?.bedenler.reduce((s, b) => s + (b.miktar ?? 0), 0) ?? 0
+  const planlananOf = (beden: string): number =>
+    seciliRenkData?.bedenler.find((b) => b.beden === beden)?.miktar ?? 0
+  // Beklenen adet beden payına göre dağıtılır (kumaş payı orantılı)
+  const beklenenOf = (beden: string): number => {
+    if (birimTuketim <= 0 || renkPlanlananToplam <= 0 || kumasMiktar <= 0) return 0
+    return Math.floor((kumasMiktar * (planlananOf(beden) / renkPlanlananToplam)) / birimTuketim)
+  }
   const beklenenAdet = birimTuketim > 0 ? Math.floor(kumasMiktar / birimTuketim) : 0
-  const kullanilanMT = kesilenMiktar * birimTuketim
+  const toplamKesilen: number = Object.values(kesilenAdetler).reduce<number>((s, v) => s + (v ?? 0), 0)
+  const kullanilanMT = toplamKesilen * birimTuketim
   const kalanMT = kumasMiktar - kullanilanMT
-  const fireOrani = kumasMiktar > 0 ? (kalanMT / kumasMiktar) * 100 : 0
+  const fireOrani = kumasMiktar > 0 ? (fireMiktar / kumasMiktar) * 100 : 0
+
+  // Aynı fiş kaleminden daha önce ayrılan toplam (1 kumaş → N model paylaştırma havuzu)
+  const kalemeAyrilanMT = seciliFisKalemId == null ? 0 : kesimKartlari
+    .filter((k) => k.kaynakKalemId === seciliFisKalemId && (duzenlenenId === null || k.id !== duzenlenenId))
+    .reduce((s, k) => s + (k.kumasMiktar || 0), 0)
+  const kalemdeKalanMT = Math.max(0, seciliKalemMT - kalemeAyrilanMT)
+
+  // 140 fiş listesi (sadece üretime çıkış)
+  useEffect(() => {
+    setFisYukleniyor(true)
+    malzemeYonetimFisleriApi.list()
+      .then((fisler) => setFisListesi((fisler ?? []).filter((f) => f.irsaliyeTipi === '140')))
+      .catch(() => setFisListesi([]))
+      .finally(() => setFisYukleniyor(false))
+  }, [])
+
+  // Fiş detayı (kalemleriyle) yükle
+  useEffect(() => {
+    if (seciliFisId == null) {
+      setSeciliFis(null)
+      setSeciliFisKalemId(null)
+      return
+    }
+    // Liste öğesinde kalemler yoksa detayı çek, varsa listeden kullan
+    const listedeki = fisListesi.find((f) => f.id === seciliFisId)
+    if (listedeki?.kalemler && listedeki.kalemler.length > 0) {
+      setSeciliFis(listedeki)
+      setSeciliFisKalemId((prev) => prev ?? listedeki.kalemler![0].id)
+      return
+    }
+    setFisYukleniyor(true)
+    malzemeYonetimFisleriApi.get(seciliFisId)
+      .then((f) => {
+        setSeciliFis(f)
+        setSeciliFisKalemId((prev) => prev ?? f.kalemler?.[0]?.id ?? null)
+      })
+      .catch(() => {
+        setSeciliFis(null)
+        setSeciliFisKalemId(null)
+      })
+      .finally(() => setFisYukleniyor(false))
+  }, [seciliFisId, fisListesi])
+
+  // Modalda seçilen fişin detayı (kalemleriyle)
+  useEffect(() => {
+    if (!cikisModalAcik || modalFisId == null) {
+      if (!cikisModalAcik) setModalFis(null)
+      return
+    }
+    const listedeki = fisListesi.find((f) => f.id === modalFisId)
+    if (listedeki?.kalemler && listedeki.kalemler.length > 0) {
+      setModalFis(listedeki)
+      return
+    }
+    setModalYukleniyor(true)
+    malzemeYonetimFisleriApi.get(modalFisId)
+      .then(setModalFis)
+      .catch(() => setModalFis(null))
+      .finally(() => setModalYukleniyor(false))
+  }, [cikisModalAcik, modalFisId, fisListesi])
+
+  // Modalden kumaş seçimi onayla
+  const cikisKalemSec = (fis: MalzemeYonetimFisi, kalemId: number) => {
+    setSeciliFisId(fis.id)
+    setSeciliFis(fis.kalemler ? fis : { ...fis })
+    setSeciliFisKalemId(kalemId)
+    setKesilenAdetler({})
+    setFireMiktar(0)
+    setFireOtomatik(true)
+    setCikisModalAcik(false)
+  }
+
+  // Kalem başına ayrılan toplam (modal kalan hesabı için)
+  const kalemeAyrilan = (kalemId: number): number => kesimKartlari
+    .filter((k) => k.kaynakKalemId === kalemId && (duzenlenenId === null || k.id !== duzenlenenId))
+    .reduce((s, k) => s + (k.kumasMiktar || 0), 0)
+
+  // Fire otomatik: kalan MT'yi fireye yaz (kullanıcı dokununca manuel moda geçilir)
+  useEffect(() => {
+    if (!fireOtomatik) return
+    setFireMiktar(Math.max(0, Math.round(kalanMT * 10) / 10))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalanMT, fireOtomatik])
 
   const barkodTara = async () => {
     if (!barkodInput.trim()) return
+    const ham = barkodInput.trim()
     try {
-      const eslesme = await barkodApi.tar(barkodInput.trim())
+      const eslesme = await barkodApi.tar(ham)
       setSeciliSiparis(eslesme.siparisNo)
       setSeciliModel(eslesme.modelKod)
       setSeciliRenk(eslesme.renkKod)
-      setSeciliBeden(eslesme.beden)
-      setSeciliKumas(`${eslesme.kumasAd}-${eslesme.kumasRenkAd || eslesme.kumasRenkKod}`)
-      setKumasMiktar(0)
-      setKesilenMiktar(0)
+      setKesilenAdetler(eslesme.beden ? { [eslesme.beden]: null } : {})
       setFireMiktar(0)
+      setFireOtomatik(true)
       message.success(`Barkod okundu: ${eslesme.siparisNo} / ${eslesme.modelKod}`)
     } catch {
-      message.error('Barkod ile eşleşen kayıt bulunamadı')
+      // Backend'de yoksa yerel çöz: SIPARIS-MODEL-RENK[-BEDEN] (Üretim Hareket ile aynı)
+      const yerel = parseBarkodYerel(ham)
+      if (yerel) {
+        setSeciliSiparis(yerel.siparisNo)
+        setSeciliModel(yerel.modelKod)
+        setSeciliRenk(yerel.renkAd)
+        setKesilenAdetler(yerel.beden ? { [yerel.beden]: null } : {})
+        setFireMiktar(0)
+        setFireOtomatik(true)
+        message.success(`Barkod okundu (yerel): ${yerel.siparisNo} / ${yerel.modelKod} / ${yerel.renkAd}${yerel.beden ? ` / ${yerel.beden}` : ''}`)
+      } else {
+        message.error('Barkod ile eşleşen kayıt bulunamadı')
+      }
     }
     setBarkodInput('')
   }
 
-  const temizle = () => {
+  const temizle = (fisKoru = true) => {
     setBarkodInput('')
     setTarih(dayjs())
     setSeciliSiparis('')
     setSeciliModel('')
     setSeciliRenk('')
-    setSeciliBeden('')
-    setSeciliKumas('')
-    setKumasMiktar(0)
-    setKesilenMiktar(0)
+    setKesilenAdetler({})
     setFireMiktar(0)
+    setFireOtomatik(true)
     setDuzenlenenId(null)
+    if (!fisKoru) {
+      setSeciliFisId(null)
+      setSeciliFis(null)
+      setSeciliFisKalemId(null)
+    }
   }
 
   const kaydet = () => {
-    if (!seciliSiparis || !seciliModel || !seciliRenk || !seciliBeden) {
-      message.warning('Lütfen sipariş, model, renk ve beden seçin')
+    if (!seciliSiparis || !seciliModel || !seciliRenk) {
+      message.warning('Lütfen sipariş, model ve renk seçin')
       return
     }
-    if (kumasMiktar <= 0) {
-      message.warning('Verilen kumaş miktarı 0\'dan büyük olmalı')
+    if (seciliFisKalemId == null || kumasMiktar <= 0) {
+      message.warning('Önce Üretime Çıkılanlar’dan kumaş seçin')
       return
     }
-    if (kesilenMiktar <= 0) {
-      message.warning('Kesilen miktar 0\'dan büyük olmalı')
+    const girisler = (seciliRenkData?.bedenler ?? [])
+      .map((b) => ({ beden: b.beden, adet: kesilenAdetler[b.beden] ?? 0 }))
+      .filter((x) => x.adet > 0)
+    if (duzenlenenId !== null && girisler.length !== 1) {
+      message.warning('Düzenlemede tek beden adedi girin')
+      return
+    }
+    if (girisler.length === 0) {
+      message.warning('Lütfen beden beden kesilen adet girin')
+      return
+    }
+    // Paylaştırma guard: fiş kalem havuzunu aşma (1 kumaş → N model)
+    if (seciliFisKalemId != null && seciliKalemMT > 0 && kumasMiktar > kalemdeKalanMT + 0.0001) {
+      message.warning(`Bu kalemden kalan ${kalemdeKalanMT.toFixed(1)} MT — ayrılan miktar aşıyor`)
       return
     }
 
-    const yeniKart: KesimKartiRecord = {
-      id: duzenlenenId ?? Date.now(),
-      siparisNo: seciliSiparis,
-      modelKod: seciliModel,
-      modelAd: seciliModelData?.modelAd ?? '',
-      renkAd: seciliRenk,
-      beden: seciliBeden,
-      planlananMiktar: toplamPlanlanan,
-      kesilenMiktar,
-      fireMiktar,
-      kumasAd: seciliKumasGrubu?.kumasAd ?? '',
-      kumasRenk: seciliKumasGrubu?.renk ?? '',
-      gerekliMiktar: gerekliMT,
-      brutMiktar: brutMT,
-      kumasMiktar,
-      birimTuketim,
-      beklenenAdet,
-      kalanMT,
-      fireOrani,
-      iadeTalep: duzenlenenId !== null ? (kesimKartlari.find((k) => k.id === duzenlenenId)?.iadeTalep ?? false) : false,
-      tarih: tarih.format('YYYY-MM-DD'),
-      durum: 'KESILDI',
-    }
+    const tarihStr = tarih.format('YYYY-MM-DD')
+    const kumasAd = seciliKumasGrubu?.kumasAd ?? seciliFisKalem?.malzeme?.ad ?? ''
+    const kumasRenk = seciliKumasGrubu?.renk ?? ''
+    const iadeTalep = duzenlenenId !== null ? (kesimKartlari.find((k) => k.id === duzenlenenId)?.iadeTalep ?? false) : false
 
     if (duzenlenenId !== null) {
-      setKesimKartlari((prev) => prev.map((k) => (k.id === duzenlenenId ? yeniKart : k)))
+      const g = girisler[0]
+      setKesimKartlari((prev) => prev.map((k) => (k.id === duzenlenenId ? {
+        ...k,
+        siparisNo: seciliSiparis,
+        modelKod: seciliModel,
+        modelAd: seciliModelData?.modelAd ?? k.modelAd,
+        renkAd: seciliRenk,
+        beden: g.beden,
+        planlananMiktar: planlananOf(g.beden),
+        kesilenMiktar: g.adet,
+        fireMiktar,
+        kumasAd,
+        kumasRenk,
+        gerekliMiktar: gerekliMT,
+        brutMiktar: brutMT,
+        kumasMiktar,
+        birimTuketim,
+        beklenenAdet: beklenenOf(g.beden),
+        kalanMT,
+        fireOrani,
+        kaynakFisId: seciliFisId,
+        kaynakFisNo: seciliFis?.irsaliyeNo ?? k.kaynakFisNo ?? null,
+        kaynakKalemId: seciliFisKalemId ?? k.kaynakKalemId ?? null,
+        manuelFire: !fireOtomatik,
+        iadeTalep,
+        tarih: tarihStr,
+      } : k)))
       message.success('Kesim kartı güncellendi')
     } else {
-      setKesimKartlari((prev) => [yeniKart, ...prev])
-      message.success('Kesim kartı oluşturuldu')
+      const simdi = Date.now()
+      const yeniKartlar: KesimKartiRecord[] = girisler.map((g, i) => ({
+        id: simdi + i,
+        siparisNo: seciliSiparis,
+        modelKod: seciliModel,
+        modelAd: seciliModelData?.modelAd ?? '',
+        renkAd: seciliRenk,
+        beden: g.beden,
+        planlananMiktar: planlananOf(g.beden),
+        kesilenMiktar: g.adet,
+        fireMiktar,
+        kumasAd,
+        kumasRenk,
+        gerekliMiktar: gerekliMT,
+        brutMiktar: brutMT,
+        kumasMiktar,
+        birimTuketim,
+        beklenenAdet: beklenenOf(g.beden),
+        kalanMT,
+        fireOrani,
+        kaynakFisId: seciliFisId,
+        kaynakFisNo: seciliFis?.irsaliyeNo ?? null,
+        kaynakKalemId: seciliFisKalemId,
+        manuelFire: !fireOtomatik,
+        iadeTalep: false,
+        tarih: tarihStr,
+        durum: 'KESILDI',
+      }))
+      setKesimKartlari((prev) => [...yeniKartlar, ...prev])
+      message.success(`${yeniKartlar.length} beden kesildi`)
     }
     temizle()
   }
@@ -293,6 +472,16 @@ export default function KesimKarti() {
     { title: 'Kalan MT', dataIndex: 'kalanMT', width: 75, align: 'right', render: (v: number) => <span className={v > 0 ? 'text-orange-500 font-medium' : ''}>{v.toFixed(1)}</span> },
     { title: 'Fire %', dataIndex: 'fireOrani', width: 60, align: 'right', render: (v: number) => <span className={v > 10 ? 'text-red-500 font-medium' : 'text-gray-500'}>%{v.toFixed(1)}</span> },
     {
+      title: 'Kaynak',
+      dataIndex: 'kaynakFisNo',
+      width: 90,
+      render: (v: string | null | undefined, r: KesimKartiRecord) => v ? (
+        <span title={`Kalem ${r.kaynakKalemId ?? ''}`}>{v}{r.manuelFire ? ' •M' : ''}</span>
+      ) : (
+        <span className="text-gray-300">—</span>
+      ),
+    },
+    {
       title: 'Durum',
       dataIndex: 'durum',
       width: 100,
@@ -321,11 +510,11 @@ export default function KesimKarti() {
               setSeciliSiparis(record.siparisNo)
               setSeciliModel(record.modelKod)
               setSeciliRenk(record.renkAd)
-              setSeciliBeden(record.beden)
-              setSeciliKumas(`${record.kumasAd}-${record.kumasRenk}`)
-              setKumasMiktar(record.kumasMiktar)
-              setKesilenMiktar(record.kesilenMiktar)
+              setKesilenAdetler(record.beden ? { [record.beden]: record.kesilenMiktar } : {})
               setFireMiktar(record.fireMiktar)
+              setFireOtomatik(!record.manuelFire)
+              if (record.kaynakFisId) setSeciliFisId(record.kaynakFisId)
+              if (record.kaynakKalemId) setSeciliFisKalemId(record.kaynakKalemId)
               setTarih(dayjs(record.tarih))
             },
           },
@@ -378,69 +567,79 @@ export default function KesimKarti() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Sol: Sipariş & Kumaş */}
         <Card size="small" className="!mb-0" title={<span className="text-[10px] text-gray-500">Sipariş & Kumaş</span>}>
-          {/* Barkod */}
-          <div className="flex gap-2 mb-2">
+          {/* Barkod + Tara + Üretime Çıkılanlar aynı satırda */}
+          <div className="flex gap-2 mb-2 items-stretch">
             <Input
-              size="small"
               placeholder="Barkod okutun: SIPARIS|#|KOD"
               value={barkodInput}
               onChange={(e) => setBarkodInput(e.target.value)}
               onPressEnter={barkodTara}
-              prefix={<ScanOutlined className="text-gray-400" />}
+              prefix={<ScanOutlined className="!text-[20px] text-gray-400" />}
+              className="!h-14 !text-[15px] !flex-1 !rounded-lg"
             />
-            <Button size="small" onClick={barkodTara} icon={<ScanOutlined />}>Tara</Button>
+            <Button onClick={barkodTara} icon={<ScanOutlined />} className="!h-14 !rounded-lg !font-semibold">
+              Tara
+            </Button>
+            <Button
+              icon={<SendOutlined />}
+              onClick={() => {
+                setModalFisId(seciliFisId)
+                setCikisModalAcik(true)
+              }}
+              loading={fisYukleniyor}
+              className="!h-14 !rounded-lg !font-semibold !border-orange-400 !text-orange-600 hover:!border-orange-500 hover:!text-orange-700"
+            >
+              Üretime Çıkılanlar
+            </Button>
           </div>
 
           <Divider className="!my-2" />
 
           <div className="space-y-2">
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Tarih</div>
-              <DatePicker
-                className="!w-full"
-                size="small"
-                value={tarih}
-                onChange={(v) => setTarih(v ?? dayjs())}
-                format="DD.MM.YYYY"
-              />
-            </div>
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Sipariş</div>
-              <Select
-                className="!w-full"
-                size="small"
-                placeholder="Sipariş seçin"
-                value={seciliSiparis || undefined}
-                onChange={(v) => {
-                  setSeciliSiparis(v)
-                  setSeciliModel('')
-                  setSeciliRenk('')
-                  setSeciliBeden('')
-                  setSeciliKumas('')
-                  setKumasMiktar(0)
-                }}
-                options={mockSiparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
-              />
-            </div>
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Model</div>
-              <Select
-                className="!w-full"
-                size="small"
-                placeholder="Model seçin"
-                value={seciliModel || undefined}
-                onChange={(v) => {
-                  setSeciliModel(v)
-                  setSeciliRenk('')
-                  setSeciliBeden('')
-                  setSeciliKumas('')
-                  setKumasMiktar(0)
-                }}
-                disabled={!seciliSiparis}
-                options={seciliSiparisData?.modeller.map((m) => ({ label: `${m.modelKod} - ${m.modelAd}`, value: m.modelKod })) ?? []}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+            {/* Tarih + Sipariş + Model + Renk tek satırda */}
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-1.5">
+              <div>
+                <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Tarih</div>
+                <DatePicker
+                  className="!w-full"
+                  size="small"
+                  value={tarih}
+                  onChange={(v) => setTarih(v ?? dayjs())}
+                  format="DD.MM.YYYY"
+                />
+              </div>
+              <div>
+                <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Sipariş</div>
+                <Select
+                  className="!w-full"
+                  size="small"
+                  placeholder="Sipariş"
+                  value={seciliSiparis || undefined}
+                  onChange={(v) => {
+                    setSeciliSiparis(v)
+                    setSeciliModel('')
+                    setSeciliRenk('')
+                    setKesilenAdetler({})
+                  }}
+                  options={mockSiparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
+                />
+              </div>
+              <div>
+                <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Model</div>
+                <Select
+                  className="!w-full"
+                  size="small"
+                  placeholder="Model"
+                  value={seciliModel || undefined}
+                  onChange={(v) => {
+                    setSeciliModel(v)
+                    setSeciliRenk('')
+                    setKesilenAdetler({})
+                  }}
+                  disabled={!seciliSiparis}
+                  options={seciliSiparisData?.modeller.map((m) => ({ label: `${m.modelKod} - ${m.modelAd}`, value: m.modelKod })) ?? []}
+                />
+              </div>
               <div>
                 <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Renk</div>
                 <Select
@@ -450,72 +649,29 @@ export default function KesimKarti() {
                   value={seciliRenk || undefined}
                   onChange={(v) => {
                     setSeciliRenk(v)
-                    setSeciliBeden('')
-                    setSeciliKumas('')
-                    setKumasMiktar(0)
+                    setKesilenAdetler({})
                   }}
                   disabled={!seciliModel}
                   options={seciliModelData?.renkler.map((r) => ({ label: r.renkAd, value: r.renkAd })) ?? []}
                 />
               </div>
-              <div>
-                <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Beden</div>
-                <Select
-                  className="!w-full"
-                  size="small"
-                  placeholder="Beden"
-                  value={seciliBeden || undefined}
-                  onChange={setSeciliBeden}
-                  disabled={!seciliRenk}
-                  options={seciliRenkData?.bedenler.map((b) => ({ label: `${b.beden} (${b.miktar} adet)`, value: b.beden })) ?? []}
-                />
-              </div>
             </div>
 
-            {/* Kumaş Seçimi */}
-            {seciliRenk && seciliModelData?.kumasGruplari && seciliModelData.kumasGruplari.length > 0 && (
-              <>
-                <Divider className="!my-1" />
-                <div>
-                  <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Kumaş</div>
-                  <Select
-                    className="!w-full"
-                    size="small"
-                    placeholder="Kumaş seçin"
-                    value={seciliKumas || undefined}
-                    onChange={(v) => {
-                      setSeciliKumas(v)
-                      setKumasMiktar(0)
-                      setKesilenMiktar(0)
-                    }}
-                    options={seciliModelData.kumasGruplari.map((k) => ({
-                      label: `${k.kumasAd} (${k.renk}) - ${k.gerekliMT} MT`,
-                      value: `${k.kumasAd}-${k.renk}`,
-                    }))}
-                  />
-                </div>
-                {birimTuketim > 0 && (
-                  <div className="bg-blue-50 rounded p-1.5 text-[10px] text-blue-600">
-                    Birim Tüketim: <span className="font-semibold">{birimTuketim.toFixed(4)} MT/ADET</span>
-                  </div>
+            {/* Kumaş bilgisi (seçim yok — Üretime Çıkılanlar + model reçetesinden otomatik) */}
+            {seciliRenk && seciliKumasGrubu && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-2 text-[12px] text-blue-700">
+                Kumaş: <span className="font-bold">{seciliKumasGrubu.kumasAd} ({seciliKumasGrubu.renk})</span>
+                {seciliFisKalem ? (
+                  <span className="text-gray-500"> · Fiş: <span className="font-semibold text-gray-700">{seciliFis?.irsaliyeNo}</span></span>
+                ) : (
+                  <span className="text-orange-500"> · Fiş seçilmedi — Üretime Çıkılanlar’dan seçin</span>
                 )}
-              </>
-            )}
-
-            {/* Verilen Kumaş */}
-            {seciliKumas && (
-              <div>
-                <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Verilen Kumaş (MT) *</div>
-                <InputNumber
-                  className="!w-full"
-                  size="small"
-                  min={0}
-                  step={0.5}
-                  precision={1}
-                  value={kumasMiktar || undefined}
-                  onChange={(v) => setKumasMiktar(v ?? 0)}
-                  placeholder="Örn: 42"
-                />
+                {birimTuketim > 0 && (
+                  <span> · Birim Tüketim: <span className="font-semibold">{birimTuketim.toFixed(4)} MT/ADET</span></span>
+                )}
+                {seciliFisKalem && (
+                  <span className="text-gray-500"> · Verilen: <span className="font-semibold text-gray-700">{kumasMiktar.toFixed(1)} MT</span></span>
+                )}
               </div>
             )}
           </div>
@@ -524,22 +680,39 @@ export default function KesimKarti() {
         {/* Sağ: Kesim Bilgileri & Hesaplama */}
         <Card size="small" className="!mb-0" title={<span className="text-[10px] text-gray-500">Kesim & Hesaplama</span>}>
           <div className="space-y-2">
+            {/* Beden kırılımı: planlanan + beklenen + kesilen */}
+            {seciliRenkData ? (
+              <div>
+                <div className="text-[9px] text-gray-400 mb-1 uppercase">
+                  Bedenler <span className="text-gray-300 normal-case">(planlanan / beklenen / kesilen)</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {seciliRenkData.bedenler.map((b) => (
+                    <div key={b.beden} className="border border-gray-200 rounded px-1.5 py-1 bg-white">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-[11px] font-bold text-gray-700">{b.beden}</span>
+                        <span className="text-[9px] text-gray-400">planlanan <span className="font-semibold text-gray-600">{b.miktar}</span></span>
+                      </div>
+                      <div className="text-[9px] text-blue-600">beklenen <span className="font-semibold">{beklenenOf(b.beden)}</span></div>
+                      <InputNumber
+                        size="small"
+                        min={0}
+                        precision={0}
+                        placeholder="Kesilen"
+                        value={kesilenAdetler[b.beden] ?? null}
+                        onChange={(v) => setKesilenAdetler((p) => ({ ...p, [b.beden]: v }))}
+                        className="!w-full !mt-0.5"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-[10px] text-gray-300 text-center py-1">Bedenler için önce sipariş / model / renk seçin</div>
+            )}
             {/* Hesaplama Özeti */}
             {kumasMiktar > 0 && birimTuketim > 0 && (
               <div className="bg-gray-50 rounded p-2 space-y-1">
-                <div className="text-[11px] flex justify-between">
-                  <span className="text-gray-500">Verilen:</span>
-                  <span className="font-medium">{kumasMiktar} MT</span>
-                </div>
-                <div className="text-[11px] flex justify-between">
-                  <span className="text-gray-500">Birim Tüketim:</span>
-                  <span className="font-medium">{birimTuketim.toFixed(4)} MT/ADET</span>
-                </div>
-                <div className="text-[11px] flex justify-between">
-                  <span className="text-gray-500">Beklenen Adet:</span>
-                  <span className="font-semibold text-blue-600">{beklenenAdet} adet</span>
-                </div>
-                <Divider className="!my-1" />
                 <div className="text-[11px] flex justify-between">
                   <span className="text-gray-500">Kullanılan:</span>
                   <span>{kullanilanMT.toFixed(1)} MT</span>
@@ -559,54 +732,84 @@ export default function KesimKarti() {
               </div>
             )}
 
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Planlanan Miktar</div>
-              <InputNumber
-                className="!w-full"
-                size="small"
-                value={toplamPlanlanan}
-                disabled
-              />
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="rounded bg-gray-50 px-1.5 py-1 text-center">
+                <div className="text-[8px] uppercase text-gray-400">Planlanan</div>
+                <div className="text-[12px] font-bold text-gray-700">{renkPlanlananToplam.toLocaleString('tr-TR')}</div>
+              </div>
+              <div className="rounded bg-gray-50 px-1.5 py-1 text-center">
+                <div className="text-[8px] uppercase text-gray-400">Beklenen</div>
+                <div className="text-[12px] font-bold text-blue-600">{beklenenAdet.toLocaleString('tr-TR')}</div>
+              </div>
+              <div className="rounded bg-gray-50 px-1.5 py-1 text-center">
+                <div className="text-[8px] uppercase text-gray-400">Kesilen</div>
+                <div className="text-[12px] font-bold text-green-600">{toplamKesilen.toLocaleString('tr-TR')}</div>
+              </div>
             </div>
             <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Beklenen Adet</div>
-              <InputNumber
-                className="!w-full"
-                size="small"
-                value={beklenenAdet}
-                disabled
-              />
-            </div>
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Kesilen Miktar *</div>
-              <InputNumber
-                className="!w-full"
-                size="small"
-                min={0}
-                value={kesilenMiktar || undefined}
-                onChange={(v) => setKesilenMiktar(v ?? 0)}
-              />
-            </div>
-            <div>
-              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Fire Miktarı</div>
-              <InputNumber
-                className="!w-full"
-                size="small"
-                min={0}
-                value={fireMiktar || undefined}
-                onChange={(v) => setFireMiktar(v ?? 0)}
-              />
+              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">
+                Toplam Fire Miktarı {fireOtomatik ? <Tag color="blue" className="!text-[8px] !ml-1 !mr-0 !py-0">Otomatik</Tag> : <Tag color="orange" className="!text-[8px] !ml-1 !mr-0 !py-0">Manuel</Tag>}
+              </div>
+              <div className="flex gap-1.5">
+                <InputNumber
+                  className="!w-full"
+                  size="small"
+                  min={0}
+                  value={fireMiktar || undefined}
+                  onChange={(v) => {
+                    setFireMiktar(v ?? 0)
+                    setFireOtomatik(false)
+                  }}
+                />
+                {!fireOtomatik && (
+                  <Button size="small" onClick={() => setFireOtomatik(true)} title="Otomatik hesaba dön">
+                    Oto
+                  </Button>
+                )}
+              </div>
             </div>
 
             <Divider className="!my-1" />
 
-            <div className="space-y-1.5">
-              <Button type="primary" size="small" onClick={kaydet} className="!w-full">
-                {duzenlenenId !== null ? 'Güncelle' : 'Kesim Kaydet'}
-              </Button>
-              <Button size="small" onClick={temizle} className="!w-full">
-                Temizle
-              </Button>
+            <div className="grid grid-cols-3 gap-1.5">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={kaydet}
+                onKeyDown={(e) => e.key === 'Enter' && kaydet()}
+                className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg cursor-pointer border border-blue-500 bg-blue-50 hover:bg-blue-100 transition-all shadow-sm"
+              >
+                <ScissorOutlined className="text-[18px] text-blue-500" />
+                <span className="text-[10px] font-semibold text-blue-600 text-center leading-tight">
+                  {duzenlenenId !== null
+                    ? 'Güncelle'
+                    : (() => {
+                        const n = (seciliRenkData?.bedenler ?? []).filter((b) => (kesilenAdetler[b.beden] ?? 0) > 0).length
+                        return n > 0 ? `Kaydet (${n} beden)` : 'Kesim Kaydet'
+                      })()}
+                </span>
+              </div>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => temizle()}
+                onKeyDown={(e) => e.key === 'Enter' && temizle()}
+                className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg cursor-pointer border border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 transition-all"
+              >
+                <ClearOutlined className="text-[18px] text-gray-400" />
+                <span className="text-[10px] font-medium text-gray-600">Temizle</span>
+              </div>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => temizle(false)}
+                onKeyDown={(e) => e.key === 'Enter' && temizle(false)}
+                title="Form + seçili 140 fişini temizler"
+                className="flex flex-col items-center justify-center gap-1 py-2 rounded-lg cursor-pointer border border-gray-200 bg-white hover:border-red-300 hover:bg-red-50 transition-all"
+              >
+                <DeleteOutlined className="text-[18px] text-gray-400" />
+                <span className="text-[10px] font-medium text-gray-600 text-center leading-tight">Fiş Dahil Temizle</span>
+              </div>
             </div>
           </div>
         </Card>
@@ -645,6 +848,106 @@ export default function KesimKarti() {
           rowClassName={(record) => record.id === duzenlenenId ? 'bg-blue-50 cursor-pointer' : 'cursor-pointer'}
         />
       </div>
+
+      {/* Üretime Çıkılanlar modalı: 140 fişi → kumaş kalemi seç */}
+      <Modal
+        title="Üretime Çıkılanlar (140)"
+        open={cikisModalAcik}
+        onCancel={() => setCikisModalAcik(false)}
+        footer={null}
+        width={1400}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <div className="text-[10px] text-gray-500 uppercase mb-1">Fişler</div>
+            <Table<MalzemeYonetimFisi>
+              size="small"
+              dataSource={fisListesi}
+              rowKey="id"
+              pagination={false}
+              scroll={{ y: 300 }}
+              locale={{ emptyText: fisYukleniyor ? 'Yükleniyor...' : '140 fişi yok' }}
+              rowClassName={(r) => r.id === (modalFisId ?? seciliFisId) ? 'bg-orange-50 cursor-pointer' : 'cursor-pointer'}
+              onRow={(r) => ({ onClick: () => setModalFisId(r.id) })}
+              columns={[
+                { title: 'Fiş No', dataIndex: 'irsaliyeNo', width: 110 },
+                { title: 'Tarih', dataIndex: 'irsaliyeTarihi', width: 90, render: (v: string | null) => v ? new Date(v).toLocaleDateString('tr-TR') : '-' },
+                { title: 'Depo', dataIndex: ['depo', 'ad'], ellipsis: true, render: (_: unknown, rec: MalzemeYonetimFisi) => rec.depo?.ad ?? '-' },
+              ]}
+            />
+          </div>
+          <div>
+            <div className="text-[10px] text-gray-500 uppercase mb-1">
+              Kumaşlar{modalFis ? ` — ${modalFis.irsaliyeNo}` : ''}
+            </div>
+            <Table<MalzemeYonetimFisiKalem>
+              size="small"
+              dataSource={(modalFis?.kalemler ?? []).filter((k) => Number(k.netMetre) > 0 || Number(k.brutMetre) > 0)}
+              rowKey="id"
+              pagination={false}
+              scroll={{ y: 300 }}
+              loading={modalYukleniyor}
+              locale={{ emptyText: modalFisId == null ? 'Önce fiş seçin' : 'Kumaş kalem yok' }}
+              columns={[
+                { title: 'Kumaş', dataIndex: ['malzeme', 'ad'], ellipsis: true, render: (_: unknown, k: MalzemeYonetimFisiKalem) => k.malzeme?.ad ?? (k.malzemeId != null ? String(k.malzemeId) : '-') },
+                { title: 'MT', width: 70, align: 'right', render: (_: unknown, k: MalzemeYonetimFisiKalem) => kalemMT(k).toFixed(1) },
+                { title: 'Kalan', width: 70, align: 'right', render: (_: unknown, k: MalzemeYonetimFisiKalem) => {
+                  const kalan = Math.max(0, kalemMT(k) - kalemeAyrilan(k.id))
+                  return <span className={kalan <= 0 ? 'text-red-500 font-semibold' : 'text-green-600 font-medium'}>{kalan.toFixed(1)}</span>
+                } },
+                { title: '', width: 60, align: 'center', render: (_: unknown, k: MalzemeYonetimFisiKalem) => (
+                  <Button
+                    type="link"
+                    size="small"
+                    disabled={modalFis == null || Math.max(0, kalemMT(k) - kalemeAyrilan(k.id)) <= 0}
+                    onClick={() => modalFis && cikisKalemSec(modalFis, k.id)}
+                  >
+                    Seç
+                  </Button>
+                ) },
+              ]}
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
+}
+
+function normalizeTr(s: string): string {
+  return s.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c')
+}
+
+// Mock siparişlere karşı doğrular, kanonik (seçimle eşleşen) değerleri döner
+function eslestirBarkod(siparisNo: string, modelKod: string, renkAd: string) {
+  const s = mockSiparisler.find((x) => normalizeTr(x.siparisNo) === normalizeTr(siparisNo))
+  const m = s?.modeller.find((x) => normalizeTr(x.modelKod) === normalizeTr(modelKod))
+  const r = m?.renkler.find((x) => normalizeTr(x.renkAd) === normalizeTr(renkAd))
+  return s && m && r ? { siparisNo: s.siparisNo, modelKod: m.modelKod, renkAd: r.renkAd } : null
+}
+
+// Yerel barkod: SIPARIS-MODEL-RENK[-BEDEN] (backend kaydı yoksa fallback)
+function parseBarkodYerel(barkod: string): { siparisNo: string; modelKod: string; renkAd: string; beden: string | null } | null {
+  const parts = barkod.split('-').map((p) => p.trim()).filter((p) => p.length > 0)
+  if (parts.length < 3) return null
+
+  // Bedensiz: siparis-model-renk
+  const yeni = eslestirBarkod(
+    parts.slice(0, parts.length - 2).join('-'),
+    parts[parts.length - 2],
+    parts[parts.length - 1],
+  )
+  if (yeni) return { ...yeni, beden: null }
+
+  // Bedenli: siparis-model-renk-beden
+  if (parts.length >= 4) {
+    const eski = eslestirBarkod(
+      parts.slice(0, parts.length - 3).join('-'),
+      parts[parts.length - 3],
+      parts[parts.length - 2],
+    )
+    if (eski) return { ...eski, beden: parts[parts.length - 1] }
+  }
+
+  return null
 }

@@ -1,26 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, Input, InputNumber, Switch, Table, Modal, Form, App, Space } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { islemApi, type IslemKarti } from '@/lib/islem-api'
 
-export interface IslemKarti {
-  id: number
-  kod: string
-  ad: string
-  birim: string
-  sira: number
-  aktif: boolean
-}
-
-const defaultIslemler: IslemKarti[] = [
-  { id: 1, kod: 'KESIM', ad: 'Kesim', birim: 'ADET', sira: 1, aktif: true },
-  { id: 2, kod: 'DIKIM', ad: 'Dikim', birim: 'ADET', sira: 2, aktif: true },
-  { id: 3, kod: 'PAKET', ad: 'Paket', birim: 'ADET', sira: 3, aktif: true },
-  { id: 4, kod: 'UTU', ad: 'Ütüleme', birim: 'ADET', sira: 4, aktif: true },
-  { id: 5, kod: 'KALITE', ad: 'Kalite Kontrol', birim: 'ADET', sira: 5, aktif: true },
-]
+export type { IslemKarti }
 
 interface IslemKartlariProps {
   onSelect?: (islem: IslemKarti) => void
@@ -28,40 +14,90 @@ interface IslemKartlariProps {
 
 export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
   const { message, modal } = App.useApp()
-  const [data, setData] = useState<IslemKarti[]>(defaultIslemler)
+  const [data, setData] = useState<IslemKarti[]>([])
   const [editing, setEditing] = useState<IslemKarti | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
 
-  const handleSave = () => {
-    form.validateFields().then((values) => {
-      if (editing) {
-        setData((prev) =>
-          prev.map((d) => (d.id === editing.id ? { ...d, ...values } : d)),
-        )
-        message.success('İşlem kartı güncellendi')
-      } else {
-        const yeni: IslemKarti = {
-          id: Date.now(),
-          ...values,
-          sira: data.length + 1,
-          aktif: true,
-        }
-        setData((prev) => [...prev, yeni])
-        message.success('İşlem kartı eklendi')
-      }
-      setModalOpen(false)
-      setEditing(null)
+  const load = async () => {
+    setLoading(true)
+    try {
+      setData(await islemApi.list())
+    } catch {
+      message.error('İşlemler yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openEditor = (rec: IslemKarti | null) => {
+    setEditing(rec)
+    if (rec) {
+      form.setFieldsValue(rec)
+    } else {
       form.resetFields()
+      form.setFieldsValue({ birim: 'ADET', sira: data.length + 1, aktif: true })
+    }
+    setModalOpen(true)
+  }
+
+  const handleSave = () => {
+    form.validateFields().then(async (values) => {
+      const kod = (values.kod ?? '').trim().toUpperCase()
+      if (!kod) {
+        message.warning('Kod gerekli')
+        return
+      }
+      const cakisan = data.find((d) => d.kod.toUpperCase() === kod && (!editing || d.id !== editing.id))
+      if (cakisan) {
+        message.warning(`Bu kod zaten kullanılıyor: ${kod}`)
+        return
+      }
+      try {
+        if (editing) {
+          await islemApi.update(editing.id, {
+            ...values,
+            kod,
+            birim: (values.birim ?? '').trim() || 'ADET',
+          })
+          message.success('İşlem kartı güncellendi')
+        } else {
+          await islemApi.create({
+            kod,
+            ad: (values.ad ?? '').trim(),
+            birim: (values.birim ?? '').trim() || 'ADET',
+            sira: values.sira ?? data.length + 1,
+            aktif: values.aktif ?? true,
+          })
+          message.success('İşlem kartı eklendi')
+        }
+        await load()
+        setModalOpen(false)
+        setEditing(null)
+        form.resetFields()
+      } catch (e: any) {
+        message.error(e?.message || 'Kayıt sırasında hata oluştu')
+      }
     })
   }
 
   const handleDelete = (id: number) => {
     modal.confirm({
       title: 'Silmek istediğinize emin misiniz?',
-      onOk: () => {
-        setData((prev) => prev.filter((d) => d.id !== id))
-        message.success('İşlem kartı silindi')
+      onOk: async () => {
+        try {
+          await islemApi.remove(id)
+          await load()
+          message.success('İşlem kartı silindi')
+        } catch (e: any) {
+          message.error(e?.message || 'Silme sırasında hata oluştu')
+        }
       },
     })
   }
@@ -92,7 +128,20 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
       dataIndex: 'aktif',
       width: 70,
       align: 'center',
-      render: (v: boolean) => <Switch checked={v} size="small" disabled />,
+      render: (v: boolean, record: IslemKarti) => (
+        <Switch
+          checked={v}
+          size="small"
+          onChange={async (checked) => {
+            try {
+              await islemApi.update(record.id, { aktif: checked })
+              await load()
+            } catch (e: any) {
+              message.error(e?.message || 'Güncelleme sırasında hata oluştu')
+            }
+          }}
+        />
+      ),
     },
     {
       title: '',
@@ -104,11 +153,7 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
             type="link"
             size="small"
             icon={<EditOutlined />}
-            onClick={() => {
-              setEditing(record)
-              form.setFieldsValue(record)
-              setModalOpen(true)
-            }}
+            onClick={() => openEditor(record)}
           />
           <Button
             type="link"
@@ -129,13 +174,10 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
           İşlem Kartları
         </div>
         <Button
+          type="primary"
           size="small"
           icon={<PlusOutlined />}
-          onClick={() => {
-            setEditing(null)
-            form.resetFields()
-            setModalOpen(true)
-          }}
+          onClick={() => openEditor(null)}
         >
           Yeni İşlem
         </Button>
@@ -147,6 +189,10 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
         dataSource={data}
         rowKey="id"
         pagination={false}
+        loading={loading}
+        onRow={(record) => ({
+          onDoubleClick: () => openEditor(record),
+        })}
       />
 
       <Modal
@@ -167,11 +213,14 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
           <Form.Item name="ad" label="Ad" rules={[{ required: true, message: 'Ad gerekli' }]}>
             <Input placeholder="Örn: Kesim" />
           </Form.Item>
-          <Form.Item name="birim" label="Birim" rules={[{ required: true, message: 'Birim gerekli' }]}>
-            <Input placeholder="Örn: ADET" />
+          <Form.Item name="birim" label="Birim">
+            <Input placeholder="Örn: ADET (boşsa ADET sayılır)" />
           </Form.Item>
           <Form.Item name="sira" label="Sıra">
             <InputNumber min={1} className="!w-full" />
+          </Form.Item>
+          <Form.Item name="aktif" label="Aktif" valuePropName="checked">
+            <Switch />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,0 +1,3 @@
+import { CreateRotaDto } from './create-rota.dto'
+
+export class UpdateRotaDto extends CreateRotaDto {}

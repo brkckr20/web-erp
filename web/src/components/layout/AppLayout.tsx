@@ -30,6 +30,8 @@ import IsEmriKarti from '@/components/pages/IsEmriKarti'
 import IsEmriListesi from '@/components/pages/IsEmriListesi'
 import KumasListesi from '@/components/pages/KumasListesi'
 import KumasKarti from '@/components/pages/KumasKarti'
+import RotaListesi from '@/components/pages/RotaListesi'
+import RotaKarti from '@/components/pages/RotaKarti'
 import IplikListesi from '@/components/pages/IplikListesi'
 import IplikKarti from '@/components/pages/IplikKarti'
 import NumaratorListesi from '@/components/pages/NumaratorListesi'
@@ -408,6 +410,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'kumas-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Kumaş Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openRotaKarti = useCallback((kod: string) => {
+    const key = 'rota-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Rota Kartı - ' + kod, moduleKey: 'siparis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniRota = useCallback(() => {
+    const key = 'rota-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Rota Kartı', moduleKey: 'siparis', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -961,6 +985,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('kumas-karti-')) {
       return <KumasKarti kod={tab.key.replace('kumas-karti-', '')} />
+    }
+    if (tab.key === 'rota-tanimlari') {
+      return <RotaListesi onSelect={openRotaKarti} onNew={openYeniRota} />
+    }
+    if (tab.key === 'rota-karti-yeni') {
+      return <RotaKarti isNew />
+    }
+    if (tab.key.startsWith('rota-karti-')) {
+      return <RotaKarti kod={tab.key.replace('rota-karti-', '')} />
     }
     if (tab.key === 'iplik-kartlari') {
       return <IplikListesi onSelect={openIplikKarti} onNew={openYeniIplik} />

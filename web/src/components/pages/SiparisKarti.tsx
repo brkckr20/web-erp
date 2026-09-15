@@ -10,6 +10,7 @@ import DataGrid from '@/components/shared/DataGrid'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import { malzemeFiyatApi } from '@/lib/malzeme-fiyat-api'
 import { dovizApi } from '@/lib/doviz-api'
 import { modelBedenApi, type ModelBeden } from '@/lib/model-beden-api'
@@ -126,6 +127,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
   const [stickerModal, setStickerModal] = useState<StickerModalState | null>(null)
   const [numaratorOptions, setNumaratorOptions] = useState<{ value: number; label: string }[]>([])
   const [kayitliId, setKayitliId] = useState<number | null>(null)
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
   const lastLoadedRef = useRef<{ key: string; malzemeId: number | undefined } | null>(null)
 
   // props'taki id (mevcut kayıt) yoksa, bu oturumda yeni kaydedilen kaydın id'si kullanılır
@@ -1036,6 +1038,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+    onReport: () => setRaporModalAcik(true),
   })
 
   const tedarikMenuItems: MenuProps['items'] = [
@@ -1441,6 +1444,12 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
           onValueChange={handleStickerValueChange}
           onClose={() => setStickerModal(null)}
         />}
+        <RaporSecimModal
+          open={raporModalAcik}
+          ekranAdi="siparis-girisi"
+          parametreler={aktifId ? { id: aktifId } : undefined}
+          onCancel={() => setRaporModalAcik(false)}
+        />
       </div>
     </div>
     </Dropdown>

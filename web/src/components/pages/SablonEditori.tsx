@@ -37,7 +37,7 @@ const EKRAN_ADLARI = [
   { value: 'grup-kartlari', label: 'Grup Kartları' },
   { value: 'beden-tanimlari', label: 'Beden Tanımları' },
   { value: 'islem-kartlari', label: 'İşlem Kartları' },
-  { value: 'kesim-emri', label: 'Kesim Emri' },
+  { value: 'kesim-emri', label: 'Kesim Kartı' },
   { value: 'iade-talepleri', label: 'İade Talepleri' },
   { value: 'siparis-girisi', label: 'Sipariş Girişi' },
   { value: 'fason-hareket', label: 'Fason Hareket Fişleri' },

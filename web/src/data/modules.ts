@@ -86,12 +86,13 @@ export const modules: Module[] = [
           { key: 'beden-tanimlari', label: 'Beden Tanımları', isForm: true },
           { key: 'gtip-tanimlari', label: 'GTİP Tanımları', isForm: true },
           { key: 'islem-kartlari', label: 'İşlem Kartları', isForm: true },
+          { key: 'rota-tanimlari', label: 'Rota Tanımları', isForm: true },
         ],
       },
       {
         title: 'Kesim İşlemleri',
         items: [
-          { key: 'kesim-emri', label: 'Kesim Emri', isForm: true },
+          { key: 'kesim-emri', label: 'Kesim Kartı', isForm: true },
           { key: 'iade-talepleri', label: 'İade Talepleri' },
         ],
       },

@@ -15,6 +15,7 @@ import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableGtipSelect from '@/components/shared/SearchableGtipSelect'
 import SearchableBedenSelect from '@/components/shared/SearchableBedenSelect'
 import SearchableKumasGrupSelect from '@/components/shared/SearchableKumasGrupSelect'
+import SearchableRotaSelect from '@/components/shared/SearchableRotaSelect'
 import { malzemeApi } from '@/lib/malzeme-api'
 import type { Malzeme } from '@/lib/malzeme-api'
 import { modelReceteApi } from '@/lib/model-recete-api'
@@ -716,6 +717,13 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
               { value: 'Kadın', label: 'Kadın' },
               { value: 'Unisex', label: 'Unisex' },
             ]}
+          />
+        </FormField>
+        <FormField label="Rota">
+          <SearchableRotaSelect
+            value={model?.operasyonKodu ?? null}
+            onChange={(kod) => set('operasyonKodu', kod)}
+            widthClass="!w-[100px]"
           />
         </FormField>
         </div>

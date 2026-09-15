@@ -1140,3 +1140,40 @@ model HizmetTalepDosya {
 
   @@map("hizmet_talep_dosya")
 }
+
+model Islem {
+  id    Int     @id @default(autoincrement())
+  kod   String  @unique @db.NVarChar(50)
+  ad    String  @db.NVarChar(200)
+  birim String? @db.NVarChar(20)
+  sira  Int     @default(0)
+  aktif Boolean @default(true)
+
+  @@map("islem")
+}
+
+model Rota {
+  id           Int             @id @default(autoincrement())
+  kod          String          @unique @db.NVarChar(50)
+  ad           String          @db.NVarChar(200)
+  ozelKod      String?         @map("ozel_kod") @db.NVarChar(50)
+  hizmetKodu   String?         @map("hizmet_kodu") @db.NVarChar(50)
+  kullanimda   Boolean         @default(true)
+  operasyonlar RotaOperasyon[]
+
+  @@map("rota")
+}
+
+model RotaOperasyon {
+  id            Int      @id @default(autoincrement())
+  rotaId        Int      @map("rota_id")
+  rota          Rota     @relation(fields: [rotaId], references: [id], onDelete: Cascade)
+  sira          Int      @default(0)
+  operasyonKodu String   @map("operasyon_kodu") @db.NVarChar(50)
+  operasyonAdi  String?  @map("operasyon_adi") @db.NVarChar(200)
+  varsayilanYer String?  @map("varsayilan_yer") @db.NVarChar(200)
+  birim         String?  @db.NVarChar(20)
+  birimFiyat    Decimal? @map("birim_fiyat") @db.Decimal(18, 2)
+
+  @@map("rota_operasyon")
+}
