@@ -124,6 +124,8 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
   const [zoom, setZoom] = useState(80)
   const [kaydetiyor, setKaydetiyor] = useState(false)
   const [yukleniyor, setYukleniyor] = useState(false)
+  // Kaydet sonrası sekme açık kalır: ilk kayıtta dönen id saklanır, sonraki kaydetmeler günceller
+  const [kayitId, setKayitId] = useState<number | undefined>(sablonId)
 
   useEffect(() => {
     if (sablonId) {
@@ -177,13 +179,13 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
         sagBosluk,
         sorgular: sorgular.map((s, i) => ({ ad: s.adi, sqlIcerik: s.sql, sira: i })),
       }
-      if (sablonId) {
-        await sablonApi.update(sablonId, data)
+      if (kayitId) {
+        await sablonApi.update(kayitId, data)
       } else {
-        await sablonApi.create(data)
+        const olusan = await sablonApi.create(data)
+        setKayitId(olusan.id)
       }
       message.success('Şablon kaydedildi')
-      geriDon()
     } catch {
       message.error('Kaydedilemedi')
     } finally {

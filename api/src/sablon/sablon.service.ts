@@ -182,24 +182,131 @@ export class SablonService {
   }
 
   private htmlBind(html: string, sorguSonuclari: Record<string, any[]>): string {
-    let result = html
+    // İç içe {{#each}} destekler: en içteki satırdan dışa doğru kapsam zinciriyle {{kolon}} çözülür.
+    const result = this.bindEach(html, sorguSonuclari, [])
 
-    const eachRegex = /\{\{#each\s+(\w+)\}\}([\s\S]*?)\{\{\/each\}\}/g
-    result = result.replace(eachRegex, (_, sorguAd, blok) => {
-      const satirlar = sorguSonuclari[sorguAd] || []
-      return satirlar.map((satir: any) => {
-        return blok.replace(/\{\{(\w+)\}\}/g, (_, kolon) => {
-          return satir[kolon] != null ? String(satir[kolon]) : ''
-        })
-      }).join('')
-    })
-
-    result = result.replace(/\{\{(\w+)\.(\w+)\}\}/g, (_, sorguAd, kolon) => {
+    return result.replace(/\{\{(\w+)\.(\w+)\}\}/g, (_, sorguAd, kolon) => {
       const satirlar = sorguSonuclari[sorguAd] || []
       const ilkSatir = satirlar[0]
       return ilkSatir && ilkSatir[kolon] != null ? String(ilkSatir[kolon]) : ''
     })
+  }
 
-    return result
+  private bindEach(tpl: string, sorguSonuclari: Record<string, any[]>, kapsam: any[]): string {
+    const acilis = /\{\{#each\s+(\w+)\}\}/g
+    const eslesme = acilis.exec(tpl)
+    if (!eslesme) {
+      // each yok: önce matris etiketleri, sonra kapsam doluysa yalın {{kolon}} çözülür
+      const matrisli = this.bindMatris(tpl, sorguSonuclari)
+      if (kapsam.length === 0) return matrisli
+      return matrisli.replace(/\{\{(\w+)\}\}/g, (_, kolon) => {
+        for (let i = kapsam.length - 1; i >= 0; i--) {
+          const v = kapsam[i][kolon]
+          if (v != null) return String(v)
+        }
+        return ''
+      })
+    }
+
+    const blokAdi = eslesme[1]
+    const blokBaslangic = eslesme.index + eslesme[0].length
+    // Dengeli kapama: iç içe each'leri sayarak eşleşen {{/each}} bulunur
+    let derinlik = 1
+    const tarama = /\{\{#each\s+\w+\}\}|\{\{\/each\}\}/g
+    tarama.lastIndex = blokBaslangic
+    let blokBitis = -1
+    let taramaEslesme: RegExpExecArray | null
+    while ((taramaEslesme = tarama.exec(tpl)) !== null) {
+      if (taramaEslesme[0].startsWith('{{#each')) derinlik++
+      else derinlik--
+      if (derinlik === 0) {
+        blokBitis = taramaEslesme.index
+        break
+      }
+    }
+    if (blokBitis === -1) return tpl // kapama yoksa ham bırak
+
+    const on = tpl.slice(0, eslesme.index)
+    const ic = tpl.slice(blokBaslangic, blokBitis)
+    const son = tpl.slice(blokBitis + '{{/each}}'.length)
+    const satirlar = sorguSonuclari[blokAdi] || []
+    const genisletilmis = satirlar
+      .map((satir: any) => this.bindEach(ic, sorguSonuclari, [...kapsam, satir]))
+      .join('')
+
+    return this.bindEach(on, sorguSonuclari, kapsam) + genisletilmis + this.bindEach(son, sorguSonuclari, kapsam)
+  }
+
+  // Matris bileşeni: uzun formatlı sorguyu çapraz tabloya çevirir.
+  // Kullanım: {{#matris matris satir=satir sutun=sutun deger=deger baslik=Renk}}
+  // Çok satırlı blok: deger=siparis,kesilecek,kesilen etiket=Sipariş,Kesilecek,Kesilen toplam=1
+  // (baslik/etiket/toplam opsiyonel; değerler HTML-escape ile basılır; toplam sayısal hücreleri toplar)
+  private bindMatris(tpl: string, sorguSonuclari: Record<string, any[]>): string {
+    return tpl.replace(/\{\{#matris\s+(\w+)((?:\s+\w+=(?:"[^"]*"|[^\s}]+))*)(\s*)\}\}/g, (_, sorguAd, paramStr) => {
+      const params: Record<string, string> = {}
+      const paramRegex = /(\w+)=("[^"]*"|[^\s}]+)/g
+      let pm: RegExpExecArray | null
+      while ((pm = paramRegex.exec(paramStr)) !== null) {
+        params[pm[1]] = pm[2].replace(/^"|"$/g, '')
+      }
+      const satirKolon = params['satir']
+      const sutunKolon = params['sutun']
+      const degerKolonlar = (params['deger'] ?? '').split(',').map((d) => d.trim()).filter(Boolean)
+      if (!satirKolon || !sutunKolon || degerKolonlar.length === 0) return ''
+      const etiketler = (params['etiket'] ?? '').split(',').map((e) => e.trim())
+      const toplamAcik = (params['toplam'] ?? '') === '1'
+      const satirlar = sorguSonuclari[sorguAd] || []
+      const kacis = (v: any): string =>
+        v == null ? '' : String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      const sayi = (v: any): number => {
+        if (v == null || String(v).trim() === '') return NaN
+        const n = Number(String(v).trim())
+        return isNaN(n) ? NaN : n
+      }
+      const sutunlar: string[] = []
+      const satirAdlari: string[] = []
+      const hucreler = new Map<string, Map<string, any[]>>()
+      for (const r of satirlar) {
+        const s = r[satirKolon] != null ? String(r[satirKolon]) : ''
+        const c = r[sutunKolon] != null ? String(r[sutunKolon]) : ''
+        if (!sutunlar.includes(c)) sutunlar.push(c)
+        if (!satirAdlari.includes(s)) satirAdlari.push(s)
+        if (!hucreler.has(s)) hucreler.set(s, new Map())
+        const satirMap = hucreler.get(s)!
+        if (!satirMap.has(c)) satirMap.set(c, degerKolonlar.map((dk) => r[dk]))
+      }
+      const th = 'border:1px solid #ececec; padding:4px 8px'
+      const td = th + '; text-align:center'
+      const tdSol = th
+      const cokDeger = degerKolonlar.length > 1
+      let out = '<table style="border-collapse:collapse"><tr>'
+      out += `<th style="${th}">${kacis(params['baslik'] ?? '')}</th>`
+      if (cokDeger) out += `<th style="${th}"></th>`
+      for (const c of sutunlar) out += `<th style="${th}">${kacis(c)}</th>`
+      if (toplamAcik) out += `<th style="${th}">Toplam</th>`
+      out += '</tr>'
+      for (const s of satirAdlari) {
+        const satirHucresi = hucreler.get(s)!
+        degerKolonlar.forEach((dk, di) => {
+          out += '<tr>'
+          if (di === 0) out += `<td style="${tdSol}" rowspan="${degerKolonlar.length}">${kacis(s)}</td>`
+          if (cokDeger) out += `<td style="${tdSol}">${kacis(etiketler[di] ?? dk)}</td>`
+          let toplam = 0
+          let varMi = false
+          for (const c of sutunlar) {
+            const v = satirHucresi.get(c)?.[di]
+            out += `<td style="${td}">${kacis(v)}</td>`
+            const n = sayi(v)
+            if (!isNaN(n)) {
+              toplam += n
+              varMi = true
+            }
+          }
+          if (toplamAcik) out += `<td style="${td}"><b>${varMi ? kacis(Number.isInteger(toplam) ? toplam : Math.round(toplam * 100) / 100) : ''}</b></td>`
+          out += '</tr>'
+        })
+      }
+      return out + '</table>'
+    })
   }
 }
