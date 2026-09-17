@@ -37,6 +37,7 @@ export class HizmetTalepService {
         tarih: dto.tarih ? new Date(dto.tarih) : new Date(),
         kullanici: dto.kullanici,
         gorusmeKisi: dto.gorusmeKisi,
+        kapanisTarihi: dto.kapanisTarihi ? new Date(dto.kapanisTarihi) : undefined,
       },
       include: { notlar: true, dosyalar: true },
     })
@@ -54,6 +55,7 @@ export class HizmetTalepService {
         tarih: dto.tarih ? new Date(dto.tarih) : undefined,
         kullanici: dto.kullanici,
         gorusmeKisi: dto.gorusmeKisi,
+        kapanisTarihi: dto.kapanisTarihi ? new Date(dto.kapanisTarihi) : undefined,
         guncellemeTarihi: new Date(),
       },
       include: { notlar: true, dosyalar: true },

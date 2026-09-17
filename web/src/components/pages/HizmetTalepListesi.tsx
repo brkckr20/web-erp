@@ -18,7 +18,15 @@ interface HizmetTalepRow {
   durum: string
   oncelik: string
   gorusmeKisi: string
+  kapanis: string
   notSayisi: number
+}
+
+const formatKapanis = (d: string | null) => {
+  if (!d) return 'Kapanmadı'
+  const dt = new Date(d)
+  if (isNaN(dt.getTime()) || dt.getFullYear() <= 1900) return 'Kapanmadı'
+  return dt.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 const formatTarih = (d: string | null) => {
@@ -94,6 +102,7 @@ export default function HizmetTalepListesi({ onOpen }: Props) {
         durum: t.durum,
         oncelik: t.oncelik,
         gorusmeKisi: t.gorusmeKisi ?? '-',
+        kapanis: formatKapanis(t.kapanisTarihi ?? null),
         notSayisi: (t.notlar ?? []).length,
       }))
   }, [list, arama])
@@ -117,6 +126,7 @@ export default function HizmetTalepListesi({ onOpen }: Props) {
         cellRenderer: (p: any) => <Tag color={oncelikRenk[p.value] ?? 'default'}>{p.value}</Tag>,
       },
       { headerName: 'İletişim Kişisi', field: 'gorusmeKisi', width: 130 },
+      { headerName: 'Kapanış', field: 'kapanis', width: 100 },
       { headerName: 'Not Sayısı', field: 'notSayisi', width: 90, type: 'rightAligned' },
     ],
     [],

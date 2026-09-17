@@ -6,6 +6,7 @@ export class CreateHizmetTalepDto {
   tarih?: string
   kullanici?: string
   gorusmeKisi?: string
+  kapanisTarihi?: string
 }
 
 export class UpdateHizmetTalepDto extends CreateHizmetTalepDto {}

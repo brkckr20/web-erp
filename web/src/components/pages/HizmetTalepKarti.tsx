@@ -54,6 +54,7 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
   const [durum, setDurum] = useState('Açık')
   const [oncelik, setOncelik] = useState('Normal')
   const [tarih, setTarih] = useState<dayjs.Dayjs>(dayjs())
+  const [kapanisTarihi, setKapanisTarihi] = useState<dayjs.Dayjs>(dayjs('1900-01-01'))
   const [kullanici, setKullanici] = useState('')
   const [gorusmeKisi, setGorusmeKisi] = useState('')
 
@@ -73,6 +74,7 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
           setDurum(t.durum)
           setOncelik(t.oncelik)
           setTarih(t.tarih ? dayjs(t.tarih) : dayjs())
+          setKapanisTarihi(t.kapanisTarihi ? dayjs(t.kapanisTarihi) : dayjs('1900-01-01'))
           setKullanici(t.kullanici ?? '')
           setGorusmeKisi(t.gorusmeKisi ?? '')
         })
@@ -88,10 +90,10 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
     }
     try {
       if (id) {
-        await hizmetTalepApi.update(id, { baslik, aciklama, durum, oncelik, tarih: tarih.format('YYYY-MM-DD'), kullanici, gorusmeKisi } as any)
+        await hizmetTalepApi.update(id, { baslik, aciklama, durum, oncelik, tarih: tarih.format('YYYY-MM-DD'), kapanisTarihi: kapanisTarihi.format('YYYY-MM-DD'), kullanici, gorusmeKisi } as any)
         message.success('Talep güncellendi')
       } else {
-        const created = await hizmetTalepApi.create({ baslik, aciklama, durum, oncelik, tarih: tarih.format('YYYY-MM-DD'), kullanici, gorusmeKisi } as any)
+        const created = await hizmetTalepApi.create({ baslik, aciklama, durum, oncelik, tarih: tarih.format('YYYY-MM-DD'), kapanisTarihi: kapanisTarihi.format('YYYY-MM-DD'), kullanici, gorusmeKisi } as any)
         message.success('Talep oluşturuldu')
         onKaydet?.(created.id)
       }
@@ -200,6 +202,10 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
               <div className="!flex !items-center !gap-3">
                 <div className="!text-[11px] !text-[#333] !w-20 !shrink-0">Öncelik</div>
                 <Select size="small" value={oncelik} onChange={setOncelik} options={oncelikOptions} className="!w-full !text-[11px]" />
+              </div>
+              <div className="!flex !items-center !gap-3">
+                <div className="!text-[11px] !text-[#333] !w-20 !shrink-0">Kapanış Tarihi</div>
+                <DatePicker size="small" value={kapanisTarihi} onChange={(d) => d && setKapanisTarihi(d)} format="DD.MM.YYYY" placeholder="Kapanmadı (01.01.1900)" className="!w-full !text-[11px]" />
               </div>
               <div className="!flex !items-center !gap-3">
                 <div className="!text-[11px] !text-[#333] !w-20 !shrink-0">İletişim Kişisi</div>

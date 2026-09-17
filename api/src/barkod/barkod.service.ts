@@ -151,41 +151,36 @@ export class BarkodService {
       if (!modelKod) continue
 
       for (const renk of kalem.renkler) {
-        for (const kumasGrup of renk.kumasGruplari) {
-          const kumasKod = kumasGrup.kumasGrup?.kod ?? ''
-          const kumasRenkKod = kumasGrup.renk?.kod ?? ''
-          const kumasRenkAd = kumasGrup.renk?.ad ?? ''
-          if (!kumasKod) continue
+        // Renk grubu başına tek barkod: grubun ilk kumaşının rengi temsilci olur.
+        // Beden yok — operatör okutma sonrası beden adetlerini elle girer.
+        const ilkKumas = renk.kumasGruplari[0]
+        const kumasKod = ilkKumas?.kumasGrup?.kod ?? ''
+        const kumasRenkKod = ilkKumas?.renk?.kod ?? ''
+        const kumasRenkAd = ilkKumas?.renk?.ad ?? ''
+        const renkKod = kumasRenkKod || kumasKod
 
-          for (const beden of renk.bedenler) {
-            const bedenAd = beden.beden?.kod ?? ''
-            const renkKod = kumasRenkKod || kumasKod // kumaş rengi varsa onu kullan
-            if (!bedenAd) continue
+        const barkodKodu = await this.uniqueKod()
 
-            const barkodKodu = await this.uniqueKod()
+        const eslesme = await this.prisma.barkodEslesme.create({
+          data: {
+            barkodKodu,
+            siparisNo: siparis.siparisNo,
+            modelKod,
+            renkKod,
+            beden: '',
+            kumasKod,
+            kumasRenkKod,
+            modelAd,
+            renkAd: kumasRenkAd || null,
+            kumasAd: ilkKumas?.kumasGrup?.kod ?? null,
+            kumasRenkAd: kumasRenkAd || null,
+          },
+        })
 
-            const eslesme = await this.prisma.barkodEslesme.create({
-              data: {
-                barkodKodu,
-                siparisNo: siparis.siparisNo,
-                modelKod,
-                renkKod,
-                beden: bedenAd,
-                kumasKod,
-                kumasRenkKod,
-                modelAd,
-                renkAd: null,
-                kumasAd: kumasGrup.kumasGrup?.kod ?? null,
-                kumasRenkAd,
-              },
-            })
-
-            olusturulanlar.push({
-              ...eslesme,
-              tamBarkod: `${siparis.siparisNo}|#|${barkodKodu}`,
-            })
-          }
-        }
+        olusturulanlar.push({
+          ...eslesme,
+          tamBarkod: `${siparis.siparisNo}|#|${barkodKodu}`,
+        })
       }
     }
 

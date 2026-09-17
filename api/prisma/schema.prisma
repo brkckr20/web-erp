@@ -1065,7 +1065,7 @@ model Sablon {
   id               Int      @id @default(autoincrement())
   ad               String   @db.NVarChar(100)
   ekranAdi         String   @map("ekran_adi") @db.NVarChar(100)
-  htmlIcerik       String   @map("html_icerik") @db.NVarChar(4000)
+  htmlIcerik       String   @map("html_icerik") @db.NVarChar(Max)
   sayfaEn          Int      @default(210) @map("sayfa_en")
   sayfaBoy         Int      @default(297) @map("sayfa_boy")
   yon              String   @default("dikey") @db.NVarChar(10)
@@ -1087,7 +1087,7 @@ model SablonSorgu {
   id         Int    @id @default(autoincrement())
   sablonId   Int    @map("sablon_id")
   ad         String @db.NVarChar(100)
-  sqlIcerik  String @map("sql_icerik") @db.NVarChar(4000)
+  sqlIcerik  String @map("sql_icerik") @db.NVarChar(Max)
   sira       Int    @default(0)
 
   sablon     Sablon @relation(fields: [sablonId], references: [id], onDelete: Cascade)
@@ -1104,6 +1104,7 @@ model HizmetTalep {
   tarih            DateTime  @default(now())
   kullanici        String?   @db.NVarChar(100)
   gorusmeKisi      String?   @map("gorusme_kisi") @db.NVarChar(200)
+  kapanisTarihi    DateTime  @default(dbgenerated("'1900-01-01'")) @map("kapanis_tarihi")
   olusturmaTarihi  DateTime  @default(now()) @map("olusturma_tarihi")
   guncellemeTarihi DateTime? @map("guncelleme_tarihi")
 

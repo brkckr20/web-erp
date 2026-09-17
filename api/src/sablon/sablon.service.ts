@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import * as puppeteer from 'puppeteer'
+import * as bwipjs from 'bwip-js'
 
 @Injectable()
 export class SablonService {
@@ -131,7 +132,7 @@ export class SablonService {
       }
     }
 
-    const html = this.htmlBind(sablon.htmlIcerik, sorguSonuclari)
+    const html = this.htmlBind(sablon.htmlIcerik, sorguSonuclari, await this.barkodResimleri(sorguSonuclari))
 
     return {
       html,
@@ -181,9 +182,38 @@ export class SablonService {
     return Buffer.from(pdfBuffer)
   }
 
-  private htmlBind(html: string, sorguSonuclari: Record<string, any[]>): string {
+  // Barkod resimleri: sorgu sonuçlarındaki `barkod` kolonlarından Code128 PNG (data URI) üretir.
+  // Üretilemeyen kodlar haritada olmaz → hücrede düz metin basılır.
+  private async barkodResimleri(sorguSonuclari: Record<string, any[]>): Promise<Map<string, string>> {
+    const harita = new Map<string, string>()
+    const kodlar = new Set<string>()
+    for (const satirlar of Object.values(sorguSonuclari)) {
+      for (const r of satirlar ?? []) {
+        const kod = r?.['barkod']
+        if (kod != null && String(kod).trim() !== '') kodlar.add(String(kod))
+      }
+    }
+    for (const kod of kodlar) {
+      try {
+        const png = await bwipjs.toBuffer({
+          bcid: 'code128',
+          text: kod,
+          scale: 2,
+          height: 10,
+          includetext: true,
+          textxalign: 'center',
+        })
+        harita.set(kod, `data:image/png;base64,${png.toString('base64')}`)
+      } catch {
+        // resim üretilemezse metin basılır
+      }
+    }
+    return harita
+  }
+
+  private htmlBind(html: string, sorguSonuclari: Record<string, any[]>, barkodImg = new Map<string, string>()): string {
     // İç içe {{#each}} destekler: en içteki satırdan dışa doğru kapsam zinciriyle {{kolon}} çözülür.
-    const result = this.bindEach(html, sorguSonuclari, [])
+    const result = this.bindEach(html, sorguSonuclari, [], barkodImg)
 
     return result.replace(/\{\{(\w+)\.(\w+)\}\}/g, (_, sorguAd, kolon) => {
       const satirlar = sorguSonuclari[sorguAd] || []
@@ -192,14 +222,15 @@ export class SablonService {
     })
   }
 
-  private bindEach(tpl: string, sorguSonuclari: Record<string, any[]>, kapsam: any[]): string {
+  private bindEach(tpl: string, sorguSonuclari: Record<string, any[]>, kapsam: any[], barkodImg = new Map<string, string>()): string {
     const acilis = /\{\{#each\s+(\w+)\}\}/g
     const eslesme = acilis.exec(tpl)
     if (!eslesme) {
-      // each yok: önce matris etiketleri, sonra kapsam doluysa yalın {{kolon}} çözülür
+      // each yok: önce matris/kesim etiketleri, sonra kapsam doluysa yalın {{kolon}} çözülür
       const matrisli = this.bindMatris(tpl, sorguSonuclari)
-      if (kapsam.length === 0) return matrisli
-      return matrisli.replace(/\{\{(\w+)\}\}/g, (_, kolon) => {
+      const kesimli = this.bindKesimTablo(matrisli, sorguSonuclari, kapsam, barkodImg)
+      if (kapsam.length === 0) return kesimli
+      return kesimli.replace(/\{\{(\w+)\}\}/g, (_, kolon) => {
         for (let i = kapsam.length - 1; i >= 0; i--) {
           const v = kapsam[i][kolon]
           if (v != null) return String(v)
@@ -231,10 +262,10 @@ export class SablonService {
     const son = tpl.slice(blokBitis + '{{/each}}'.length)
     const satirlar = sorguSonuclari[blokAdi] || []
     const genisletilmis = satirlar
-      .map((satir: any) => this.bindEach(ic, sorguSonuclari, [...kapsam, satir]))
+      .map((satir: any) => this.bindEach(ic, sorguSonuclari, [...kapsam, satir], barkodImg))
       .join('')
 
-    return this.bindEach(on, sorguSonuclari, kapsam) + genisletilmis + this.bindEach(son, sorguSonuclari, kapsam)
+    return this.bindEach(on, sorguSonuclari, kapsam, barkodImg) + genisletilmis + this.bindEach(son, sorguSonuclari, kapsam, barkodImg)
   }
 
   // Matris bileşeni: uzun formatlı sorguyu çapraz tabloya çevirir.
@@ -307,6 +338,135 @@ export class SablonService {
         })
       }
       return out + '</table>'
+    })
+  }
+
+  // Kesim talimat tablosu: kumaş grup kolonları + beden kolonları + barkod hücresi, renk başına 2 satır.
+  // Kullanım ({{#each}} içinde): {{#kesimTablo kumas=kesim_kumas beden=kesim_beden filtre=kalem_id}}
+  // Opsiyonel: barkod=kesim_barkod bosluk=8 cerceve="1px solid black" baslikZemin="#eee" stil="font-family:Arial;font-size:12px"
+  // Olculer: genislik=70 yukseklik=24 maxGenislik=90 (px)
+  // kumas sorgusu: kalem_id, renk_id, rsira, kgrup, kkod, kad, khex
+  // beden sorgusu: kalem_id, renk_id, rsira, beden, bsira, siparis, kesilecek
+  // filtre kolonu kapsamdan okunup iki sorgu da o kaleme süzülür.
+  private bindKesimTablo(tpl: string, sorguSonuclari: Record<string, any[]>, kapsam: any[], barkodImg = new Map<string, string>()): string {
+    return tpl.replace(/\{\{#kesimTablo\s+(\w+)\s+(\w+)((?:\s+\w+=(?:"[^"]*"|[^\s}]+))*)(\s*)\}\}/g, (_, kumasAd, bedenAd, paramStr) => {
+      const params: Record<string, string> = {}
+      const paramRegex = /(\w+)=("[^"]*"|[^\s}]+)/g
+      let pm: RegExpExecArray | null
+      while ((pm = paramRegex.exec(paramStr)) !== null) {
+        params[pm[1]] = pm[2].replace(/^"|"$/g, '')
+      }
+      const filtreKolon = params['filtre']
+      const barkodAd = params['barkod']
+      const bosluk = Math.max(0, parseInt(params['bosluk'] ?? '8', 10) || 0)
+      // Stil parametreleri: stil="font-family:Arial;font-size:12px" cerceve="1px solid black" baslikZemin="#eee"
+      const tabloStil = params['stil'] ? ` ${params['stil'].replace(/;?$/, ';')}` : ''
+      const cerceve = params['cerceve'] ?? '1px solid gray'
+      const baslikZemin = params['baslikZemin'] ? `background-color:${params['baslikZemin']};` : ''
+      const maxGenislik = parseInt(params['maxGenislik'] ?? '0', 10) || 0
+      const daralt = maxGenislik > 0 ? `max-width:${maxGenislik}px; overflow:hidden;` : ''
+      // Hucre olculeri: genislik=70 yukseklik=24 (px; tum hucrelere uygulanir)
+      const hucreGenislik = parseInt(params['genislik'] ?? '0', 10) || 0
+      const satirYukseklik = parseInt(params['yukseklik'] ?? '0', 10) || 0
+      const olcu = `${hucreGenislik > 0 ? `width:${hucreGenislik}px;` : ''}${satirYukseklik > 0 ? `height:${satirYukseklik}px;` : ''}`
+      let filtreDeger: any = null
+      if (filtreKolon) {
+        for (let i = kapsam.length - 1; i >= 0; i--) {
+          if (kapsam[i][filtreKolon] != null) {
+            filtreDeger = kapsam[i][filtreKolon]
+            break
+          }
+        }
+      }
+      const süz = (rows: any[]) =>
+        filtreKolon && filtreDeger != null ? rows.filter((r) => String(r[filtreKolon]) === String(filtreDeger)) : rows
+      const kRows = süz(sorguSonuclari[kumasAd] || [])
+      const bRows = süz(sorguSonuclari[bedenAd] || [])
+      const barkodRows = barkodAd ? süz(sorguSonuclari[barkodAd] || []) : []
+      const barkodMap = new Map<string, string>()
+      for (const r of barkodRows) {
+        if (r['barkod'] != null && String(r['barkod']).trim() !== '') {
+          barkodMap.set(String(r['renk_id']), String(r['barkod']))
+        }
+      }
+      const kacis = (v: any): string =>
+        v == null ? '' : String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      // Sıralı tekil listeler
+      const sirali = (rows: any[], keyKolon: string, siraKolon: string): string[] => {
+        const ilk = new Map<string, number>()
+        for (const r of rows) {
+          const k = r[keyKolon] != null ? String(r[keyKolon]) : ''
+          if (!ilk.has(k)) {
+            const s = Number(r[siraKolon])
+            ilk.set(k, isNaN(s) ? 999999 : s)
+          }
+        }
+        return [...ilk.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k)
+      }
+      const kGruplar = sirali(kRows, 'kgrup', 'ksira')
+      const bedenler = sirali(bRows, 'beden', 'bsira')
+      const renkler = sirali([...kRows, ...bRows], 'renk_id', 'rsira')
+      if (renkler.length === 0 || (kGruplar.length === 0 && bedenler.length === 0)) return ''
+      const kMap = new Map<string, any>()
+      for (const r of kRows) kMap.set(`${r['renk_id']}|${r['kgrup']}`, r)
+      const bMap = new Map<string, any>()
+      for (const r of bRows) bMap.set(`${r['renk_id']}|${r['beden']}`, r)
+      // Hex normalize: #RRGGBB veya #AARRGGBB (alpha düşer); geçersizse ''
+      const normHex = (hex: any): string => {
+        const m = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.exec(String(hex ?? '').trim())
+        if (!m) return ''
+        const h = m[1].length === 8 ? m[1].slice(2) : m[1]
+        return '#' + h
+      }
+      // Açık renk zeminde koyu yazı (örn. beyaz), koyu zeminde beyaz yazı
+      const yaziRengi = (hex: any): string => {
+        const nrm = normHex(hex)
+        if (!nrm) return ''
+        const n = parseInt(nrm.slice(1), 16)
+        const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
+        return lum > 0.6 ? '#000' : '#fff'
+      }
+      const td = `border:${cerceve};${daralt}${olcu}`
+      const tdC = td + 'text-align:center;'
+      let out = `<table style="border-collapse:collapse; margin-top:4px; font-size:13px;${tabloStil}">`
+      out += '<thead><tr>'
+      for (const g of kGruplar) out += `<td style="${tdC};${baslikZemin}">${kacis(g)}</td>`
+      for (const b of bedenler) out += `<td style="${tdC};${baslikZemin}">${kacis(b)}</td>`
+      out += `<td style="${tdC};${baslikZemin}width:24px"></td><td style="${tdC};${baslikZemin}">Renk Barkodu</td>`
+      out += '</tr></thead><tbody>'
+      renkler.forEach((rid, ri) => {
+        // 1. satır: renk kodları + sipariş + barkod
+        out += '<tr>'
+        for (const g of kGruplar) {
+          const r = kMap.get(`${rid}|${g}`)
+          const bg = normHex(r?.['khex'])
+          const fg = yaziRengi(r?.['khex'])
+          out += `<td style="${tdC};${bg ? `background-color:${bg};` : ''}${fg ? `color:${fg};` : ''}">${kacis(r?.['kkod'])}</td>`
+        }
+        for (const b of bedenler) out += `<td style="${tdC}">${kacis(bMap.get(`${rid}|${b}`)?.['siparis'])}</td>`
+        out += `<td style="${td}"></td>`
+        const bkod = barkodMap.get(rid) ?? ''
+        const bImg = barkodImg.get(bkod)
+        const bHucre = bImg
+          ? `<img src="${bImg}" style="max-width:100%; height:36px" alt="${kacis(bkod)}" />`
+          : kacis(bkod)
+        out += `<td style="${tdC}; vertical-align:middle; padding:2px" rowspan="2">${bHucre}</td>`
+        out += '</tr>'
+        // 2. satır: renk adları + kesilecek
+        out += '<tr>'
+        for (const g of kGruplar) {
+          const r = kMap.get(`${rid}|${g}`)
+          out += `<td style="${tdC}">${kacis(r?.['kad'])}</td>`
+        }
+        for (const b of bedenler) out += `<td style="${tdC}">${kacis(bMap.get(`${rid}|${b}`)?.['kesilecek'])}</td>`
+        out += `<td style="${td}"></td>`
+        out += '</tr>'
+        // Renk grupları arası boşluk (son gruptan sonra yok)
+        if (bosluk > 0 && ri < renkler.length - 1) {
+          out += `<tr><td colspan="${kGruplar.length + bedenler.length + 2}" style="border:none; height:${bosluk}px"></td></tr>`
+        }
+      })
+      return out + '</tbody></table>'
     })
   }
 }

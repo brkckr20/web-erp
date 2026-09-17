@@ -9,6 +9,7 @@ export interface HizmetTalep {
   tarih: string
   kullanici: string | null
   gorusmeKisi: string | null
+  kapanisTarihi: string
   olusturmaTarihi: string
   guncellemeTarihi: string | null
   notlar?: HizmetTalepNot[]
