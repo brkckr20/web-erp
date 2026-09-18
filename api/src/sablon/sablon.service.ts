@@ -229,8 +229,9 @@ export class SablonService {
       // each yok: önce matris/kesim etiketleri, sonra kapsam doluysa yalın {{kolon}} çözülür
       const matrisli = this.bindMatris(tpl, sorguSonuclari)
       const kesimli = this.bindKesimTablo(matrisli, sorguSonuclari, kapsam, barkodImg)
-      if (kapsam.length === 0) return kesimli
-      return kesimli.replace(/\{\{(\w+)\}\}/g, (_, kolon) => {
+      const kumasli = this.bindKumasIhtiyac(kesimli, sorguSonuclari, kapsam)
+      if (kapsam.length === 0) return kumasli
+      return kumasli.replace(/\{\{(\w+)\}\}/g, (_, kolon) => {
         for (let i = kapsam.length - 1; i >= 0; i--) {
           const v = kapsam[i][kolon]
           if (v != null) return String(v)
@@ -466,6 +467,62 @@ export class SablonService {
           out += `<tr><td colspan="${kGruplar.length + bedenler.length + 2}" style="border:none; height:${bosluk}px"></td></tr>`
         }
       })
+      return out + '</tbody></table>'
+    })
+  }
+
+  // Kumaş ihtiyaç tablosu: {{#kumasIhtiyac <sorguAd> filtre=kalem_id}}
+  // kapsamdaki ({{#each}} içindeki) filtre kolonuna göre satırları süzer;
+  // sorgunun döndürdüğü kolonları tablo yapar (filtre kolonu otomatik gizlenir).
+  // Opsiyonel: etiket="Grup,Kumaş Kodu" gizle="stok_kod" cerceve="1px solid gray" baslikZemin="#eee"
+  private bindKumasIhtiyac(tpl: string, sorguSonuclari: Record<string, any[]>, kapsam: any[]): string {
+    return tpl.replace(/\{\{#kumasIhtiyac\s+(\w+)((?:\s+\w+=(?:"[^"]*"|[^\s}]+))*)(\s*)\}\}/g, (_, sorguAd, paramStr) => {
+      const params: Record<string, string> = {}
+      const paramRegex = /(\w+)=("[^"]*"|[^\s}]+)/g
+      let pm: RegExpExecArray | null
+      while ((pm = paramRegex.exec(paramStr)) !== null) {
+        params[pm[1]] = pm[2].replace(/^"|"$/g, '')
+      }
+      const filtreKolon = params['filtre']
+      let filtreDeger: any = null
+      if (filtreKolon) {
+        for (let i = kapsam.length - 1; i >= 0; i--) {
+          if (kapsam[i][filtreKolon] != null) {
+            filtreDeger = kapsam[i][filtreKolon]
+            break
+          }
+        }
+      }
+      const süz = (rows: any[]) =>
+        filtreKolon && filtreDeger != null ? rows.filter((r) => String(r[filtreKolon]) === String(filtreDeger)) : rows
+      const rows = süz(sorguSonuclari[sorguAd] || [])
+      if (rows.length === 0) return ''
+      const cerceve = params['cerceve'] ?? '1px solid gray'
+      const baslikZemin = params['baslikZemin'] ? `background-color:${params['baslikZemin']};` : ''
+      const tabloStil = params['stil'] ? ` ${params['stil'].replace(/;?$/, ';')}` : ''
+      const etiketler = params['etiket'] ? params['etiket'].split(',').map((e) => e.trim()) : []
+      const gizlenecekler = params['gizle'] ? params['gizle'].split(',').map((g) => g.trim()) : []
+      const kacis = (v: any): string =>
+        v == null ? '' : String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      const bicim = (v: any): string => {
+        if (v == null || String(v).trim() === '') return ''
+        const n = Number(String(v).replace(/,/g, '.').trim())
+        if (isNaN(n)) return kacis(v)
+        return String(Math.round(n * 100) / 100).replace('.', ',')
+      }
+      let kolonlar = Object.keys(rows[0]).filter((k) => k !== filtreKolon && !gizlenecekler.includes(k))
+      if (kolonlar.length === 0) return ''
+      const th = `border:${cerceve};${baslikZemin} text-align:left`
+      const td = `border:${cerceve}`
+      let out = `<table style="border-collapse:collapse; font-size:10px; margin-top:0;${tabloStil}">`
+      out += '<thead><tr>'
+      kolonlar.forEach((k, i) => out += `<th style="${th}">${kacis(etiketler[i] ?? k)}</th>`)
+      out += '</tr></thead><tbody>'
+      for (const r of rows) {
+        out += '<tr>'
+        for (const k of kolonlar) out += `<td style="${td}">${bicim(r[k])}</td>`
+        out += '</tr>'
+      }
       return out + '</tbody></table>'
     })
   }
