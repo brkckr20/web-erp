@@ -27,6 +27,11 @@ export class SiparisController {
     return this.service.findAll();
   }
 
+  @Get('by-siparis-no/:siparisNo')
+  findBySiparisNo(@Param('siparisNo') siparisNo: string) {
+    return this.service.findBySiparisNo(siparisNo);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

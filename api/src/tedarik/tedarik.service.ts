@@ -200,6 +200,7 @@ export class TedarikService {
         islem: string | null
         varyant1: string
         varyant1Aciklama: string
+        varyant1RenkId: number | null
         gerekenMiktar: unknown
         birim: string
       }[]
@@ -215,6 +216,7 @@ export class TedarikService {
         rk.islem            AS islem,
         ti.renk_kod         AS varyant1,
         ti.renk_ad          AS varyant1Aciklama,
+        ti.renk_id          AS varyant1RenkId,
         SUM(ti.net_miktar)  AS gerekenMiktar,
         MIN(ti.birim)       AS birim
       FROM tedarik_ihtiyac ti
@@ -227,7 +229,7 @@ export class TedarikService {
       GROUP BY
         s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad,
         ti.malzeme_kod, ti.malzeme_ad, rk.islem,
-        ti.renk_kod, ti.renk_ad
+        ti.renk_id, ti.renk_kod, ti.renk_ad
       ORDER BY s.siparis_no, mm.kod, ti.malzeme_kod, ti.renk_kod
     `
 
@@ -242,6 +244,7 @@ export class TedarikService {
       islem: r.islem,
       varyant1: r.varyant1,
       varyant1Aciklama: r.varyant1Aciklama,
+      varyant1RenkId: r.varyant1RenkId,
       gerekenMiktar: Number(r.gerekenMiktar) || 0,
       birim: r.birim,
     }))
@@ -260,6 +263,7 @@ export class TedarikService {
         islem: string | null
         varyant1: string
         varyant1Aciklama: string
+        varyant1RenkId: number | null
         gerekenMiktar: unknown
         birim: string
       }[]
@@ -275,6 +279,7 @@ export class TedarikService {
         rk.islem            AS islem,
         ti.renk_kod         AS varyant1,
         ti.renk_ad          AS varyant1Aciklama,
+        ti.renk_id          AS varyant1RenkId,
         SUM(ti.net_miktar)  AS gerekenMiktar,
         MIN(ti.birim)       AS birim
       FROM tedarik_ihtiyac ti
@@ -287,7 +292,7 @@ export class TedarikService {
       GROUP BY
         s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad,
         ti.malzeme_kod, ti.malzeme_ad, rk.islem,
-        ti.renk_kod, ti.renk_ad
+        ti.renk_id, ti.renk_kod, ti.renk_ad
       ORDER BY s.siparis_no, mm.kod, ti.malzeme_kod, ti.renk_kod
     `
 
@@ -302,6 +307,7 @@ export class TedarikService {
       islem: r.islem,
       varyant1: r.varyant1,
       varyant1Aciklama: r.varyant1Aciklama,
+      varyant1RenkId: r.varyant1RenkId,
       gerekenMiktar: Number(r.gerekenMiktar) || 0,
       birim: r.birim,
     }))

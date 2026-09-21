@@ -61,6 +61,7 @@ export interface KumasPlanlamaSatir {
   islem: string | null
   varyant1: string
   varyant1Aciklama: string
+  varyant1RenkId: number | null
   gerekenMiktar: number
   birim: string
 }

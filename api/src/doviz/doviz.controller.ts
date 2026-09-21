@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common'
 import { DovizService } from './doviz.service'
 import { CreateDovizDto } from './dto/create-doviz.dto'
 import { UpdateDovizDto } from './dto/update-doviz.dto'
@@ -15,6 +15,12 @@ export class DovizController {
   @Get('kurlar/son')
   findLatestKurlar() {
     return this.dovizService.findLatestKurlar()
+  }
+
+  @Get('kurlar')
+  findByTarih(@Query('tarih') tarih?: string) {
+    const t = tarih || new Date().toISOString().slice(0, 10)
+    return this.dovizService.findByTarih(t)
   }
 
   @Get(':kod')

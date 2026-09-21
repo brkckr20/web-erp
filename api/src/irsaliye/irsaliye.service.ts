@@ -36,14 +36,24 @@ export class IrsaliyeService {
     return this.prisma.irsaliye.findMany({
       where,
       orderBy: [{ irsaliyeTipi: 'asc' }, { irsaliyeNo: 'desc' }],
-      include: { cariHesap: true, depo: true, fasonTipi: true, kalemler: { include: { malzeme: true } } },
+      include: {
+        cariHesap: true,
+        depo: true,
+        fasonTipi: true,
+        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+      },
     })
   }
 
   async findOne(id: number) {
     const irsaliye = await this.prisma.irsaliye.findUnique({
       where: { id },
-      include: { cariHesap: true, depo: true, fasonTipi: true, kalemler: { include: { malzeme: true } } },
+      include: {
+        cariHesap: true,
+        depo: true,
+        fasonTipi: true,
+        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+      },
     })
     if (!irsaliye) throw new NotFoundException('İrsaliye bulunamadı')
     return irsaliye
@@ -70,7 +80,12 @@ export class IrsaliyeService {
       }
       return tx.irsaliye.findUnique({
         where: { id: irsaliye.id },
-        include: { cariHesap: true, depo: true, fasonTipi: true, kalemler: { include: { malzeme: true } } },
+        include: {
+          cariHesap: true,
+          depo: true,
+          fasonTipi: true,
+          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+        },
       })
     })
   }
@@ -110,7 +125,12 @@ export class IrsaliyeService {
       }
       return tx.irsaliye.findUnique({
         where: { id },
-        include: { cariHesap: true, depo: true, fasonTipi: true, kalemler: { include: { malzeme: true } } },
+        include: {
+          cariHesap: true,
+          depo: true,
+          fasonTipi: true,
+          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+        },
       })
     })
   }

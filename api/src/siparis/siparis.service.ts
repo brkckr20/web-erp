@@ -83,6 +83,15 @@ export class SiparisService {
     return siparis;
   }
 
+  async findBySiparisNo(siparisNo: string) {
+    const siparis = await this.prisma.siparis.findUnique({
+      where: { siparisNo },
+      include: FULL_INCLUDE,
+    });
+    if (!siparis) throw new NotFoundException('Sipariş bulunamadı');
+    return siparis;
+  }
+
   async create(dto: CreateSiparisDto) {
     const { kalemler, aciklamalar, numaratorId, ...rest } = dto as any;
     const data: any = { ...rest };

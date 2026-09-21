@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Button, Input, InputNumber, Select, DatePicker, Table, App, Tag, Card, Divider, Dropdown, Modal } from 'antd'
 import type { ColumnsType, MenuProps } from 'antd/es/table'
 import {
   ScissorOutlined,
-  SearchOutlined,
   SendOutlined,
   EditOutlined,
   UndoOutlined,
@@ -16,8 +15,9 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { iadeTalepApi } from '@/lib/iade-talep-api'
-import { barkodApi, type BarkodEslesme } from '@/lib/barkod-api'
+import { barkodApi } from '@/lib/barkod-api'
 import { malzemeYonetimFisleriApi, type MalzemeYonetimFisi, type MalzemeYonetimFisiKalem } from '@/lib/malzeme-yonetim-fisleri-api'
+import { siparisApi, type Siparis } from '@/lib/siparis-api'
 
 export interface KesimKartiRecord {
   id: number
@@ -47,70 +47,39 @@ export interface KesimKartiRecord {
   manuelFire?: boolean
 }
 
-const mockSiparisler = [
-  {
-    siparisNo: 'SIP-2026-001',
-    modeller: [
-      {
-        modelKod: 'BT001',
-        modelAd: 'Basic Tişört',
-        kumasGruplari: [
-          { kumasAd: 'Overlay Penye', renk: 'Beyaz', gerekliMT: 120, kesimFazlasi: 5 },
-          { kumasAd: 'Overlay Penye', renk: 'Siyah', gerekliMT: 60, kesimFazlasi: 5 },
-        ],
-        renkler: [
-          { renkAd: 'Beyaz', bedenler: [
-            { beden: 'S', miktar: 200 },
-            { beden: 'M', miktar: 400 },
-            { beden: 'L', miktar: 400 },
-            { beden: 'XL', miktar: 200 },
-          ]},
-          { renkAd: 'Siyah', bedenler: [
-            { beden: 'S', miktar: 150 },
-            { beden: 'M', miktar: 300 },
-            { beden: 'L', miktar: 150 },
-          ]},
-        ],
-      },
-      {
-        modelKod: 'VE002',
-        modelAd: 'Viskon Elbise',
-        kumasGruplari: [
-          { kumasAd: 'Viskon Kumaş', renk: 'Kırmızı', gerekliMT: 80, kesimFazlasi: 3 },
-        ],
-        renkler: [
-          { renkAd: 'Kırmızı', bedenler: [
-            { beden: '36', miktar: 100 },
-            { beden: '38', miktar: 150 },
-            { beden: '40', miktar: 100 },
-            { beden: '42', miktar: 50 },
-          ]},
-        ],
-      },
-    ],
-  },
-]
+interface KumasGrupBilgi {
+  kumasAd: string
+  renk: string
+  gerekliMT: number
+  kesimFazlasi: number
+}
 
-const mockKesimKartlari: KesimKartiRecord[] = [
-  {
-    id: 1, siparisNo: 'SIP-2026-001', modelKod: 'BT001', modelAd: 'Basic Tişört',
-    renkAd: 'Beyaz', beden: 'M', planlananMiktar: 400, kesilenMiktar: 400, fireMiktar: 8,
-    kumasAd: 'Overlay Penye', kumasRenk: 'Beyaz', gerekliMiktar: 40, brutMiktar: 42,
-    kumasMiktar: 42, birimTuketim: 0.1, beklenenAdet: 420, kalanMT: 2, fireOrani: 4.8,
-    iadeTalep: false, tarih: '2026-08-28', durum: 'KESILDI',
-  },
-  {
-    id: 2, siparisNo: 'SIP-2026-001', modelKod: 'BT001', modelAd: 'Basic Tişört',
-    renkAd: 'Beyaz', beden: 'L', planlananMiktar: 400, kesilenMiktar: 400, fireMiktar: 10,
-    kumasAd: 'Overlay Penye', kumasRenk: 'Beyaz', gerekliMiktar: 40, brutMiktar: 42,
-    kumasMiktar: 42, birimTuketim: 0.1, beklenenAdet: 420, kalanMT: 2, fireOrani: 4.8,
-    iadeTalep: true, tarih: '2026-08-28', durum: 'DIKIME_GONDERILDI',
-  },
-]
+interface BedenBilgi {
+  beden: string
+  miktar: number
+}
+
+interface RenkBilgi {
+  renkAd: string
+  renkLabel: string
+  bedenler: BedenBilgi[]
+}
+
+interface ModelBilgi {
+  modelKod: string
+  modelAd: string
+  kumasGruplari: KumasGrupBilgi[]
+  renkler: RenkBilgi[]
+}
+
+interface SiparisBilgi {
+  siparisNo: string
+  modeller: ModelBilgi[]
+}
 
 export default function KesimKarti() {
   const { message } = App.useApp()
-  const [kesimKartlari, setKesimKartlari] = useState<KesimKartiRecord[]>(mockKesimKartlari)
+  const [kesimKartlari, setKesimKartlari] = useState<KesimKartiRecord[]>([])
   const [barkodInput, setBarkodInput] = useState('')
   const [tarih, setTarih] = useState(dayjs())
   const [seciliSiparis, setSeciliSiparis] = useState<string>('')
@@ -132,8 +101,13 @@ export default function KesimKarti() {
   const [modalFisId, setModalFisId] = useState<number | null>(null)
   const [modalFis, setModalFis] = useState<MalzemeYonetimFisi | null>(null)
   const [modalYukleniyor, setModalYukleniyor] = useState(false)
+  // Gerçek sipariş verisi (kalem→renk→beden) — mock yerine backend'den
+  const [siparisler, setSiparisler] = useState<SiparisBilgi[]>([])
+  const [siparisYukleniyor, setSiparisYukleniyor] = useState(false)
+  // Barkod okutularak mı dolduruldu? (Sipariş/Model/Renk readonly olur)
+  const [barkodYoluyla, setBarkodYoluyla] = useState(false)
 
-  const seciliSiparisData = mockSiparisler.find((s) => s.siparisNo === seciliSiparis)
+  const seciliSiparisData = siparisler.find((s) => s.siparisNo === seciliSiparis)
   const seciliModelData = seciliSiparisData?.modeller.find((m) => m.modelKod === seciliModel)
   const seciliRenkData = seciliModelData?.renkler.find((r) => r.renkAd === seciliRenk)
   // Kumaş grubu seçimsiz: renkle eşleşen, yoksa ilk grup (fiş kalemi kumaşı Üretime Çıkılanlar'dan gelir)
@@ -184,6 +158,32 @@ export default function KesimKarti() {
       .then((fisler) => setFisListesi((fisler ?? []).filter((f) => f.irsaliyeTipi === '140')))
       .catch(() => setFisListesi([]))
       .finally(() => setFisYukleniyor(false))
+  }, [])
+
+  // Gerçek sipariş listesi (sipariş no seçimi için)
+  useEffect(() => {
+    setSiparisYukleniyor(true)
+    siparisApi
+      .list()
+      .then((liste) => setSiparisler((liste ?? []).map(normalizeSiparis)))
+      .catch(() => setSiparisler([]))
+      .finally(() => setSiparisYukleniyor(false))
+  }, [])
+
+  // Tek siparişi tam detayıyla (renk+beden) getirir; mevcutsa günceller, yoksa ekler.
+  const yukleSiparis = useCallback(async (siparisNo: string) => {
+    setSiparisYukleniyor(true)
+    try {
+      const s = await siparisApi.bySiparisNo(siparisNo)
+      const n = normalizeSiparis(s)
+      setSiparisler((prev) =>
+        prev.some((x) => x.siparisNo === n.siparisNo)
+          ? prev.map((x) => (x.siparisNo === n.siparisNo ? { ...x, ...n } : x))
+          : [...prev, n],
+      )
+    } finally {
+      setSiparisYukleniyor(false)
+    }
   }, [])
 
   // Fiş detayı (kalemleriyle) yükle
@@ -259,28 +259,33 @@ export default function KesimKarti() {
     const ham = barkodInput.trim()
     try {
       const eslesme = await barkodApi.tar(ham)
+      await yukleSiparis(eslesme.siparisNo)
       setSeciliSiparis(eslesme.siparisNo)
       setSeciliModel(eslesme.modelKod)
       setSeciliRenk(eslesme.renkKod)
       setKesilenAdetler(eslesme.beden ? { [eslesme.beden]: null } : {})
       setFireMiktar(0)
       setFireOtomatik(true)
+      setBarkodYoluyla(true)
       message.success(`Barkod okundu: ${eslesme.siparisNo} / ${eslesme.modelKod}`)
     } catch {
-      // Backend'de yoksa yerel çöz: SIPARIS-MODEL-RENK[-BEDEN] (Üretim Hareket ile aynı)
-      const yerel = parseBarkodYerel(ham)
-      if (yerel) {
-        setSeciliSiparis(yerel.siparisNo)
-        setSeciliModel(yerel.modelKod)
-        setSeciliRenk(yerel.renkAd)
-        setKesilenAdetler(yerel.beden ? { [yerel.beden]: null } : {})
+      // Son fallback: doğrudan barkod kodu (örn. 000000007) ile eşleşmeyi ara
+      try {
+        const eslesme = await barkodApi.findByKod(ham)
+        await yukleSiparis(eslesme.siparisNo)
+        setSeciliSiparis(eslesme.siparisNo)
+        setSeciliModel(eslesme.modelKod)
+        setSeciliRenk(eslesme.renkKod)
+        setKesilenAdetler(eslesme.beden ? { [eslesme.beden]: null } : {})
         setFireMiktar(0)
         setFireOtomatik(true)
-        message.success(`Barkod okundu (yerel): ${yerel.siparisNo} / ${yerel.modelKod} / ${yerel.renkAd}${yerel.beden ? ` / ${yerel.beden}` : ''}`)
-      } else {
+        setBarkodYoluyla(true)
+        message.success(`Barkod okundu: ${eslesme.siparisNo} / ${eslesme.modelKod}`)
+      } catch {
         message.error('Barkod ile eşleşen kayıt bulunamadı')
       }
     }
+
     setBarkodInput('')
   }
 
@@ -294,6 +299,7 @@ export default function KesimKarti() {
     setFireMiktar(0)
     setFireOtomatik(true)
     setDuzenlenenId(null)
+    setBarkodYoluyla(false)
     if (!fisKoru) {
       setSeciliFisId(null)
       setSeciliFis(null)
@@ -513,6 +519,7 @@ export default function KesimKarti() {
               setKesilenAdetler(record.beden ? { [record.beden]: record.kesilenMiktar } : {})
               setFireMiktar(record.fireMiktar)
               setFireOtomatik(!record.manuelFire)
+              setBarkodYoluyla(false)
               if (record.kaynakFisId) setSeciliFisId(record.kaynakFisId)
               if (record.kaynakKalemId) setSeciliFisKalemId(record.kaynakKalemId)
               setTarih(dayjs(record.tarih))
@@ -614,14 +621,18 @@ export default function KesimKarti() {
                   className="!w-full"
                   size="small"
                   placeholder="Sipariş"
+                  loading={siparisYukleniyor}
                   value={seciliSiparis || undefined}
+                  disabled={barkodYoluyla}
                   onChange={(v) => {
+                    setBarkodYoluyla(false)
                     setSeciliSiparis(v)
                     setSeciliModel('')
                     setSeciliRenk('')
                     setKesilenAdetler({})
+                    yukleSiparis(v)
                   }}
-                  options={mockSiparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
+                  options={siparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
                 />
               </div>
               <div>
@@ -636,7 +647,7 @@ export default function KesimKarti() {
                     setSeciliRenk('')
                     setKesilenAdetler({})
                   }}
-                  disabled={!seciliSiparis}
+                  disabled={!seciliSiparis || barkodYoluyla}
                   options={seciliSiparisData?.modeller.map((m) => ({ label: `${m.modelKod} - ${m.modelAd}`, value: m.modelKod })) ?? []}
                 />
               </div>
@@ -651,8 +662,8 @@ export default function KesimKarti() {
                     setSeciliRenk(v)
                     setKesilenAdetler({})
                   }}
-                  disabled={!seciliModel}
-                  options={seciliModelData?.renkler.map((r) => ({ label: r.renkAd, value: r.renkAd })) ?? []}
+                  disabled={!seciliModel || barkodYoluyla}
+                  options={seciliModelData?.renkler.map((r) => ({ label: r.renkLabel, value: r.renkAd })) ?? []}
                 />
               </div>
             </div>
@@ -686,14 +697,14 @@ export default function KesimKarti() {
                 <div className="text-[9px] text-gray-400 mb-1 uppercase">
                   Bedenler <span className="text-gray-300 normal-case">(planlanan / beklenen / kesilen)</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
                   {seciliRenkData.bedenler.map((b) => (
-                    <div key={b.beden} className="border border-gray-200 rounded px-1.5 py-1 bg-white">
+                    <div key={b.beden} className="border border-gray-200 rounded px-1 py-0.5 bg-white">
                       <div className="flex items-baseline justify-between">
-                        <span className="text-[11px] font-bold text-gray-700">{b.beden}</span>
-                        <span className="text-[9px] text-gray-400">planlanan <span className="font-semibold text-gray-600">{b.miktar}</span></span>
+                        <span className="text-[9px] font-bold text-gray-700">{b.beden}</span>
+                        <span className="text-[8px] text-gray-400">pln <span className="font-semibold text-gray-600">{b.miktar}</span></span>
                       </div>
-                      <div className="text-[9px] text-blue-600">beklenen <span className="font-semibold">{beklenenOf(b.beden)}</span></div>
+                      <div className="text-[8px] text-blue-600">bek {beklenenOf(b.beden)}</div>
                       <InputNumber
                         size="small"
                         min={0}
@@ -914,40 +925,38 @@ export default function KesimKarti() {
   )
 }
 
-function normalizeTr(s: string): string {
-  return s.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c')
-}
-
-// Mock siparişlere karşı doğrular, kanonik (seçimle eşleşen) değerleri döner
-function eslestirBarkod(siparisNo: string, modelKod: string, renkAd: string) {
-  const s = mockSiparisler.find((x) => normalizeTr(x.siparisNo) === normalizeTr(siparisNo))
-  const m = s?.modeller.find((x) => normalizeTr(x.modelKod) === normalizeTr(modelKod))
-  const r = m?.renkler.find((x) => normalizeTr(x.renkAd) === normalizeTr(renkAd))
-  return s && m && r ? { siparisNo: s.siparisNo, modelKod: m.modelKod, renkAd: r.renkAd } : null
-}
-
-// Yerel barkod: SIPARIS-MODEL-RENK[-BEDEN] (backend kaydı yoksa fallback)
-function parseBarkodYerel(barkod: string): { siparisNo: string; modelKod: string; renkAd: string; beden: string | null } | null {
-  const parts = barkod.split('-').map((p) => p.trim()).filter((p) => p.length > 0)
-  if (parts.length < 3) return null
-
-  // Bedensiz: siparis-model-renk
-  const yeni = eslestirBarkod(
-    parts.slice(0, parts.length - 2).join('-'),
-    parts[parts.length - 2],
-    parts[parts.length - 1],
-  )
-  if (yeni) return { ...yeni, beden: null }
-
-  // Bedenli: siparis-model-renk-beden
-  if (parts.length >= 4) {
-    const eski = eslestirBarkod(
-      parts.slice(0, parts.length - 3).join('-'),
-      parts[parts.length - 3],
-      parts[parts.length - 2],
-    )
-    if (eski) return { ...eski, beden: parts[parts.length - 1] }
-  }
-
-  return null
+// Gerçek siparişi (kalem→renk→beden) kesim kartının kullandığı normalleştirilmiş yapıya çevirir.
+function normalizeSiparis(s: Siparis): SiparisBilgi {
+  const kesimFazlasi = s.kesimFazlasi != null ? Number(s.kesimFazlasi) || 0 : 0
+  const modeller: ModelBilgi[] = (s.kalemler ?? [])
+    .filter((k) => k.malzeme?.kod)
+    .map((k) => {
+      const renkler: RenkBilgi[] = (k.renkler ?? []).map((r) => {
+        const ilkGrup = r.kumasGruplari?.[0]
+        const renkKod = ilkGrup?.renk?.kod ?? ilkGrup?.kumasGrup?.kod ?? ''
+        const renkAd = ilkGrup?.renk?.ad ?? ''
+        return {
+          renkAd: renkKod,
+          renkLabel: renkKod ? `${renkKod} - ${renkAd}`.replace(/ - $/, '') : renkAd,
+          bedenler: (r.bedenler ?? []).map((b) => ({
+            beden: b.beden?.kod ?? String(b.bedenId ?? ''),
+            miktar: b.miktar != null ? Number(b.miktar) : 0,
+          })),
+        }
+      })
+      const kumasGruplari: KumasGrupBilgi[] = []
+      const gorulen = new Set<string>()
+      for (const r of k.renkler ?? []) {
+        for (const g of r.kumasGruplari ?? []) {
+          const kumasAd = g.kumasGrup?.kod ?? ''
+          const renk = g.renk?.ad ?? g.renk?.kod ?? ''
+          const anahtar = `${kumasAd}|${renk}`
+          if (gorulen.has(anahtar)) continue
+          gorulen.add(anahtar)
+          kumasGruplari.push({ kumasAd, renk, gerekliMT: 0, kesimFazlasi })
+        }
+      }
+      return { modelKod: k.malzeme!.kod!, modelAd: k.malzeme?.ad ?? '', kumasGruplari, renkler }
+    })
+  return { siparisNo: s.siparisNo, modeller }
 }

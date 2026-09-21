@@ -47,6 +47,14 @@ export interface IrsaliyeKalem {
   satirTutari: number | null
   aciklama: string | null
   uuid: string | null
+  varyant1RenkId?: number | null
+  varyant1RenkKod?: string | null
+  varyant1RenkAd?: string | null
+  varyant2RenkId?: number | null
+  varyant2RenkKod?: string | null
+  varyant2RenkAd?: string | null
+  varyant1Renk?: { id: number; kod: string; ad: string } | null
+  varyant2Renk?: { id: number; kod: string; ad: string } | null
   malzeme?: { id: number; kod: string; ad: string } | null
 }
 

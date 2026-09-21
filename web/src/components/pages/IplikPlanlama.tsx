@@ -176,7 +176,8 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
   const sorguMetni = arama.trim() ? ` - "${arama.trim()}"` : ''
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'satinalma-talimat', label: 'Satın Alma Talimatı Oluştur', icon: <ShoppingCartOutlined /> },
+    { key: 'satinalma-talimat', label: 'Satın Alma Siparişi Oluştur', icon: <ShoppingCartOutlined /> },
+    { key: 'ham-satinalma-talimat', label: 'Ham Satın Alma Siparişi Oluştur', icon: <ShoppingCartOutlined /> },
     { key: 'mal-alim-irsaliye', label: 'Mal Alım İrsaliyesi Oluştur', icon: <InboxOutlined /> },
     {
       key: 'fason',
@@ -192,19 +193,28 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
   ]
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    if (key === 'satinalma-talimat') {
+    if (key === 'satinalma-talimat' || key === 'ham-satinalma-talimat') {
       const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
       if (!secili || secili.length === 0) {
         message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
         return
       }
-      const kalemler: IrsaliyeBaslangicKalem[] = secili.map((r) => ({
-        malzemeKod: r.malzemeKod,
-        malzemeAd: r.malzemeAd,
-        miktar: Number(r.gerekenMiktar) || 0,
-        birim: 'kg',
-        aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
-      }))
+      const ham = key === 'ham-satinalma-talimat'
+      const kalemler: IrsaliyeBaslangicKalem[] = secili.map((r) => {
+        const kalem: IrsaliyeBaslangicKalem = {
+          malzemeKod: r.malzemeKod,
+          malzemeAd: r.malzemeAd,
+          miktar: Number(r.gerekenMiktar) || 0,
+          birim: 'kg',
+          aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+        }
+        if (!ham) {
+          kalem.varyant1RenkId = r.varyant1RenkId ?? null
+          kalem.varyant1RenkKod = r.varyant1 || null
+          kalem.varyant1RenkAd = r.varyant1Aciklama || null
+        }
+        return kalem
+      })
       onYeniSatinalmaSiparis?.(kalemler)
       return
     }

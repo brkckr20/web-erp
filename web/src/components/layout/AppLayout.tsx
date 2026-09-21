@@ -56,6 +56,7 @@ import AksesuarListesi from '@/components/pages/AksesuarListesi'
 import AksesuarKarti from '@/components/pages/AksesuarKarti'
 import DovizListesi from '@/components/pages/DovizListesi'
 import DovizKarti from '@/components/pages/DovizKarti'
+import DovizKurlari from '@/components/pages/DovizKurlari'
 import SiparisGirisi from '@/components/pages/SiparisGirisi'
 import SiparisKarti from '@/components/pages/SiparisKarti'
 import TedarikEkrani from '@/components/pages/TedarikEkrani'
@@ -1039,6 +1040,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('doviz-karti-')) {
       return <DovizKarti kod={tab.key.replace('doviz-karti-', '')} />
+    }
+    if (tab.key === 'doviz-kurlari') {
+      return <DovizKurlari />
     }
     if (tab.key === 'boyahane-renk-kartlari') {
       return <BoyahaneRenkListesi onSelect={openBoyahaneRenkKarti} onNew={openYeniBoyahaneRenk} />

@@ -70,6 +70,7 @@ export interface SiparisAciklama {
 export interface Siparis {
   id: number
   siparisNo: string
+  ozelKod?: string | null
   numaratorId?: number | null
   numarator?: { id: number; ad: string; onEk: string } | null
   musteriOrderNo?: string | null
@@ -100,6 +101,7 @@ export const siparisApi = {
     api.get<{ siparisNo: string }>(`/siparis/next-no?numaratorId=${numaratorId}`),
   list: () => api.get<Siparis[]>('/siparis'),
   get: (id: number) => api.get<Siparis>(`/siparis/${id}`),
+  bySiparisNo: (siparisNo: string) => api.get<Siparis>(`/siparis/by-siparis-no/${encodeURIComponent(siparisNo)}`),
   create: (data: Partial<SiparisFormData> & { kalemler?: SiparisKalem[]; aciklamalar?: SiparisAciklama[] }) =>
     api.post<Siparis>('/siparis', data),
   update: (id: number, data: Partial<SiparisFormData> & { kalemler?: SiparisKalem[]; aciklamalar?: SiparisAciklama[] }) =>

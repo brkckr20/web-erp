@@ -12,6 +12,7 @@ interface SearchableRenkSelectProps {
   placeholder?: string
   className?: string
   widthClass?: string
+  adGoster?: boolean
 }
 
 export default function SearchableRenkSelect({
@@ -21,6 +22,7 @@ export default function SearchableRenkSelect({
   placeholder = 'Renk ara...',
   className,
   widthClass = '!w-48',
+  adGoster = true,
 }: SearchableRenkSelectProps) {
   const [options, setOptions] = useState<Renk[]>([])
   const [loading, setLoading] = useState(false)
@@ -80,9 +82,11 @@ export default function SearchableRenkSelect({
           ((option as { searchText?: string })?.searchText ?? '').toLowerCase().includes(input.toLowerCase())
         }
       />
-      <span className="!text-[11px] !text-[#333] !whitespace-nowrap !overflow-visible" title={selectedAd}>
-        {selectedAd}
-      </span>
+      {adGoster && (
+        <span className="!text-[11px] !text-[#333] !whitespace-nowrap !overflow-visible" title={selectedAd}>
+          {selectedAd}
+        </span>
+      )}
     </div>
   )
 }

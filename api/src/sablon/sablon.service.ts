@@ -165,14 +165,24 @@ export class SablonService {
     const page = await browser.newPage()
     await page.setContent(tamHtml, { waitUntil: 'load' })
 
+    const footerTpl = `
+      <div style="width:100%; font-size:8px; color:#444; box-sizing:border-box; padding:0 ${sonuc.solBosluk}mm;">
+        <span style="float:left;">Nakosan Tekstil</span>
+        <span style="float:right;">Sayfa: <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+      </div>
+    `
+
     const pdfBuffer = await page.pdf({
       width: `${sonuc.sayfaEn}mm`,
       height: `${sonuc.sayfaBoy}mm`,
       landscape: sonuc.yon === 'yatay',
       printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: footerTpl,
       margin: {
         top: `${sonuc.ustBosluk}mm`,
-        bottom: `${sonuc.altBosluk}mm`,
+        bottom: `${Math.max(sonuc.altBosluk, 10)}mm`,
         left: `${sonuc.solBosluk}mm`,
         right: `${sonuc.sagBosluk}mm`,
       },
@@ -344,8 +354,9 @@ export class SablonService {
 
   // Kesim talimat tablosu: kumaş grup kolonları + beden kolonları + barkod hücresi, renk başına 2 satır.
   // Kullanım ({{#each}} içinde): {{#kesimTablo kumas=kesim_kumas beden=kesim_beden filtre=kalem_id}}
-  // Opsiyonel: barkod=kesim_barkod bosluk=8 cerceve="1px solid black" baslikZemin="#eee" stil="font-family:Arial;font-size:12px"
+  // Opsiyonel: barkod=kesim_barkod bosluk=2 cerceve="1px solid black" baslikZemin="#eee" stil="font-family:Arial;font-size:10px"
   // Olculer: genislik=70 yukseklik=24 maxGenislik=90 (px)
+  // Beden sıralama: siralama=beden (varsayılan, küçükten büyüğe) | siralama=yazim (bsira'ya göre)
   // kumas sorgusu: kalem_id, renk_id, rsira, kgrup, kkod, kad, khex
   // beden sorgusu: kalem_id, renk_id, rsira, beden, bsira, siparis, kesilecek
   // filtre kolonu kapsamdan okunup iki sorgu da o kaleme süzülür.
@@ -359,7 +370,7 @@ export class SablonService {
       }
       const filtreKolon = params['filtre']
       const barkodAd = params['barkod']
-      const bosluk = Math.max(0, parseInt(params['bosluk'] ?? '8', 10) || 0)
+      const bosluk = Math.max(0, parseInt(params['bosluk'] ?? '2', 10) || 0)
       // Stil parametreleri: stil="font-family:Arial;font-size:12px" cerceve="1px solid black" baslikZemin="#eee"
       const tabloStil = params['stil'] ? ` ${params['stil'].replace(/;?$/, ';')}` : ''
       const cerceve = params['cerceve'] ?? '1px solid gray'
@@ -405,7 +416,28 @@ export class SablonService {
         return [...ilk.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k)
       }
       const kGruplar = sirali(kRows, 'kgrup', 'ksira')
-      const bedenler = sirali(bRows, 'beden', 'bsira')
+      // Beden sıralama: sayısal bedenler ("38","40") sayısal, harfli bedenler (S,M,L,XL) standart sıra ile.
+      // Varsayılan "beden" (küçükten büyüğe); "yazim" verilirse bsira'ya göre yazım sırası kullanılır.
+      const bedenDeger = (beden: any): number => {
+        const s = String(beden ?? '').trim().toUpperCase()
+        const harfSn: Record<string, number> = { XXS: 5, XS: 10, S: 20, M: 30, L: 40, XL: 50, XXL: 60, '2XL': 60, XXXL: 70, '3XL': 70 }
+        if (harfSn[s] != null) return harfSn[s]
+        const n = Number(s)
+        if (!isNaN(n)) return n
+        const m = /^(\d+)/.exec(s)
+        if (m) return Number(m[1])
+        return 999999
+      }
+      const benzersizBeden = new Map<string, string>()
+      for (const r of bRows) {
+        const k = r['beden'] != null ? String(r['beden']) : ''
+        if (k !== '' && !benzersizBeden.has(k)) benzersizBeden.set(k, k)
+      }
+      const bedenSiralama = params['siralama'] ?? 'beden'
+      const bedenler =
+        bedenSiralama === 'yazim'
+          ? sirali(bRows, 'beden', 'bsira')
+          : [...benzersizBeden.keys()].sort((a, b) => bedenDeger(a) - bedenDeger(b))
       const renkler = sirali([...kRows, ...bRows], 'renk_id', 'rsira')
       if (renkler.length === 0 || (kGruplar.length === 0 && bedenler.length === 0)) return ''
       const kMap = new Map<string, any>()
@@ -429,7 +461,7 @@ export class SablonService {
       }
       const td = `border:${cerceve};${daralt}${olcu}`
       const tdC = td + 'text-align:center;'
-      let out = `<table style="border-collapse:collapse; margin-top:4px; font-size:13px;${tabloStil}">`
+      let out = `<table style="border-collapse:collapse; margin-top:4px; font-size:10px;${tabloStil}">`
       out += '<thead><tr>'
       for (const g of kGruplar) out += `<td style="${tdC};${baslikZemin}">${kacis(g)}</td>`
       for (const b of bedenler) out += `<td style="${tdC};${baslikZemin}">${kacis(b)}</td>`

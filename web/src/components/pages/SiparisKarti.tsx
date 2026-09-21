@@ -72,6 +72,7 @@ const STICKER_ADET = 10
 
 interface SiparisFormData {
   siparisNo: string
+  ozelKod: string
   musteriOrderNo: string
   numaratorId: number | null
   tarih: string
@@ -87,6 +88,7 @@ interface SiparisFormData {
 
 const emptyData: SiparisFormData = {
   siparisNo: '',
+  ozelKod: '',
   musteriOrderNo: '',
   numaratorId: null,
   tarih: new Date().toISOString().slice(0, 10),
@@ -247,6 +249,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
       const s = await siparisApi.get(_id)
       setForm({
         siparisNo: s.siparisNo,
+        ozelKod: s.ozelKod ?? '',
         numaratorId: s.numaratorId ?? null,
         musteriOrderNo: s.musteriOrderNo ?? '',
         tarih: (s.tarih ?? '').slice(0, 10),
@@ -799,6 +802,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       const payload = {
         numaratorId: form.numaratorId ?? undefined,
         siparisNo: form.siparisNo || undefined,
+        ozelKod: form.ozelKod || null,
         musteriOrderNo: form.musteriOrderNo || null,
         tarih: form.tarih || new Date().toISOString().slice(0, 10),
         istemeTarihi: form.istemeTarih || null,
@@ -1235,10 +1239,20 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                          />
                        </div>
                        <div className="!h-[2px]" />
-                       <div className="!flex !items-center !gap-2">
-                         <label className="!text-[10px] !font-semibold !uppercase !w-28 !text-right !shrink-0">Tamamlandı</label>
-                         <Switch size="small" checked={tamamlandi} onChange={setTamamlandi} className="!text-[11px]" />
-                       </div>
+                        <div className="!flex !items-center !gap-2">
+                          <label className="!text-[10px] !font-semibold !uppercase !w-28 !text-right !shrink-0">Tamamlandı</label>
+                          <Switch size="small" checked={tamamlandi} onChange={setTamamlandi} className="!text-[11px]" />
+                        </div>
+                        <div className="!h-[2px]" />
+                        <div className="!flex !items-center !gap-2">
+                          <label className="!text-[10px] !font-semibold !uppercase !w-28 !text-right !shrink-0">Özel Kod</label>
+                          <Input
+                            size="small"
+                            value={form.ozelKod}
+                            onChange={(e) => setForm((prev) => ({ ...prev, ozelKod: e.target.value }))}
+                            className="!w-32 !text-[11px]"
+                          />
+                        </div>
                      </div>
 
                     <div className="!mt-3 !border !border-gray-200 !rounded-sm !p-2">

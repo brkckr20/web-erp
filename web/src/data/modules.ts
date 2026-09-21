@@ -56,16 +56,7 @@ export const modules: Module[] = [
       {
         title: 'Raporlar',
         items: [
-          { key: 'stok-ozeti', label: 'Stok Özeti' },
-          { key: 'hareket-gecmisi', label: 'Hareket Geçmişi' },
           { key: 'depo-bazli-stok', label: 'Depo Bazlı Stok' },
-          { key: 'kumas-lot-takip', label: 'Kumaş Lot Takibi' },
-          { key: 'fire-raporu', label: 'Fire Raporu' },
-          { key: 'stok-deger', label: 'Stok Değer Raporu' },
-          { key: 'kritik-stok', label: 'Kritik Stok Raporu' },
-          { key: 'sayim-farki', label: 'Sayım Fark Raporu' },
-          { key: 'tedarikci-analiz', label: 'Tedarikçi Analizi' },
-          { key: 'hareket-ozet', label: 'Hareket Özet Raporu' },
         ],
       },
     ],
@@ -222,6 +213,7 @@ export const modules: Module[] = [
       {
         title: 'İşlemler',
         items: [
+          { key: 'doviz-kurlari', label: 'Döviz Kurları' },
           { key: 'odeme-takip', label: 'Ödeme Takibi' },
           { key: 'banka-islem', label: 'Banka İşlemleri' },
           { key: 'maliyet-analiz', label: 'Maliyet Analizi' },

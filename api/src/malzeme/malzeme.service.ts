@@ -7,31 +7,44 @@ import { UpdateMalzemeDto } from './dto/update-malzeme.dto'
 export class MalzemeService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(tip?: number) {
+  private includeUretici = {
+    kumasTuru: true,
+    aksesuarTipi: true,
+    markaRef: true,
+    ureticiFirma: { select: { id: true, kod: true, ad: true } },
+  }
+
+  private formatResult(m: any) {
+    const { ureticiFirma, ...rest } = m
+    return { ...rest, cariAdi: ureticiFirma?.ad ?? null }
+  }
+
+  async findAll(tip?: number) {
     const where = tip != null ? { tip } : undefined
-    return this.prisma.malzeme.findMany({
+    const list = await this.prisma.malzeme.findMany({
       where,
-      include: { kumasTuru: true, aksesuarTipi: true, markaRef: true },
+      include: this.includeUretici,
       orderBy: { kod: 'asc' },
     })
+    return list.map(this.formatResult)
   }
 
   async findOne(id: number) {
     const m = await this.prisma.malzeme.findUnique({
       where: { id },
-      include: { kumasTuru: true, aksesuarTipi: true, markaRef: true },
+      include: this.includeUretici,
     })
     if (!m) throw new NotFoundException('Malzeme bulunamadı')
-    return m
+    return this.formatResult(m)
   }
 
   async findByKod(kod: string) {
     const m = await this.prisma.malzeme.findUnique({
       where: { kod },
-      include: { kumasTuru: true, aksesuarTipi: true, markaRef: true },
+      include: this.includeUretici,
     })
     if (!m) throw new NotFoundException('Malzeme bulunamadı')
-    return m
+    return this.formatResult(m)
   }
 
   async nextKod(numaratorId: number) {
@@ -54,6 +67,8 @@ export class MalzemeService {
     delete data.id
     delete data.createdAt
     delete data.updatedAt
+    delete data.cariAdi
+    delete data.ureticiFirma
     delete data.barkod
     delete data.kalemler
     delete data.isEmriKalemler
@@ -75,7 +90,9 @@ export class MalzemeService {
 
   create(dto: CreateMalzemeDto) {
     const data = this.prepareData(dto as any)
-    return this.prisma.malzeme.create({ data })
+    return this.prisma.malzeme.create({
+      data: { ...data, kayitYapan: (dto as any).kayitYapan || null },
+    })
   }
 
   async update(id: number, dto: UpdateMalzemeDto) {

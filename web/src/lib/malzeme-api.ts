@@ -17,6 +17,7 @@ export interface Malzeme {
   sezon: string | null
   markaId: number | null
   model: string | null
+  musteriTemsilcisi?: string | null
   kdvGenel: string | null
   kdvPerakende: string | null
   kdvToptan: string | null
@@ -63,6 +64,11 @@ export interface Malzeme {
   iplikCinsiId: number | null
   organik: boolean | null
   iplikKompozisyonId: number | null
+  cariAdi?: string | null
+  ureticiFirma?: { id: number; kod: string; ad: string } | null
+  kayitYapan?: string | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type MalzemeFormData = Omit<Malzeme, 'id' | 'kumasTuru'>
@@ -73,7 +79,7 @@ export const malzemeApi = {
     return api.get<Malzeme[]>(`/malzeme${params}`)
   },
   get: (id: number) => api.get<Malzeme>(`/malzeme/${id}`),
-  getByKod: (kod: string) => api.get<Malzeme>(`/malzeme/kod/${kod}`),
+  getByKod: (kod: string) => api.get<Malzeme>(`/malzeme/kod/${encodeURIComponent(kod)}`),
   nextKod: (numaratorId: number) => api.get<{ kod: string }>(`/malzeme/next-kod/${numaratorId}`),
   create: (data: MalzemeFormData) => api.post<Malzeme>('/malzeme', data),
   update: (id: number, data: Partial<MalzemeFormData>) => api.put<Malzeme>(`/malzeme/${id}`, data),

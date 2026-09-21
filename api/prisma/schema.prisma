@@ -127,6 +127,7 @@ model Malzeme {
   markaId           Int?     @map("marka_id")
   markaRef          Marka?   @relation("MalzemeMarka", fields: [markaId], references: [id])
   model             String?  @db.VarChar(100)
+  musteriTemsilcisi String?  @map("musteri_temsilcisi") @db.VarChar(200)
 
   kdvGenel          String?  @map("kdv_genel") @db.VarChar(50)
   kdvPerakende      String?  @map("kdv_perakende") @db.VarChar(50)
@@ -145,6 +146,7 @@ model Malzeme {
 
   ureticiFirmaKodu  String?  @map("uretici_firma_kodu") @db.VarChar(50)
   ureticiUrunKodu   String?  @map("uretici_urun_kodu") @db.VarChar(100)
+  ureticiFirma      CariHesap? @relation("MalzemeUreticiFirma", fields: [ureticiFirmaKodu], references: [kod], onDelete: NoAction, onUpdate: NoAction)
   isoDokumanNo      String?  @map("iso_dokuman_no") @db.VarChar(100)
   gtipNo            String?  @map("gtip_no") @db.VarChar(50)
   webSayfasi        String?  @map("web_sayfasi") @db.VarChar(500)
@@ -190,6 +192,8 @@ model Malzeme {
   organik           Boolean? @default(false)
   iplikKompozisyonId Int?    @map("iplik_kompozisyon_id")
   iplikKompozisyonRef OzellikKodlama? @relation("IplikKompozisyon", fields: [iplikKompozisyonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -355,6 +359,7 @@ model CariHesap {
 
   kkFisler          KaliteKontrol[] @relation("KKFisCariHesap")
   renkler           Renk[] @relation("RenkCariHesap")
+  malzemeler        Malzeme[] @relation("MalzemeUreticiFirma")
   irsaliyeler       Irsaliye[] @relation("IrsaliyeCariHesap")
   siparisler        Siparis[] @relation("SiparisCariHesap")
 
@@ -420,6 +425,16 @@ model IrsaliyeKalem {
   satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 6)
   aciklama          String?  @db.VarChar(1000)
   uuid              String?  @db.VarChar(100)
+
+  varyant1RenkId    Int?     @map("varyant1_renk_id")
+  varyant1RenkKod   String?  @map("varyant1_renk_kod") @db.NVarChar(50)
+  varyant1RenkAd    String?  @map("varyant1_renk_ad") @db.NVarChar(200)
+  varyant2RenkId    Int?     @map("varyant2_renk_id")
+  varyant2RenkKod   String?  @map("varyant2_renk_kod") @db.NVarChar(50)
+  varyant2RenkAd    String?  @map("varyant2_renk_ad") @db.NVarChar(200)
+
+  varyant1Renk      Renk?    @relation("IrsaliyeKalemVaryant1Renk", fields: [varyant1RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  varyant2Renk      Renk?    @relation("IrsaliyeKalemVaryant2Renk", fields: [varyant2RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -620,6 +635,8 @@ model Renk {
   parentRenk        Renk?      @relation("RenkParent", fields: [parentRenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   childRenkler      Renk[]     @relation("RenkParent")
   siparisRenkler    SiparisRenkKumasGrup[] @relation("SiparisRenkRenkRef")
+  irsaliyeVaryant1  IrsaliyeKalem[] @relation("IrsaliyeKalemVaryant1Renk")
+  irsaliyeVaryant2  IrsaliyeKalem[] @relation("IrsaliyeKalemVaryant2Renk")
 
   @@unique([kod, tip])
   @@map("renk")
@@ -855,6 +872,7 @@ model FormSabloni {
 model Siparis {
   id                Int      @id @default(autoincrement())
   siparisNo         String   @unique @map("siparis_no") @db.VarChar(50)
+  ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
   numaratorId       Int?     @map("numarator_id")
   numarator         Numarator? @relation("SiparisNumarator", fields: [numaratorId], references: [id])
   musteriOrderNo    String?  @map("musteri_order_no") @db.VarChar(50)

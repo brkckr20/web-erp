@@ -12,6 +12,7 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
+import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem } from '@/lib/irsaliye-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
@@ -65,6 +66,9 @@ export interface IrsaliyeBaslangicKalem {
   cariHesapKod?: string
   depoKod?: string
   aciklama?: string
+  varyant1RenkId?: number | null
+  varyant1RenkKod?: string | null
+  varyant1RenkAd?: string | null
 }
 
 interface KalemRow {
@@ -84,6 +88,9 @@ interface KalemRow {
   kdv: number
   satirTutari: number
   aciklama: string
+  varyant1RenkId: number | null
+  varyant1RenkKod: string
+  varyant1RenkAd: string
 }
 
 const emptyKalem = (): KalemRow => ({
@@ -103,6 +110,9 @@ const emptyKalem = (): KalemRow => ({
   kdv: 0,
   satirTutari: 0,
   aciklama: '',
+  varyant1RenkId: null,
+  varyant1RenkKod: '',
+  varyant1RenkAd: '',
 })
 
 const irsaliyeTipiMap: Record<string, string> = {
@@ -254,7 +264,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0 }
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '' }
           const val = b.miktar || 0
           if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
           else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
@@ -304,6 +314,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             kdv: Number(k.kdv) || 0,
             satirTutari: Number(k.satirTutari) || 0,
             aciklama: k.aciklama ?? '',
+            varyant1RenkId: (k as IrsaliyeKalem).varyant1RenkId ?? (k as IrsaliyeKalem).varyant1Renk?.id ?? null,
+            varyant1RenkKod: (k as IrsaliyeKalem).varyant1RenkKod ?? (k as IrsaliyeKalem).varyant1Renk?.kod ?? '',
+            varyant1RenkAd: (k as IrsaliyeKalem).varyant1RenkAd ?? (k as IrsaliyeKalem).varyant1Renk?.ad ?? '',
           }))
           setKalemler(rows.length > 0 ? rows : [])
         })
@@ -406,6 +419,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         kdv: k.kdv || null,
         satirTutari: k.satirTutari,
         aciklama: k.aciklama || null,
+        varyant1RenkId: k.varyant1RenkId,
+        varyant1RenkKod: k.varyant1RenkKod || null,
+        varyant1RenkAd: k.varyant1RenkAd || null,
       }))
 
       if (id) {
@@ -500,7 +516,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }
 
   const focusNextCell = (currentColId: string, rowIndex: number) => {
-    const editableCols = colDefs.map((c) => c.field as string).filter((f) => f && f !== 'key' && f !== 'malzemeAd')
+    const editableCols = colDefs.map((c) => c.field as string).filter((f) => f && f !== 'key' && f !== 'malzemeAd' && f !== 'varyant1RenkAd')
     const idx = editableCols.indexOf(currentColId)
     if (idx === -1) return
     if (idx < editableCols.length - 1) {
@@ -577,6 +593,26 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       ),
     },
     { headerName: 'Malzeme Adı', field: 'malzemeAd', flex: 1, minWidth: 120 },
+    {
+      headerName: 'Varyant 1', field: 'varyant1RenkId', width: 130, cellClass: '!p-0',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <SearchableRenkSelect
+          value={p.data.varyant1RenkId}
+          adGoster={false}
+          widthClass="!w-full"
+          className="!w-full !h-full"
+          onChange={(id, rec) => updateKalem(p.data.key, {
+            varyant1RenkId: id ?? null,
+            varyant1RenkKod: rec?.kod ?? '',
+            varyant1RenkAd: rec?.ad ?? '',
+          })}
+        />
+      ),
+    },
+    {
+      headerName: 'Varyant 1 Açıklama', field: 'varyant1RenkAd', width: 160,
+      valueFormatter: (p) => p.value || '-',
+    },
     {
       headerName: 'Barkod', field: 'barkod', width: 120, resizable: true,
       valueFormatter: (p) => p.value || '-',
@@ -852,6 +888,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         cariHesapKod: cariKod || undefined,
         depoKod: depoKod || undefined,
         aciklama: k.aciklama || undefined,
+        varyant1RenkId: k.varyant1RenkId ?? null,
+        varyant1RenkKod: k.varyant1RenkKod || null,
+        varyant1RenkAd: k.varyant1RenkAd || null,
       })
     }
     onCreateIrsaliye?.('1', kalemlerOut)
@@ -889,6 +928,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       kdv: 0,
       satirTutari: 0,
       aciklama: k.aciklama ?? '',
+      varyant1RenkId: k.varyant1RenkId ?? k.varyant1Renk?.id ?? null,
+      varyant1RenkKod: k.varyant1RenkKod ?? k.varyant1Renk?.kod ?? '',
+      varyant1RenkAd: k.varyant1RenkAd ?? k.varyant1Renk?.ad ?? '',
     }))
     setKalemler((prev) => {
       const bosMu = prev.every((p) => !p.malzemeKod)

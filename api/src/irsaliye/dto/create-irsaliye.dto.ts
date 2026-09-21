@@ -17,6 +17,12 @@ export class CreateIrsaliyeKalemDto {
   satirTutari?: number
   aciklama?: string
   uuid?: string
+  varyant1RenkId?: number
+  varyant1RenkKod?: string
+  varyant1RenkAd?: string
+  varyant2RenkId?: number
+  varyant2RenkKod?: string
+  varyant2RenkAd?: string
 }
 
 export class UpdateIrsaliyeKalemDto extends CreateIrsaliyeKalemDto {}

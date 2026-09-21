@@ -61,6 +61,7 @@ export class SiparisAciklamaDto {
 
 export class CreateSiparisDto {
   siparisNo?: string;
+  ozelKod?: string;
   numaratorId?: number;
   musteriOrderNo?: string;
   tarih?: string;

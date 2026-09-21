@@ -26,6 +26,11 @@ export class BarkodService {
     return kod
   }
 
+  // Sipariş renk satır id'sini 9 haneli barkod koduna çevirir ("7" → "000000007").
+  private iddenKod(id: number): string {
+    return String(id).padStart(9, '0')
+  }
+
   async findAll(siparisNo?: string) {
     const where: any = {}
     if (siparisNo) where.siparisNo = siparisNo
@@ -159,7 +164,9 @@ export class BarkodService {
         const kumasRenkAd = ilkKumas?.renk?.ad ?? ''
         const renkKod = kumasRenkKod || kumasKod
 
-        const barkodKodu = await this.uniqueKod()
+        // Barkod kodu sipariş_renk satır id'sinden türetilir: global benzersiz,
+        // deterministik ve kesim/kalite ekranlarından okunabilir. (örn. 000000001)
+        const barkodKodu = this.iddenKod(renk.id)
 
         const eslesme = await this.prisma.barkodEslesme.create({
           data: {

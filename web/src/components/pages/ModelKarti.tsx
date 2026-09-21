@@ -12,6 +12,7 @@ import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableGrupSelect from '@/components/shared/SearchableGrupSelect'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
+import SearchableKullaniciSelect from '@/components/shared/SearchableKullaniciSelect'
 import SearchableGtipSelect from '@/components/shared/SearchableGtipSelect'
 import SearchableBedenSelect from '@/components/shared/SearchableBedenSelect'
 import SearchableKumasGrupSelect from '@/components/shared/SearchableKumasGrupSelect'
@@ -28,6 +29,7 @@ import { malzemeEkApi } from '@/lib/malzeme-ek-api'
 import type { MalzemeEk } from '@/lib/malzeme-ek-api'
 import { malzemeFiyatApi, type MalzemeFiyat, type UpdateMalzemeFiyat } from '@/lib/malzeme-fiyat-api'
 import { dovizApi, type Doviz } from '@/lib/doviz-api'
+import { useAuth } from '@/context/AuthContext'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -136,6 +138,8 @@ function createEmptyKumasKalem(): KumasRow {
 
 export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   const { message, modal } = App.useApp()
+  const { kullanici } = useAuth()
+  const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
   const [model, setModel] = useState<Malzeme | null>(null)
   const [recete, setRecete] = useState<ModelRecete | null>(null)
   const [bedenler, setBedenler] = useState<ModelBeden[]>([])
@@ -216,6 +220,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     sezon: null,
     markaId: null,
     model: null,
+    musteriTemsilcisi: null,
+    kayitYapan: null,
     kdvGenel: null,
     kdvPerakende: null,
     kdvToptan: null,
@@ -340,7 +346,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   }, [])
 
   const handleYeni = () => {
-    setModel(null)
+    setModel({ ...emptyModel(), musteriTemsilcisi: kayitYapan || null, kayitYapan: kayitYapan || null } as Malzeme)
     setRecete(null)
     setBedenler([])
     setKumasGruplari([])
@@ -739,6 +745,13 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         </FormField>
         <FormField label="Müşteri Model No">
           <Input size="small" value={model?.ureticiUrunKodu ?? ''} onChange={(e) => set('ureticiUrunKodu', e.target.value)} className="!w-[100px] !text-[11px]" />
+        </FormField>
+        <FormField label="Müşteri Temsilcisi">
+          <SearchableKullaniciSelect
+            value={model?.musteriTemsilcisi?.split(' - ')[0]}
+            onChange={(kod, rec) => set('musteriTemsilcisi', rec ? `${rec.kod} - ${rec.ad}` : null)}
+            widthClass="!w-[150px]"
+          />
         </FormField>
         </div>
       </div>

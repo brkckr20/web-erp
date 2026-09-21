@@ -3,10 +3,12 @@
 import { Dropdown, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
+import { parametreApi } from '@/lib/parametre-api'
+import { useAuth } from '@/context/AuthContext'
 
 interface ModelRow {
   key: string
@@ -17,6 +19,10 @@ interface ModelRow {
   sezon: string | null
   marka: string | null
   model: string | null
+  cariKodu: string | null
+  cariAdi: string | null
+  musteriTemsilcisi: string | null
+  kayitZamani: Date | null
   kullanimda: boolean
 }
 
@@ -26,37 +32,48 @@ interface ModelListesiProps {
 }
 
 export default function ModelListesi({ onSelect, onNew }: ModelListesiProps) {
+  const { kullanici } = useAuth()
   const [data, setData] = useState<ModelRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
-      const list = await malzemeApi.list(5)
-      setData(
-        list.map((m: Malzeme) => ({
-          key: String(m.id),
-          id: m.id,
-          kod: m.kod,
-          ad: m.ad,
-          kategori: m.kategori ?? null,
-          sezon: m.sezon ?? null,
-          marka: m.marka ?? null,
-          model: m.model ?? null,
-          kullanimda: m.kullanimda,
-        })),
-      )
+      const [list, kendiParam] = await Promise.all([
+        malzemeApi.list(5),
+        parametreApi.get('siparis', 'kendiModelKartlari').then((p) => p.deger === 'true').catch(() => false),
+      ])
+      const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
+      let rows = list.map((m: Malzeme) => ({
+        key: String(m.id),
+        id: m.id,
+        kod: m.kod,
+        ad: m.ad,
+        kategori: m.kategori ?? null,
+        sezon: m.sezon ?? null,
+        marka: m.marka ?? null,
+        model: m.model ?? null,
+        cariKodu: m.ureticiFirmaKodu ?? null,
+        cariAdi: m.cariAdi ?? null,
+        musteriTemsilcisi: m.musteriTemsilcisi ?? null,
+        kayitZamani: m.createdAt ? new Date(m.createdAt) : null,
+        kullanimda: m.kullanimda,
+      }))
+      if (kendiParam && kayitYapan) {
+        rows = rows.filter((r) => r.musteriTemsilcisi === kayitYapan)
+      }
+      setData(rows)
     } catch {
       setData([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [kullanici])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
@@ -78,6 +95,23 @@ export default function ModelListesi({ onSelect, onNew }: ModelListesiProps) {
       { headerName: 'Sezon', field: 'sezon', width: 100 },
       { headerName: 'Marka', field: 'marka', width: 120 },
       { headerName: 'Model', field: 'model', width: 120 },
+      { headerName: 'Cari Kodu', field: 'cariKodu', width: 100 },
+      { headerName: 'Cari Adı', field: 'cariAdi', width: 140 },
+      { headerName: 'Müşteri Temsilcisi', field: 'musteriTemsilcisi', width: 150 },
+      {
+        headerName: 'Kayıt Zamanı',
+        field: 'kayitZamani',
+        width: 130,
+        valueFormatter: (p) => {
+          if (!p.value) return '-'
+          const d = new Date(p.value)
+          return isNaN(d.getTime())
+            ? '-'
+            : d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+                ' ' +
+                d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+        },
+      },
       {
         headerName: 'Durum',
         field: 'kullanimda',
