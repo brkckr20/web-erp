@@ -1091,6 +1091,7 @@ model Sablon {
   altBosluk        Int      @default(10) @map("alt_bosluk")
   solBosluk        Int      @default(15) @map("sol_bosluk")
   sagBosluk        Int      @default(15) @map("sag_bosluk")
+  altBilgi         Boolean  @default(true) @map("alt_bilgi")
   aktif            Boolean  @default(true)
   olusturmaTarihi  DateTime @default(now()) @map("olusturma_tarihi")
   guncellemeTarihi DateTime? @map("guncelleme_tarihi")

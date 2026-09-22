@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Button, Input, Select, Space, Radio, Slider, Divider, Spin, App } from 'antd'
+import { Card, Button, Input, Select, Space, Radio, Slider, Divider, Spin, App, Switch } from 'antd'
 import { SaveOutlined, ArrowLeftOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { sablonApi, type Sablon } from '@/lib/sablon-api'
 
@@ -118,6 +118,7 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
   const [altBosluk, setAltBosluk] = useState(10)
   const [solBosluk, setSolBosluk] = useState(15)
   const [sagBosluk, setSagBosluk] = useState(15)
+  const [altBilgi, setAltBilgi] = useState(true)
   const [sorgular, setSorgular] = useState<Sorgu[]>([
     { adi: 'siparis', sql: ORNEK_SORGU },
   ])
@@ -147,6 +148,7 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
       setAltBosluk(data.altBosluk)
       setSolBosluk(data.solBosluk)
       setSagBosluk(data.sagBosluk)
+      setAltBilgi(data.altBilgi)
       setSorgular(data.sorgular.map((s) => ({ adi: s.ad, sql: s.sqlIcerik })))
     } catch {
       message.error('Şablon yüklenemedi')
@@ -177,6 +179,7 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
         altBosluk,
         solBosluk,
         sagBosluk,
+        altBilgi,
         sorgular: sorgular.map((s, i) => ({ ad: s.adi, sqlIcerik: s.sql, sira: i })),
       }
       if (kayitId) {
@@ -314,6 +317,10 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
                   <div className="!text-[10px] !text-[#6b7280] !mb-1">Sağ (mm)</div>
                   <Input size="small" type="number" value={sagBosluk} onChange={(e) => setSagBosluk(Number(e.target.value))} />
                 </div>
+              </div>
+              <div className="!flex !items-center !justify-between !gap-2">
+                <div className="!text-[10px] !text-[#6b7280]">Alt Bilgi (Nakosan Tekstil / Sayfa No)</div>
+                <Switch size="small" checked={altBilgi} onChange={setAltBilgi} />
               </div>
             </Space>
           </Card>

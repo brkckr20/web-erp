@@ -36,6 +36,7 @@ export class SablonService {
     altBosluk?: number
     solBosluk?: number
     sagBosluk?: number
+    altBilgi?: boolean
     sorgular?: { ad: string; sqlIcerik: string; sira?: number }[]
   }) {
     return this.prisma.sablon.create({
@@ -50,6 +51,7 @@ export class SablonService {
         altBosluk: data.altBosluk ?? 10,
         solBosluk: data.solBosluk ?? 15,
         sagBosluk: data.sagBosluk ?? 15,
+        altBilgi: data.altBilgi ?? true,
         sorgular: data.sorgular
           ? { create: data.sorgular.map((s) => ({ ad: s.ad, sqlIcerik: s.sqlIcerik, sira: s.sira ?? 0 })) }
           : undefined,
@@ -69,6 +71,7 @@ export class SablonService {
     altBosluk?: number
     solBosluk?: number
     sagBosluk?: number
+    altBilgi?: boolean
     aktif?: boolean
     sorgular?: { id?: number; ad: string; sqlIcerik: string; sira?: number }[]
   }) {
@@ -92,6 +95,7 @@ export class SablonService {
         altBosluk: data.altBosluk,
         solBosluk: data.solBosluk,
         sagBosluk: data.sagBosluk,
+        altBilgi: data.altBilgi,
         aktif: data.aktif,
         guncellemeTarihi: new Date(),
         sorgular: data.sorgular
@@ -147,6 +151,7 @@ export class SablonService {
   }
 
   async pdfOlustur(id: number, parametreler?: Record<string, any>): Promise<Buffer> {
+    const sablon = await this.getir(id)
     const sonuc = await this.onerizle(id, parametreler)
 
     const tamHtml = `
@@ -179,7 +184,7 @@ export class SablonService {
       printBackground: true,
       displayHeaderFooter: true,
       headerTemplate: '<div></div>',
-      footerTemplate: footerTpl,
+      footerTemplate: sablon.altBilgi ? footerTpl : '<div></div>',
       margin: {
         top: `${sonuc.ustBosluk}mm`,
         bottom: `${Math.max(sonuc.altBosluk, 10)}mm`,

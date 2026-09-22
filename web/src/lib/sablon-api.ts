@@ -21,6 +21,7 @@ export interface Sablon {
   altBosluk: number
   solBosluk: number
   sagBosluk: number
+  altBilgi: boolean
   aktif: boolean
   olusturmaTarihi: string
   guncellemeTarihi: string | null
@@ -38,6 +39,7 @@ export interface SablonOlustur {
   altBosluk?: number
   solBosluk?: number
   sagBosluk?: number
+  altBilgi?: boolean
   sorgular?: { ad: string; sqlIcerik: string; sira?: number }[]
 }
 
