@@ -1071,6 +1071,7 @@ model Logo {
   id        Int      @id @default(autoincrement())
   ad        String   @db.VarChar(100)
   dosyaYolu String   @map("dosya_yolu") @db.VarChar(500)
+  dosya     Bytes?   @db.VarBinary(Max)
   mimetype  String   @db.VarChar(100)
   boyut     Int
   createdAt DateTime @default(now()) @map("created_at")

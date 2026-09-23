@@ -7,6 +7,7 @@ import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import dayjs from 'dayjs'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableKullaniciSelect from '@/components/shared/SearchableKullaniciSelect'
 import { hizmetTalepApi, type HizmetTalep, type HizmetTalepNot } from '@/lib/hizmet-talep-api'
 
@@ -61,6 +62,7 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
   const [notIcerik, setNotIcerik] = useState('')
   const [notTarih, setNotTarih] = useState<dayjs.Dayjs | null>(dayjs())
   const [notKisi, setNotKisi] = useState('')
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -164,18 +166,18 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
   const toolbarButtons = createToolbarButtons({
     onSave: handleKaydet,
     onDelete: id ? handleSil : undefined,
+    onReport: () => setRaporModalAcik(true),
     saveDisabled: loading,
     deleteDisabled: loading,
+  }, {
+    report: { disabled: !id },
   })
 
   return (
     <div className="!flex !flex-col !h-full">
       <CardToolbar
         title={id ? `Hizmet Talep #${id}` : 'Yeni Hizmet Talep'}
-        buttons={[
-          ...toolbarButtons,
-          { key: 'back', label: 'Geri', icon: <DeleteOutlined />, onClick: onClose },
-        ]}
+        buttons={toolbarButtons}
       />
 
       <div className="!flex-1 !overflow-auto !p-3 !space-y-3">
@@ -292,6 +294,12 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
           </div>
         </div>
       </div>
+      <RaporSecimModal
+        open={raporModalAcik}
+        ekranAdi="hizmet-talepleri"
+        parametreler={id ? { id } : undefined}
+        onCancel={() => setRaporModalAcik(false)}
+      />
     </div>
   )
 }

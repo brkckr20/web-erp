@@ -70,6 +70,7 @@ const EKRAN_ADLARI = [
   { value: 'banka-islem', label: 'Banka İşlemleri' },
   { value: 'maliyet-analiz', label: 'Maliyet Analizi' },
   { value: 'kullanici-tanimlari', label: 'Kullanıcı Tanımları' },
+  { value: 'hizmet-talepleri', label: 'Hizmet Talepleri' },
   { value: 'genel-ayarlar', label: 'Genel Ayarlar' },
   { value: 'logo-yonetimi', label: 'Logo Yönetimi' },
   { value: 'rapor-tasarimi', label: 'Rapor Tasarımı' },

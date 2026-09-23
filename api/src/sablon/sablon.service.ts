@@ -187,7 +187,7 @@ export class SablonService {
       footerTemplate: sablon.altBilgi ? footerTpl : '<div></div>',
       margin: {
         top: `${sonuc.ustBosluk}mm`,
-        bottom: `${Math.max(sonuc.altBosluk, 10)}mm`,
+        bottom: `${sonuc.altBosluk}mm`,
         left: `${sonuc.solBosluk}mm`,
         right: `${sonuc.sagBosluk}mm`,
       },
