@@ -72,6 +72,7 @@ import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
 import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
+import ProgramParametreleri from '@/components/pages/ProgramParametreleri'
 import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
 import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
 import LogoYonetimi from '@/components/pages/LogoYonetimi'
@@ -81,6 +82,7 @@ import MalzemeStokEkstresi from '@/components/pages/MalzemeStokEkstresi'
 import HizmetTalepListesi from '@/components/pages/HizmetTalepListesi'
 import HizmetTalepKarti from '@/components/pages/HizmetTalepKarti'
 import HizmetListesi from '@/components/pages/HizmetListesi'
+import LogTakibi from '@/components/pages/LogTakibi'
 
 const { Content } = Layout
 
@@ -791,6 +793,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'kullanici-tanimlari') {
       return <KullaniciListesi onSelect={openKullaniciKarti} onNew={openYeniKullanici} />
     }
+    if (tab.key === 'log-takibi') {
+      return <LogTakibi />
+    }
     if (tab.key === 'kullanici-karti-yeni') {
       return <KullaniciKarti isNew />
     }
@@ -802,6 +807,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'siparis-parametreleri') {
       return <SiparisParametreleri />
+    }
+    if (tab.key === 'program-parametreleri') {
+      return <ProgramParametreleri />
     }
     if (tab.key === 'renk-karti-transferi') {
       return <RenkKartiTransferi />

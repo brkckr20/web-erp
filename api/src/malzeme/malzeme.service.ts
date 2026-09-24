@@ -102,7 +102,42 @@ export class MalzemeService {
   }
 
   async remove(id: number) {
-    await this.findOne(id)
-    return this.prisma.malzeme.delete({ where: { id } })
+    const malzeme = await this.findOne(id)
+    const [siparisSayi, irsaliyeSayi, isEmriSayi, receteSayi, siparisler] = await Promise.all([
+      this.prisma.siparisKalem.count({ where: { malzemeId: id } }),
+      this.prisma.irsaliyeKalem.count({ where: { malzemeId: id } }),
+      this.prisma.isEmriKalem.count({ where: { malzemeId: id } }),
+      this.prisma.receteKalem.count({ where: { malzemeId: id } }),
+      this.prisma.siparisKalem.findMany({
+        where: { malzemeId: id },
+        select: { siparis: { select: { siparisNo: true } } },
+        take: 5,
+      }),
+    ])
+    const kullanimlar: string[] = []
+    if (siparisSayi > 0) {
+      const nolar = [...new Set(siparisler.map((s) => s.siparis?.siparisNo).filter(Boolean))].slice(0, 5)
+      kullanimlar.push(
+        `${siparisSayi} sipariş kalemi${nolar.length > 0 ? ` (${nolar.join(', ')}${siparisSayi > nolar.length ? ', ...' : ''})` : ''}`,
+      )
+    }
+    if (irsaliyeSayi > 0) kullanimlar.push(`${irsaliyeSayi} irsaliye kalemi`)
+    if (isEmriSayi > 0) kullanimlar.push(`${isEmriSayi} iş emri kalemi`)
+    if (receteSayi > 0) kullanimlar.push(`${receteSayi} reçete kalemi`)
+    if (kullanimlar.length > 0) {
+      throw new BadRequestException(
+        `"${malzeme.kod}" silinemez, kullanımda: ${kullanimlar.join(', ')}. Önce ilgili kayıtları silin veya kartı pasife alın.`,
+      )
+    }
+    try {
+      return await this.prisma.malzeme.delete({ where: { id } })
+    } catch (e: any) {
+      if (e?.code === 'P2003') {
+        throw new BadRequestException(
+          `"${malzeme.kod}" silinemez, başka kayıtlarda kullanılıyor. Önce ilgili kayıtları silin veya kartı pasife alın.`,
+        )
+      }
+      throw e
+    }
   }
 }

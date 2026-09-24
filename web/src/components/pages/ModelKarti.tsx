@@ -15,6 +15,7 @@ import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableKullaniciSelect from '@/components/shared/SearchableKullaniciSelect'
 import SearchableGtipSelect from '@/components/shared/SearchableGtipSelect'
 import SearchableBedenSelect from '@/components/shared/SearchableBedenSelect'
+import { extractApiMessage } from '@/lib/error-message'
 import SearchableKumasGrupSelect from '@/components/shared/SearchableKumasGrupSelect'
 import SearchableRotaSelect from '@/components/shared/SearchableRotaSelect'
 import { malzemeApi } from '@/lib/malzeme-api'
@@ -633,8 +634,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           if (model?.id) await malzemeApi.delete(model.id)
           message.success('Model silindi')
           handleYeni()
-        } catch {
-          message.error('Silme sırasında hata oluştu')
+        } catch (e) {
+          message.error(extractApiMessage(e))
         } finally {
           setSaving(false)
         }

@@ -11,6 +11,7 @@ import { malzemeApi } from '@/lib/malzeme-api'
 import type { MalzemeFormData } from '@/lib/malzeme-api'
 import { malzemeEkApi } from '@/lib/malzeme-ek-api'
 import type { MalzemeEk } from '@/lib/malzeme-ek-api'
+import { extractApiMessage } from '@/lib/error-message'
 
 const emptyData: MalzemeFormData = {
   kod: '',
@@ -299,8 +300,8 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
           await malzemeApi.delete(id)
           message.success('Malzeme silindi')
           handleYeni()
-        } catch {
-          message.error('Silme sırasında hata oluştu')
+        } catch (e) {
+          message.error(extractApiMessage(e))
         } finally {
           setSaving(false)
         }

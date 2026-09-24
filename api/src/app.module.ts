@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -42,9 +43,10 @@ import { RaporModule } from './rapor/rapor.module';
 import { HizmetTalepModule } from './hizmet-talep/hizmet-talep.module';
 import { IslemModule } from './islem/islem.module';
 import { RotaModule } from './rota/rota.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
-  imports: [PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule],
+  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule],
   controllers: [AppController],
   providers: [AppService],
 })

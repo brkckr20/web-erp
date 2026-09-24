@@ -243,6 +243,7 @@ export const modules: Module[] = [
         title: 'Sistem',
         items: [
           { key: 'kullanici-tanimlari', label: 'Kullanıcı Tanımları', isForm: true },
+          { key: 'log-takibi', label: 'Log Takibi' },
           { key: 'genel-ayarlar', label: 'Genel Ayarlar', isForm: true },
           { key: 'logo-yonetimi', label: 'Logo Yönetimi' },
           { key: 'rapor-tasarimi', label: 'Rapor Tasarımı' },
@@ -261,6 +262,7 @@ export const modules: Module[] = [
         items: [
           { key: 'malzeme-yonetim-parametreleri', label: 'Malzeme Yönetim Parametreleri', isForm: true },
           { key: 'siparis-parametreleri', label: 'Sipariş Parametreleri', isForm: true },
+          { key: 'program-parametreleri', label: 'Program Parametreleri', isForm: true },
         ],
       },
     ],

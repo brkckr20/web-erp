@@ -107,13 +107,14 @@ export class IadeTalepService {
       })
 
       // Kalem olarak iade edilen kumaşı ekle (hizmet kalemi olarak)
-      if (talep.kumasAd && talep.kalanMT > 0) {
+      const kalanMt = talep.kalanMT == null ? 0 : Number(talep.kalanMT)
+      if (talep.kumasAd && kalanMt > 0) {
         await tx.irsaliyeKalem.create({
           data: {
             irsaliyeId: irs.id,
             tip: 'HIZMET',
-            aciklama: `${talep.kumasAd} - ${talep.kumasRenk || ''} iade (${talep.kalanMT} MT)`,
-            miktar: talep.kalanMT,
+            aciklama: `${talep.kumasAd} - ${talep.kumasRenk || ''} iade (${kalanMt} MT)`,
+            miktar: kalanMt,
             olcuBirimi: 'MT',
           },
         })

@@ -110,22 +110,31 @@ export class RenkTransferService {
 
     const tipKodPairs = gecerli.map((v) => ({ kod: v.kod as string, tip: (v.tip ?? 1) as number }))
 
-    const mevcut = await this.prisma.renk.findMany({
-      where: {
-        OR: tipKodPairs.map((p) => ({ kod: p.kod, tip: p.tip })),
-      },
-      select: { kod: true, tip: true },
-    })
-    const mevcutKodTipSet = new Set(mevcut.map((r) => `${r.kod}__${r.tip}`))
+    // MSSQL 2100 parametre limiti: OR sorgusunu parça parça çalıştır (her çift 2 parametre)
+    const mevcutKodTipSet = new Set<string>()
+    const PARCA = 500
+    for (let i = 0; i < tipKodPairs.length; i += PARCA) {
+      const parca = tipKodPairs.slice(i, i + PARCA)
+      const rows = await this.prisma.renk.findMany({
+        where: {
+          OR: parca.map((p) => ({ kod: p.kod, tip: p.tip })),
+        },
+        select: { kod: true, tip: true },
+      })
+      for (const r of rows) mevcutKodTipSet.add(`${r.kod}__${r.tip}`)
+    }
 
     const cariKodlar = [...new Set(gecerli.map((v) => v.cariKodu as string | null).filter((c): c is string => !!c))]
-    let mevcutCariler = new Set<string>()
-    if (cariKodlar.length > 0) {
+    const mevcutCariler = new Set<string>()
+    // `in` listesi de parametre limitine takılmasın
+    for (let i = 0; i < cariKodlar.length; i += 1000) {
+      const parca = cariKodlar.slice(i, i + 1000)
+      if (parca.length === 0) break
       const cariler = await this.prisma.cariHesap.findMany({
-        where: { kod: { in: cariKodlar } },
+        where: { kod: { in: parca } },
         select: { kod: true },
       })
-      mevcutCariler = new Set(cariler.map((c) => c.kod))
+      for (const c of cariler) mevcutCariler.add(c.kod)
     }
 
     const eklenecek: Record<string, unknown>[] = []
@@ -148,10 +157,14 @@ export class RenkTransferService {
     let eklenen = 0
     if (eklenecek.length > 0) {
       try {
-        const sonuc = await this.prisma.renk.createMany({ data: eklenecek as never[] })
-        eklenen = sonuc.count
+        // createMany de tek seferde çok satırda şişmesin
+        for (let i = 0; i < eklenecek.length; i += 500) {
+          const parca = eklenecek.slice(i, i + 500)
+          const sonuc = await this.prisma.renk.createMany({ data: parca as never[] })
+          eklenen += sonuc.count
+        }
       } catch {
-        atlanan.push({ kod: '-', neden: 'Veritabanı hatası, hiçbir satır eklenemedi' })
+        atlanan.push({ kod: '-', neden: 'Veritabanı hatası, bazı satırlar eklenemedi' })
       }
     }
 

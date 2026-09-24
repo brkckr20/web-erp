@@ -209,6 +209,7 @@ model Malzeme {
   irsaliyeKalemler  IrsaliyeKalem[] @relation("IrsaliyeKalemMalzeme")
   siparisKalemler   SiparisKalem[] @relation("SiparisKalemMalzeme")
 
+  @@index([createdAt])
   @@map("malzeme")
 }
 
@@ -363,6 +364,8 @@ model CariHesap {
   irsaliyeler       Irsaliye[] @relation("IrsaliyeCariHesap")
   siparisler        Siparis[] @relation("SiparisCariHesap")
 
+  @@index([vergiNo])
+  @@index([createdAt])
   @@map("cari_hesap")
 }
 
@@ -412,17 +415,17 @@ model IrsaliyeKalem {
 
   tip               String?  @db.VarChar(20)
   takipNo           String?  @map("takip_no") @db.VarChar(100)
-  brutAgirlik       Decimal? @map("brut_agirlik") @db.Decimal(18, 6)
-  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 6)
-  brutMetre         Decimal? @map("brut_metre") @db.Decimal(18, 6)
-  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 6)
+  brutAgirlik       Decimal? @map("brut_agirlik") @db.Decimal(18, 4)
+  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 4)
+  brutMetre         Decimal? @map("brut_metre") @db.Decimal(18, 4)
+  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 4)
   adet              Int?
   olcuBirimi        String?  @map("olcu_birimi") @db.VarChar(20)
-  miktar            Decimal? @db.Decimal(18, 6)
-  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 6)
+  miktar            Decimal? @db.Decimal(18, 4)
+  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 4)
   doviz             String?  @db.VarChar(10)
-  kdv               Decimal? @db.Decimal(18, 6)
-  satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 6)
+  kdv               Decimal? @db.Decimal(18, 2)
+  satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 2)
   aciklama          String?  @db.VarChar(1000)
   uuid              String?  @db.VarChar(100)
 
@@ -451,7 +454,7 @@ model IadeTalep {
   beden             String   @db.NVarChar(20)
   kumasAd           String?  @map("kumas_ad") @db.NVarChar(200)
   kumasRenk         String?  @map("kumas_renk") @db.NVarChar(100)
-  kalanMT           Float    @map("kalan_mt")
+  kalanMT           Decimal? @map("kalan_mt") @db.Decimal(18, 4)
   durum             String   @default("BEKLEMEDE") @db.NVarChar(20)
   olusturanKullanici Int?    @map("olusturan_kullanici")
   olusturmaTarihi   DateTime @default(now()) @map("olusturma_tarihi")
@@ -542,9 +545,9 @@ model IsEmriKalem {
   malzeme     Malzeme? @relation("IsEmriKalemMalzeme", fields: [malzemeId], references: [id])
   malzemeKod  String? @map("malzeme_kod") @db.VarChar(50)
   malzemeAd   String? @map("malzeme_ad") @db.VarChar(255)
-  kg          Float?  @map("kg")
-  mt          Float?  @map("mt")
-  adet        Float?  @map("adet")
+  kg          Decimal? @map("kg") @db.Decimal(18, 4)
+  mt          Decimal? @map("mt") @db.Decimal(18, 4)
+  adet        Decimal? @map("adet") @db.Decimal(18, 4)
 
   isEmri      IsEmri  @relation("IsEmriKalemleri", fields: [isEmriId], references: [id], onDelete: Cascade)
 
@@ -563,13 +566,13 @@ model KaliteKontrolKalem {
   barkod            String?  @db.VarChar(100)
   malzemeId         Int?     @map("malzeme_id")
   malzeme           Malzeme? @relation("KKKalemMalzeme", fields: [malzemeId], references: [id])
-  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 6)
-  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 6)
+  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 4)
+  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 4)
   adet              Int?
   hataMiktar        Int?     @map("hata_miktar")
   aciklama          String?  @db.VarChar(1000)
   isEmriNo          String?  @map("is_emri_no") @db.VarChar(100)
-  isEmriKg          Decimal? @map("is_emri_kg") @db.Decimal(18, 6)
+  isEmriKg          Decimal? @map("is_emri_kg") @db.Decimal(18, 4)
 
   hatalar           KaliteKontrolHata[] @relation("KKHataKalem")
 
@@ -618,7 +621,7 @@ model Renk {
   cariKodu          String?  @map("cari_kodu") @db.VarChar(50)
   talepTarihi       DateTime? @map("talep_tarihi")
   okeyTarihi        DateTime? @map("okey_tarihi")
-  fiyat             Decimal? @db.Decimal(18, 6)
+  fiyat             Decimal? @db.Decimal(18, 4)
   dovizCinsi        String?  @map("doviz_cinsi") @db.VarChar(10)
   kullanimda        Boolean  @default(true)
 
@@ -692,7 +695,7 @@ model ReceteKalem {
   sira              Int      @default(0)
   tip               Int?     @map("tip")
   malzemeId         Int?     @map("malzeme_id")
-  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 6)
+  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 4)
   dovizCinsi        String?  @map("doviz_cinsi") @db.VarChar(10)
   aciklama          String?  @db.VarChar(500)
   islem             String?  @map("islem") @db.VarChar(100)
@@ -719,10 +722,10 @@ model ReceteOlcu {
   id                Int      @id @default(autoincrement())
   kalemId           Int      @map("kalem_id")
   bedenId           Int      @map("beden_id")
-  metraj            Decimal? @db.Decimal(18, 6)
-  en                Decimal? @db.Decimal(18, 6)
-  boy               Decimal? @db.Decimal(18, 6)
-  miktar            Decimal? @db.Decimal(18, 6)
+  metraj            Decimal? @db.Decimal(18, 4)
+  en                Decimal? @db.Decimal(18, 4)
+  boy               Decimal? @db.Decimal(18, 4)
+  miktar            Decimal? @db.Decimal(18, 4)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -811,7 +814,7 @@ model MalzemeFiyat {
   tarih       DateTime? @db.Date
   bedenId     Int?     @map("beden_id")
   dovizCinsi  String?  @map("doviz_cinsi") @db.VarChar(10)
-  fiyat       Decimal? @db.Decimal(18, 6)
+  fiyat       Decimal? @db.Decimal(18, 4)
   dovizKuru   Decimal? @map("doviz_kuru") @db.Decimal(18, 6)
   baslangic   DateTime? @db.Date
   bitis       DateTime? @db.Date
@@ -913,10 +916,10 @@ model SiparisKalem {
   aciklama          String?  @db.NVarChar(1000)
   ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
   dovizCinsi        String?  @map("doviz_cinsi") @db.VarChar(10)
-  dovizFiyati       Decimal? @map("doviz_fiyati") @db.Decimal(18, 6)
+  dovizFiyati       Decimal? @map("doviz_fiyati") @db.Decimal(18, 4)
   dovizKuru         Decimal? @map("doviz_kuru") @db.Decimal(18, 6)
-  fiyat             Decimal? @db.Decimal(18, 6)
-  miktar            Decimal? @db.Decimal(18, 2)
+  fiyat             Decimal? @db.Decimal(18, 4)
+  miktar            Decimal? @db.Decimal(18, 4)
   tutar             Decimal? @db.Decimal(18, 2)
   sira              Int      @default(0)
 
@@ -939,12 +942,12 @@ model SiparisRenk {
   partOrderNo       String?  @map("part_order_no") @db.VarChar(50)
   aciklama          String?  @db.NVarChar(1000)
   istemeTarihi      DateTime? @map("isteme_tarihi")
-  fiyat             Decimal? @db.Decimal(18, 6)
+  fiyat             Decimal? @db.Decimal(18, 4)
   kesimUretim       String?  @map("kesim_uretim") @db.VarChar(100)
-  lot               Decimal? @db.Decimal(18, 6)
-  lotToplami        Decimal? @map("lot_toplami") @db.Decimal(18, 6)
-  toplam            Decimal? @db.Decimal(18, 6)
-  genelToplam       Decimal? @map("genel_toplam") @db.Decimal(18, 6)
+  lot               Decimal? @db.Decimal(18, 4)
+  lotToplami        Decimal? @map("lot_toplami") @db.Decimal(18, 2)
+  toplam            Decimal? @db.Decimal(18, 2)
+  genelToplam       Decimal? @map("genel_toplam") @db.Decimal(18, 2)
   sira              Int      @default(0)
 
   kumasGruplari     SiparisRenkKumasGrup[] @relation("SiparisRenkKumasGruplar")
@@ -979,8 +982,8 @@ model SiparisRenkBeden {
   bedenId           Int      @map("beden_id")
   beden             Beden?   @relation("SiparisRenkBedenRef", fields: [bedenId], references: [id], onUpdate: NoAction, onDelete: NoAction)
 
-  miktar            Decimal? @db.Decimal(18, 6)
-  fiyat             Decimal? @db.Decimal(18, 6)
+  miktar            Decimal? @db.Decimal(18, 4)
+  fiyat             Decimal? @db.Decimal(18, 4)
   aciklama          String?  @db.NVarChar(1000)
   barkod            String?  @db.VarChar(100)
   sira              Int      @default(0)
@@ -1034,8 +1037,8 @@ model TedarikIhtiyac {
   renkId          Int?     @map("renk_id")
   renkKod         String?  @map("renk_kod") @db.NVarChar(50)
   renkAd          String?  @map("renk_ad") @db.NVarChar(200)
-  brutMiktar      Decimal  @map("brut_miktar") @db.Decimal(18, 6)
-  netMiktar       Decimal  @map("net_miktar") @db.Decimal(18, 6)
+  brutMiktar      Decimal  @map("brut_miktar") @db.Decimal(18, 4)
+  netMiktar       Decimal  @map("net_miktar") @db.Decimal(18, 4)
   birim           String   @default("mt") @db.NVarChar(20)
   tip             String   @default("kumas") @db.NVarChar(20)
   durum           String   @default("hesaplandi") @db.NVarChar(20)
@@ -1054,7 +1057,7 @@ model TedarikIhtiyac {
 model DovizKuru {
   id           Int      @id @default(autoincrement())
   tarih        DateTime @db.Date
-  dovizKodu    String   @map("doviz_kodu") @db.NVarChar(10)
+  dovizKodu    String   @map("doviz_kodu") @db.VarChar(10)
   alisKuru     Decimal  @map("alis_kuru") @db.Decimal(18, 6)
   satisKuru    Decimal  @map("satis_kuru") @db.Decimal(18, 6)
   efektifAlis  Decimal? @map("efektif_alis") @db.Decimal(18, 6)
@@ -1113,6 +1116,27 @@ model SablonSorgu {
   sablon     Sablon @relation(fields: [sablonId], references: [id], onDelete: Cascade)
 
   @@map("sablon_sorgu")
+}
+
+model AuditLog {
+  id             Int      @id @default(autoincrement())
+  tarih          DateTime @default(now())
+  kullaniciId    Int?     @map("kullanici_id")
+  kullaniciAd    String?  @map("kullanici_ad") @db.NVarChar(100)
+  ip             String?  @db.VarChar(50)
+  islem          String   @db.NVarChar(20)
+  tablo          String   @db.NVarChar(50)
+  kayitId        Int?     @map("kayit_id")
+  kayitNo        String?  @map("kayit_no") @db.NVarChar(100)
+  ozet           String?  @db.NVarChar(1000)
+  degisenAlanlar String?  @map("degisen_alanlar") @db.NVarChar(MAX)
+  eskiVeri       String?  @map("eski_veri") @db.NVarChar(MAX)
+  yeniVeri       String?  @map("yeni_veri") @db.NVarChar(MAX)
+
+  @@index([tarih])
+  @@index([kullaniciId])
+  @@index([tablo, kayitId])
+  @@map("audit_log")
 }
 
 model HizmetTalep {
