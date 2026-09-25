@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Input, Switch, Select, InputNumber, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
@@ -52,6 +52,7 @@ const emptyData: MalzemeFormData = {
   en: null,
   boy: null,
   iplikBoyali: false,
+  organik: false,
   ormeTipi: '',
   kumasUretimTipi: '',
   hesapBirimi: '',
@@ -72,11 +73,32 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
   const [numaratorlar, setNumaratorlar] = useState<Numarator[]>([])
   const [turModalOpen, setTurModalOpen] = useState(false)
   const [turData, setTurData] = useState<OzellikKodlama | null>(null)
+  const adManuelRef = useRef(false)
+
+  const seciliNumarator = numaratorlar.find((x) => x.id === form.numaratorId)
+
+  const kumasAdiUret = () => {
+    const parts: string[] = []
+    if (seciliNumarator?.ad?.trim()) parts.push(seciliNumarator.ad.trim())
+    if (turData?.ad?.trim()) parts.push(turData.ad.trim())
+    if (form.grm2 != null) parts.push(`${form.grm2} gr/m2`)
+    if (form.ebat?.trim()) parts.push(form.ebat.trim())
+    if (form.iplikBoyali) parts.push('İpliği Boyalı')
+    if (form.organik) parts.push('Organik')
+    return parts.join(' ').replace(/\s+/g, ' ').trim()
+  }
+
+  useEffect(() => {
+    if (adManuelRef.current) return
+    const yeni = kumasAdiUret()
+    setForm((prev) => (prev.ad === yeni ? prev : { ...prev, ad: yeni }))
+  }, [seciliNumarator?.ad, turData?.ad, form.grm2, form.ebat, form.iplikBoyali, form.organik])
 
   useEffect(() => {
     if (kod) {
       loadByKod(kod)
     } else {
+      adManuelRef.current = false
       setForm({ ...emptyData })
       setId(null)
       setTurData(null)
@@ -89,6 +111,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
 
   const loadByKod = useCallback(async (k: string) => {
     setLoading(true)
+    adManuelRef.current = true
     try {
       const data = await malzemeApi.getByKod(k)
       setId(data.id)
@@ -135,6 +158,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
         en: data.en ?? null,
         boy: data.boy ?? null,
         iplikBoyali: data.iplikBoyali ?? false,
+        organik: data.organik ?? false,
         ormeTipi: data.ormeTipi ?? '',
         kumasUretimTipi: data.kumasUretimTipi ?? '',
         hesapBirimi: data.hesapBirimi ?? '',
@@ -169,23 +193,25 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
     set('numaratorId', val)
     if (val) {
       const n = numaratorlar.find((x) => x.id === val)
-      if (n) {
-        set('ad', n.ad)
-        if (!id) {
-          const nextKod = `${n.onEk}${String(n.sonNo + 1).padStart(3, '0')}`
-          set('kod', nextKod)
-        }
+      if (n && !id) {
+        const nextKod = `${n.onEk}${String(n.sonNo + 1).padStart(3, '0')}`
+        set('kod', nextKod)
       }
     } else {
-      set('ad', '')
       set('kod', '')
     }
   }
 
   const handleYeni = () => {
     setId(null)
+    adManuelRef.current = false
     setForm({ ...emptyData })
     setTurData(null)
+  }
+
+  const handleAdiYenidenUret = () => {
+    adManuelRef.current = false
+    set('ad', kumasAdiUret())
   }
 
   const handleKaydet = async () => {
@@ -303,7 +329,22 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
               </div>
               <div className="!flex !items-center !gap-1.5">
                 <label className="!text-[11px] !font-semibold !text-[#333] !uppercase">Adı</label>
-                <Input size="small" value={form.ad} onChange={(e) => set('ad', e.target.value)} className="!w-[200px] !text-[11px]" />
+                <Input
+                  size="small"
+                  value={form.ad}
+                  onChange={(e) => {
+                    adManuelRef.current = true
+                    set('ad', e.target.value)
+                  }}
+                  suffix={
+                    <SearchOutlined
+                      style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }}
+                      onClick={handleAdiYenidenUret}
+                    />
+                  }
+                  className="!w-[200px] !text-[11px]"
+                />
+                <span className="!text-[10px] !text-gray-500">🔍 = adı özelliklerden yeniden üret</span>
               </div>
               <Switch checked={form.kullanimda} onChange={(v) => set('kullanimda', v)} />
               <span className="!text-[11px]">Kullanımda</span>
@@ -326,9 +367,6 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
                     onClick={() => setTurModalOpen(true)}
                   />
                 </FormField>
-                <FormField label="Cinsi">
-                  <Input size="small" value={form.cinsi ?? ''} onChange={(e) => set('cinsi', e.target.value)} className="!text-[11px]" />
-                </FormField>
                 <FormField label="Gr/m²">
                   <InputNumber size="small" min={0} value={form.grm2} onChange={(v) => set('grm2', v)} className="!w-full !text-[11px]" />
                 </FormField>
@@ -343,6 +381,9 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
                 </FormField>
                 <FormField label="İplik Boyalı">
                   <Switch checked={!!form.iplikBoyali} onChange={(v) => set('iplikBoyali', v)} />
+                </FormField>
+                <FormField label="Organik">
+                  <Switch checked={!!form.organik} onChange={(v) => set('organik', v)} />
                 </FormField>
                 <FormField label="Örme Tipi">
                   <Select size="small" value={form.ormeTipi || null} onChange={(v) => set('ormeTipi', v ?? '')} className="!w-full !text-[11px]" options={ormeTipiOptions} allowClear />

@@ -74,8 +74,34 @@ model Depo {
 
   kaliteKontrolFisler KaliteKontrol[] @relation("KKFisDepo")
   irsaliyeler       Irsaliye[] @relation("IrsaliyeDepo")
+  rafi              DepoRaf[] @relation("DepoRafDepo")
 
   @@map("depo")
+}
+
+model DepoRaf {
+  id                Int      @id @default(autoincrement())
+  depoId            Int      @map("depo_id")
+  kod               String   @db.VarChar(50)
+  ad                String   @db.VarChar(200)
+
+  kat               Int?     @default(0)
+  rafTipi           String?  @map("raf_tipi") @db.VarChar(50)
+  kapasite          Decimal? @db.Decimal(18, 4)
+  kapasiteBirimi    String?  @map("kapasite_birimi") @db.VarChar(20)
+
+  aktif             Boolean  @default(true)
+  sira              Int      @default(0)
+  aciklama          String?  @db.NVarChar(500)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  depo              Depo @relation("DepoRafDepo", fields: [depoId], references: [id], onDelete: Cascade)
+
+  @@unique([depoId, kod])
+  @@index([depoId])
+  @@map("depo_raf")
 }
 
 model Kullanici {

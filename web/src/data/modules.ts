@@ -29,7 +29,7 @@ export interface Tab {
 export const modules: Module[] = [
   {
     key: 'stok',
-    label: 'Stok / Envanter',
+    label: 'Malzeme Yönetimi',
     icon: '📦',
     categories: [
       {
@@ -41,6 +41,7 @@ export const modules: Module[] = [
           { key: 'aksesuar-tipi-kartlari', label: 'Aksesuar Tipi Kartları', isForm: true },
           { key: 'malzeme-kartlari', label: 'Malzeme Kartları', isForm: true },
           { key: 'depo-tanimlari', label: 'Depo Tanımları', isForm: true },
+          { key: 'raf-tanimlari', label: 'Raf Tanımları', isForm: true },
           { key: 'makina-kartlari', label: 'Makina Kartları', isForm: true },
           { key: 'hata-tanimlari', label: 'Hata Tanımları', isForm: true },
           { key: 'numarator-tanimlari', label: 'Numaratör Tanımları', isForm: true },

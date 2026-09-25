@@ -85,11 +85,24 @@ export class MalzemeService {
     delete data.iplikCinsiRef
     delete data.iplikKompozisyonRef
     delete data.aksesuarTipi
+    // boş string FK patlatır → null yap (alan zorunlu değil)
+    if (data.ureticiFirmaKodu != null && String(data.ureticiFirmaKodu).trim() === '') {
+      data.ureticiFirmaKodu = null
+    }
     return data
   }
 
-  create(dto: CreateMalzemeDto) {
+  private async ureticiKoduKontrol(kod: string | null | undefined) {
+    if (kod == null) return
+    const cari = await this.prisma.cariHesap.findUnique({ where: { kod }, select: { id: true } })
+    if (!cari) {
+      throw new BadRequestException(`"${kod}" cari kodu bulunamadı. Önce cari kartı açın veya alanı boş bırakın.`)
+    }
+  }
+
+  async create(dto: CreateMalzemeDto) {
     const data = this.prepareData(dto as any)
+    await this.ureticiKoduKontrol(data.ureticiFirmaKodu)
     return this.prisma.malzeme.create({
       data: { ...data, kayitYapan: (dto as any).kayitYapan || null },
     })
@@ -98,6 +111,7 @@ export class MalzemeService {
   async update(id: number, dto: UpdateMalzemeDto) {
     await this.findOne(id)
     const data = this.prepareData(dto as any)
+    await this.ureticiKoduKontrol(data.ureticiFirmaKodu)
     return this.prisma.malzeme.update({ where: { id }, data })
   }
 

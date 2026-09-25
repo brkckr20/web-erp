@@ -288,6 +288,7 @@ export class SablonService {
   // Kullanım: {{#matris matris satir=satir sutun=sutun deger=deger baslik=Renk}}
   // Çok satırlı blok: deger=siparis,kesilecek,kesilen etiket=Sipariş,Kesilecek,Kesilen toplam=1
   // (baslik/etiket/toplam opsiyonel; değerler HTML-escape ile basılır; toplam sayısal hücreleri toplar)
+  // stil= tabloya ek CSS uygular (örn. stil="font-size:11px")
   private bindMatris(tpl: string, sorguSonuclari: Record<string, any[]>): string {
     return tpl.replace(/\{\{#matris\s+(\w+)((?:\s+\w+=(?:"[^"]*"|[^\s}]+))*)(\s*)\}\}/g, (_, sorguAd, paramStr) => {
       const params: Record<string, string> = {}
@@ -302,6 +303,7 @@ export class SablonService {
       if (!satirKolon || !sutunKolon || degerKolonlar.length === 0) return ''
       const etiketler = (params['etiket'] ?? '').split(',').map((e) => e.trim())
       const toplamAcik = (params['toplam'] ?? '') === '1'
+      const tabloStil = params['stil'] ? ` ${params['stil'].replace(/;?$/, ';')}` : ''
       const satirlar = sorguSonuclari[sorguAd] || []
       const kacis = (v: any): string =>
         v == null ? '' : String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -326,7 +328,7 @@ export class SablonService {
       const td = th + '; text-align:center'
       const tdSol = th
       const cokDeger = degerKolonlar.length > 1
-      let out = '<table style="border-collapse:collapse"><tr>'
+      let out = `<table style="border-collapse:collapse;${tabloStil}"><tr>`
       out += `<th style="${th}">${kacis(params['baslik'] ?? '')}</th>`
       if (cokDeger) out += `<th style="${th}"></th>`
       for (const c of sutunlar) out += `<th style="${th}">${kacis(c)}</th>`

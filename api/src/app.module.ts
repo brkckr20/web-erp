@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { DepoModule } from './depo/depo.module';
+import { DepoRafModule } from './depo-raf/depo-raf.module';
 import { KullaniciModule } from './kullanici/kullanici.module';
 import { AuthModule } from './auth/auth.module';
 import { MalzemeModule } from './malzeme/malzeme.module';
@@ -46,7 +47,7 @@ import { RotaModule } from './rota/rota.module';
 import { AuditModule } from './audit/audit.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule],
+  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule],
   controllers: [AppController],
   providers: [AppService],
 })

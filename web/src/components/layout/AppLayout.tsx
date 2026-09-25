@@ -11,6 +11,8 @@ import TabBar from './TabBar'
 import { Module, Tab } from '@/data/modules'
 import DepoKarti from '@/components/pages/DepoKarti'
 import DepoListesi from '@/components/pages/DepoListesi'
+import RafKarti from '@/components/pages/RafKarti'
+import RafListesi from '@/components/pages/RafListesi'
 import KullaniciKarti from '@/components/pages/KullaniciKarti'
 import KullaniciListesi from '@/components/pages/KullaniciListesi'
 import MalzemeKarti from '@/components/pages/MalzemeKarti'
@@ -127,6 +129,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'depo-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Depo Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openRafKarti = useCallback((id: number) => {
+    const key = 'raf-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Raf Kartı - ' + id, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniRaf = useCallback(() => {
+    const key = 'raf-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Raf Kartı', moduleKey: 'stok', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -783,6 +807,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const renderTabContent = (tab: Tab) => {
     if (tab.key === 'depo-tanimlari') {
       return <DepoListesi onSelect={openDepoKarti} onNew={openYeniDepo} />
+    }
+    if (tab.key === 'raf-tanimlari') {
+      return <RafListesi onSelect={openRafKarti} onNew={openYeniRaf} />
+    }
+    if (tab.key === 'raf-karti-yeni') {
+      return <RafKarti isNew />
+    }
+    if (tab.key.startsWith('raf-karti-') && !tab.key.startsWith('raf-karti-yeni')) {
+      const rafId = Number(tab.key.replace('raf-karti-', ''))
+      if (!isNaN(rafId)) return <RafKarti id={rafId} />
     }
     if (tab.key === 'depo-karti-yeni') {
       return <DepoKarti isNew />
