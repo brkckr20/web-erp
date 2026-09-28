@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dayjs from 'dayjs'
 import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal, Switch, Dropdown } from 'antd'
 import type { MenuProps } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { DeleteOutlined, WarningOutlined } from '@ant-design/icons'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import DataGrid from '@/components/shared/DataGrid'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
@@ -19,6 +19,7 @@ import { numaratorApi } from '@/lib/numarator-api'
 import { parametreApi } from '@/lib/parametre-api'
 import { siparisApi, type SiparisKalem, type SiparisRenk } from '@/lib/siparis-api'
 import { barkodApi } from '@/lib/barkod-api'
+import { tedarikApi, type TedarikOzet } from '@/lib/tedarik-api'
 import { useAuth } from '@/context/AuthContext'
 import type { ColDef, CellValueChangedEvent, RowClickedEvent, CellDoubleClickedEvent } from 'ag-grid-community'
 
@@ -107,6 +108,40 @@ interface SiparisKartiProps {
   onTedarik?: (tip: 'kumas' | 'iplik' | 'aksesuar', id: number, siparisNo: string) => void
 }
 
+function imzaSayi(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === '') return ''
+  const n = Number(v)
+  return Number.isFinite(n) ? String(n) : String(v)
+}
+
+/**
+ * Tedarik hesabını etkileyen kısımların (miktar, renk, beden) imzası.
+ * Sipariş kartında bu imza değiştiyse tedarik hesabı bayat kalır.
+ */
+function siparisYapiImzasi(rows: ModelRow[], cache: Record<string, RenkBedenRow[]>): string {
+  return rows
+    .map((row) => {
+      const renkSatirlari = (cache[row.key] ?? [])
+        .map((r) => {
+          const gruplar = Object.entries(r.renkler)
+            .map(([gid, v]) => `${gid}:${v.renkId ?? ''}`)
+            .sort()
+            .join(',')
+          const bedenler = Object.entries(r.miktarlar)
+            .map(([bid, m]) => `${bid}:${imzaSayi(m)}`)
+            .sort()
+            .join(',')
+          return `${gruplar}|${bedenler}`
+        })
+        .sort()
+        .join(';')
+      return `${row.malzemeId ?? ''}:${imzaSayi(row.miktar)}#${renkSatirlari}`
+    })
+    .join('~')
+}
+
+const TIP_ADI: Record<string, string> = { kumas: 'Kumaş', iplik: 'İplik', aksesuar: 'Aksesuar' }
+
 export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -125,6 +160,8 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
   const [kumasGruplari, setKumasGruplari] = useState<ModelKumasGrup[]>([])
   const [renkBedenRows, setRenkBedenRows] = useState<RenkBedenRow[]>([])
   const [renkBedenCache, setRenkBedenCache] = useState<Record<string, RenkBedenRow[]>>({})
+  const [yuklenenImza, setYuklenenImza] = useState('')
+  const [tedarikOnayi, setTedarikOnayi] = useState<TedarikOzet | null>(null)
   const [stickerData, setStickerData] = useState<Record<string, Record<number, string[]>>>({})
   const [stickerModal, setStickerModal] = useState<StickerModalState | null>(null)
   const [numaratorOptions, setNumaratorOptions] = useState<{ value: number; label: string }[]>([])
@@ -328,6 +365,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
         })
       })
       setRenkBedenCache(cache)
+      setYuklenenImza(siparisYapiImzasi(modelRows, cache))
       setStickerData(stickers)
 
       const genelAciklama = s.aciklamalar?.find((a) => a.tip === 'genel')
@@ -724,6 +762,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   const selectedModel = rows.find((r) => r.key === selectedModelKey) ?? null
 
   const handleYeni = async () => {
+    setYuklenenImza('')
     let defaultKesimFazlasi = ''
     try {
       const p = await parametreApi.get('siparis', 'kesimFazlasi')
@@ -796,7 +835,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       }
     })
 
-  const handleKaydet = async () => {
+  const kaydet = async (tedarikHesapla: boolean) => {
     setSaving(true)
     try {
       const payload = {
@@ -832,17 +871,48 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       }
       if (savedId) {
         try {
-          const sonuc = await barkodApi.uret(savedId)
+          await barkodApi.uret(savedId)
         } catch {
           // barkod üretimi başarısız olsa bile sipariş kaydı tamamlandı
         }
       }
+      if (tedarikHesapla && savedId) {
+        message.loading({ content: 'Tedarik hesapları güncelleniyor...', key: 'tedarikHesap', duration: 0 })
+        try {
+          const sonuc = await tedarikApi.siparisHesapla(savedId)
+          message.success({
+            content: `Tedarik hesaplandı: ${sonuc.islenen} kalem (${sonuc.tipler.join(', ')})`,
+            key: 'tedarikHesap',
+          })
+        } catch {
+          message.error({ content: 'Tedarik hesapları güncellenemedi', key: 'tedarikHesap' })
+        }
+      }
+      setYuklenenImza(siparisYapiImzasi(rows, renkBedenCache))
       setIsDirty(false)
     } catch {
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleKaydet = async () => {
+    if (aktifId && yuklenenImza) {
+      const simdi = siparisYapiImzasi(rows, renkBedenCache)
+      if (simdi !== yuklenenImza) {
+        try {
+          const ozet = await tedarikApi.ozet(aktifId)
+          if (ozet.satirSayisi > 0) {
+            setTedarikOnayi(ozet)
+            return
+          }
+        } catch {
+          // ozet alinamazsa kaydi engelleme
+        }
+      }
+    }
+    await kaydet(false)
   }
 
   const handlePrevious = () => message.info('İlk kayıttasınız')
@@ -1068,6 +1138,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   }
 
   return (
+    <>
     <Dropdown menu={{ items: tedarikMenuItems, onClick: handleTedarikMenuClick }} trigger={['contextMenu']}>
     <div className="!h-full !flex !flex-col">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
@@ -1467,6 +1538,68 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       </div>
     </div>
     </Dropdown>
+
+    <Modal
+      open={!!tedarikOnayi}
+      onCancel={() => setTedarikOnayi(null)}
+      title={
+        <span className="!text-[13px] !font-semibold !flex !items-center !gap-2">
+          <WarningOutlined style={{ color: '#d97706' }} />
+          Tedarik hesabı güncellensin mi?
+        </span>
+      }
+      width={520}
+      footer={[
+        <Button key="vazgec" size="small" onClick={() => setTedarikOnayi(null)} className="!text-[11px]">
+          Vazgeç
+        </Button>,
+        <Button
+          key="sadece"
+          size="small"
+          onClick={() => {
+            setTedarikOnayi(null)
+            kaydet(false)
+          }}
+          className="!text-[11px]"
+        >
+          Sadece Kaydet
+        </Button>,
+        <Button
+          key="hesapla"
+          size="small"
+          type="primary"
+          onClick={() => {
+            setTedarikOnayi(null)
+            kaydet(true)
+          }}
+          className="!text-[11px]"
+          style={{ backgroundColor: '#f57c00' }}
+        >
+          Kaydet ve Hesapla
+        </Button>,
+      ]}
+    >
+      {tedarikOnayi && (
+        <div className="!text-[12px] !leading-relaxed !text-[#374151]">
+          <p className="!mb-2">
+            Bu siparişte <b>{tedarikOnayi.satirSayisi} tedarik satırı</b> (
+            {tedarikOnayi.tipler.map((t) => TIP_ADI[t.tip] ?? t.tip).join(' / ')}) hesaplanmış durumda.
+            Miktar, renk veya beden değişikliği yaptınız — kaydedersen bu miktarlar güncel olmaktan çıkar.
+          </p>
+          <div className="!rounded-sm !border !border-[#fcd34d] !bg-[#fffbeb] !px-3 !py-2 !text-[#92400e]">
+            <b>Kaydet ve Hesapla</b> ile siparişi kaydedip tedarik hesaplarını güncel sipariş
+            bilgilerine göre yeniden hesaplayabilirsiniz.
+            {tedarikOnayi.bayatSatirSayisi > 0 && (
+              <span>
+                {' '}
+                (Şu an zaten {tedarikOnayi.bayatSatirSayisi} satır bayat.)
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
+    </>
   )
 }
 
@@ -1538,5 +1671,7 @@ function StickerModalComponent({
         ))}
       </div>
     </Modal>
+
+
   )
 }

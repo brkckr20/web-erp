@@ -1,6 +1,6 @@
 'use client'
 
-import { Input, App, Dropdown, Modal, Table } from 'antd'
+import { Input, App, Dropdown, Modal, Table, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -11,6 +11,7 @@ import {
   ApartmentOutlined,
   ExportOutlined,
   ProfileOutlined,
+  WarningOutlined,
 } from '@ant-design/icons'
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
@@ -40,6 +41,7 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
   const [hareketSatir, setHareketSatir] = useState<KumasPlanlamaSatir | null>(null)
   const [hareketler, setHareketler] = useState<KumasHareketSatiri[]>([])
   const [hareketLoading, setHareketLoading] = useState(false)
+  const [guncelleniyor, setGuncelleniyor] = useState(false)
   const [hareketContextMenu, setHareketContextMenu] = useState<{ x: number; y: number; satir: KumasHareketSatiri } | null>(null)
 
   const hareketAc = useCallback((r: KumasPlanlamaSatir) => {
@@ -102,7 +104,7 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
   ], [])
 
   const load = useCallback(() => {
-    tedarikApi
+    return tedarikApi
       .planlamaIplik()
       .then(setSatirlar)
       .catch((err: unknown) =>
@@ -137,6 +139,41 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
         r.varyant1Aciklama.toLowerCase().includes(q),
     )
   }, [satirlar, arama])
+
+  const bayatSatirlar = useMemo(() => filtrelenmis.filter((r) => r.guncelMi === false), [filtrelenmis])
+  const bayatSiparisSayisi = useMemo(
+    () => new Set(bayatSatirlar.map((r) => r.siparisNo)).size,
+    [bayatSatirlar],
+  )
+
+  const bayatlariGuncelle = useCallback(() => {
+    Modal.confirm({
+      title: 'Bayat tedarik hesapları güncellensin mi?',
+      content: `${bayatSatirlar.length} satır (${bayatSiparisSayisi} sipariş) güncel sipariş bilgilerine göre yeniden hesaplanacak.`,
+      okText: 'Yeniden Hesapla',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        setGuncelleniyor(true)
+        try {
+          const sonuc = await tedarikApi.guncelleBayatlar()
+          await load()
+          if (sonuc.hataSayisi > 0) {
+            message.warning(
+              `${sonuc.guncellenen} kalem güncellendi, ${sonuc.hataSayisi} kalemde hata oluştu`,
+            )
+          } else {
+            message.success(`${sonuc.guncellenen} kalemin tedarik hesabı güncellendi`)
+          }
+        } catch (err) {
+          message.error(
+            'Hesaplama yapılamadı: ' + (err instanceof Error ? err.message : String(err)),
+          )
+        } finally {
+          setGuncelleniyor(false)
+        }
+      },
+    })
+  }, [bayatSatirlar.length, bayatSiparisSayisi, load, message])
 
   const columns = useMemo<ColDef<KumasPlanlamaSatir>[]>(() => [
     { headerName: 'Sipariş No', field: 'siparisNo', width: 110, resizable: true },
@@ -215,7 +252,19 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
         }
         return kalem
       })
-      onYeniSatinalmaSiparis?.(kalemler)
+      const olustur = () => onYeniSatinalmaSiparis?.(kalemler)
+      const bayatSayisi = secili.filter((r) => r.guncelMi === false).length
+      if (bayatSayisi > 0) {
+        Modal.confirm({
+          title: 'Seçili satırların tedarik hesabı güncel değil',
+          content: `${bayatSayisi} satır için sipariş bilgileri sonradan değişmiş, miktarlar eski olabilir. Yine de devam edilsin mi?`,
+          okText: 'Yine de Devam Et',
+          cancelText: 'Vazgeç',
+          onOk: olustur,
+        })
+        return
+      }
+      olustur()
       return
     }
     if (key === 'mal-alim-irsaliye') {
@@ -273,6 +322,27 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
           </div>
         </div>
 
+        {bayatSatirlar.length > 0 && (
+          <div className="!mb-2 !flex !items-center !gap-2 !rounded-sm !border !border-[#fcd34d] !bg-[#fffbeb] !px-3 !py-1.5 !flex-shrink-0">
+            <WarningOutlined style={{ color: '#d97706' }} />
+            <span className="!text-[12px] !text-[#92400e]">
+              <span className="!font-semibold">{bayatSatirlar.length} satırın</span> tedarik hesabı
+              güncel değil — {bayatSiparisSayisi} siparişte bilgiler değiştirilmiş. Turuncu
+              işaretli satırlarla satın alma yapmayın.
+            </span>
+            <Button
+              size="small"
+              type="primary"
+              loading={guncelleniyor}
+              onClick={bayatlariGuncelle}
+              className="!ml-auto !h-6 !text-[12px] !font-semibold !rounded-sm"
+              style={{ backgroundColor: '#f57c00' }}
+            >
+              Yeniden Hesapla
+            </Button>
+          </div>
+        )}
+
         <div className="!flex-1 !min-h-0" style={{ minHeight: 300 }}>
           <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
             <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
@@ -284,6 +354,7 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc }: 
                 storageKey="iplik-planlama"
                 exportFileName="iplik-planlama"
                 enableRowSelection
+                getRowClass={(p) => (p.data?.guncelMi === false ? 'bayat-satir' : '')}
                 onCellContextMenu={(e: CellContextMenuEvent<KumasPlanlamaSatir>) => {
                   e.node?.setSelected(true)
                 }}

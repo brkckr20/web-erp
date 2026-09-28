@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 import { AuthProvider } from '@/context/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
+import PwaRegister from '@/components/PwaRegister';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,7 +18,28 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Tekstil ERP",
-  description: "Stok / Envanter Yönetim Sistemi",
+  description: "Tekstil Malzeme ve Üretim Yönetim Sistemi",
+  applicationName: "Tekstil ERP",
+  appleWebApp: {
+    capable: true,
+    title: "Tekstil ERP",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#121820",
 };
 
 export default function RootLayout({
@@ -34,6 +56,7 @@ export default function RootLayout({
         <AntdRegistry>
           <AuthProvider>
             <AppLayout>{children}</AppLayout>
+            <PwaRegister />
           </AuthProvider>
         </AntdRegistry>
       </body>

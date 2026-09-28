@@ -37,6 +37,21 @@ export class TedarikController {
     return this.service.planlamaKumas()
   }
 
+  @Post('guncelle-bayatlar')
+  guncelleBayatlar(@Query('limit') limit?: string) {
+    return this.service.guncelleBayatlar(limit ? Number(limit) : undefined)
+  }
+
+  @Get('ozet')
+  ozet(@Query('siparisId', ParseIntPipe) siparisId: number) {
+    return this.service.ozet(siparisId)
+  }
+
+  @Post('siparis-hesapla')
+  siparisHesapla(@Query('siparisId', ParseIntPipe) siparisId: number) {
+    return this.service.siparisHesapla(siparisId)
+  }
+
   @Get('planlama/iplik')
   planlamaIplik() {
     return this.service.planlamaIplik()

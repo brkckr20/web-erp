@@ -3,6 +3,48 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSiparisDto } from './dto/create-siparis.dto';
 import { UpdateSiparisDto } from './dto/create-siparis.dto';
+import { BAYAT } from '../tedarik/tedarik.constants';
+
+interface KalemImzali {
+  id: number;
+  malzemeId: number | null;
+  sira: number;
+  miktar?: unknown;
+  renkler?: {
+    kumasGruplari?: { kumasGrupId: number; renkId: number | null }[];
+    bedenler?: { bedenId: number; miktar?: unknown }[];
+  }[];
+}
+
+/** Prisma Decimal / string / number farkını gidermek için sayıyı normalize eder */
+function imzaSayi(v: unknown): string {
+  if (v === null || v === undefined || v === '') return ''
+  const n = Number(v)
+  return Number.isFinite(n) ? String(n) : String(v)
+}
+
+/**
+ * Tedarik hesabını etkileyen kalem içeriğinin kısa imzası.
+ * Sipariş kaydedildiğinde eski/yeni imza karşılaştırılıp tedarik kayıtlarının
+ * bayat olup olmadığına karar veriliyor.
+ */
+export function kalemImzasi(kalem: KalemImzali): string {
+  const renkler = (kalem.renkler ?? [])
+    .map((r) => {
+      const gruplar = (r.kumasGruplari ?? [])
+        .map((g) => `${g.kumasGrupId}:${g.renkId ?? ''}`)
+        .sort()
+        .join(',')
+      const bedenler = (r.bedenler ?? [])
+        .map((b) => `${b.bedenId}:${imzaSayi(b.miktar)}`)
+        .sort()
+        .join(',')
+      return `${gruplar}|${bedenler}`
+    })
+    .sort()
+    .join(';')
+  return `${kalem.malzemeId ?? ''}:${imzaSayi(kalem.miktar)}#${renkler}`
+}
 
 const FULL_INCLUDE = {
   cariHesap: true,
@@ -130,7 +172,7 @@ export class SiparisService {
   }
 
   async update(id: number, dto: UpdateSiparisDto) {
-    await this.findOne(id);
+    const mevcut = await this.findOne(id);
     const { kalemler, aciklamalar, ...rest } = dto as any;
     const data: any = { ...rest };
     delete data.siparisNo;
@@ -142,16 +184,89 @@ export class SiparisService {
     if (dto.guncellemeTarihi)
       data.guncellemeTarihi = new Date(dto.guncellemeTarihi);
 
+    // kesim fazlası net (fire) miktarını doğrudan etkiliyor: değiştiyse
+    // siparişe bağlı tüm tedarik hesapları bayat sayılır
+    const kesimFazlasiDegisti =
+      (data.kesimFazlasi ?? null) !== (mevcut.kesimFazlasi ?? null);
+
     return this.prisma.$transaction(async (tx) => {
       await tx.siparis.update({ where: { id }, data });
       if (Array.isArray(kalemler)) {
-        await tx.tedarikIhtiyac.deleteMany({ where: { siparisId: id } });
+        const eskiKalemler = await tx.siparisKalem.findMany({
+          where: { siparisId: id },
+          orderBy: { sira: 'asc' },
+          include: {
+            renkler: { include: { kumasGruplari: true, bedenler: true } },
+          },
+        });
+
         await tx.siparisKalem.deleteMany({ where: { siparisId: id } });
         await tx.siparisAciklama.deleteMany({ where: { siparisId: id } });
         await this.createChildren(tx, id, kalemler, aciklamalar);
+
+        // Kalemler silinip yeni id'lerle yaratıldığı için tedarik kayıtlarını
+        // eski kalemlerden yeni kalemlere taşıyoruz. Siparişten kaldırılan
+        // kalemlerin tedarik kayıtları anlamsız kalacağı için siliniyor.
+        const yeniKalemler = await tx.siparisKalem.findMany({
+          where: { siparisId: id },
+          orderBy: { sira: 'asc' },
+          include: {
+            renkler: { include: { kumasGruplari: true, bedenler: true } },
+          },
+        });
+
+        await this.tedarikKalemleriBagla(tx, id, eskiKalemler, yeniKalemler, kesimFazlasiDegisti);
       }
       return this.findOneTx(tx, id);
     });
+  }
+
+  private async tedarikKalemleriBagla(
+    tx: Prisma.TransactionClient,
+    siparisId: number,
+    eskiKalemler: KalemImzali[],
+    yeniKalemler: KalemImzali[],
+    tumunuBayatla: boolean,
+  ) {
+    const eski = eskiKalemler.map((k) => ({ id: k.id, malzemeId: k.malzemeId, sira: k.sira, imza: kalemImzasi(k) }));
+    const yeni = yeniKalemler.map((k) => ({ id: k.id, malzemeId: k.malzemeId, sira: k.sira, imza: kalemImzasi(k) }));
+
+    // Aynı model siparişte birden fazla kez geçebiliyor: önce aynı sıradaki
+    // eşleşmeyi dene, kalmayanları aynı modelin sırasıyla eşleştir.
+    const kullanilan = new Set<number>();
+    const eslesme = new Map<number, number>(); // eskiKalemId -> yeniKalemId
+    for (const e of eski) {
+      const aday = yeni.find((y) => !kullanilan.has(y.id) && y.malzemeId === e.malzemeId && y.sira === e.sira)
+        ?? yeni.find((y) => !kullanilan.has(y.id) && y.malzemeId === e.malzemeId);
+      if (!aday) continue;
+      kullanilan.add(aday.id);
+      eslesme.set(e.id, aday.id);
+    }
+
+    const yeniIdler = yeni.map((y) => y.id);
+    if (yeniIdler.length) {
+      // Siparişten çıkmış kalemlerin tedarik kayıtlarını temizle
+      await tx.tedarikIhtiyac.deleteMany({
+        where: { siparisId, siparisKalemId: { notIn: yeniIdler } },
+      });
+    } else {
+      await tx.tedarikIhtiyac.deleteMany({ where: { siparisId } });
+    }
+
+    for (const [eskiId, yeniId] of eslesme) {
+      const degisti = eski.find((e) => e.id === eskiId)!.imza !== yeni.find((y) => y.id === yeniId)!.imza;
+      await tx.tedarikIhtiyac.updateMany({
+        where: { siparisId, siparisKalemId: eskiId },
+        data: { siparisKalemId: yeniId, ...(degisti ? { durum: BAYAT } : {}) },
+      });
+    }
+
+    if (tumunuBayatla) {
+      await tx.tedarikIhtiyac.updateMany({
+        where: { siparisId },
+        data: { durum: BAYAT },
+      });
+    }
   }
 
   async remove(id: number) {

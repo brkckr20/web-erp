@@ -382,6 +382,12 @@ export class SablonService {
       const tabloStil = params['stil'] ? ` ${params['stil'].replace(/;?$/, ';')}` : ''
       const cerceve = params['cerceve'] ?? '1px solid gray'
       const baslikZemin = params['baslikZemin'] ? `background-color:${params['baslikZemin']};` : ''
+      const etiketParam = (params['satirEtiket'] ?? '').trim()
+      const satirEtiketleri = etiketParam
+        ? etiketParam.split(',').map((e) => e.trim()).filter(Boolean)
+        : []
+      const etiketVar = satirEtiketleri.length > 0
+      const etiketStil = params['etiketStil'] ? ` ${params['etiketStil'].replace(/;?$/, ';')}` : ''
       const maxGenislik = parseInt(params['maxGenislik'] ?? '0', 10) || 0
       const daralt = maxGenislik > 0 ? `max-width:${maxGenislik}px; overflow:hidden;` : ''
       // Hucre olculeri: genislik=70 yukseklik=24 (px; tum hucrelere uygulanir)
@@ -468,12 +474,17 @@ export class SablonService {
       }
       const td = `border:${cerceve};${daralt}${olcu}`
       const tdC = td + 'text-align:center;'
+      const tdEtiket = td + 'text-align:left;white-space:nowrap;' + etiketStil
+      const rs = etiketVar ? ' rowspan="2"' : ''
       let out = `<table style="border-collapse:collapse; margin-top:4px; font-size:10px;${tabloStil}">`
       out += '<thead><tr>'
-      for (const g of kGruplar) out += `<td style="${tdC};${baslikZemin}">${kacis(g)}</td>`
-      for (const b of bedenler) out += `<td style="${tdC};${baslikZemin}">${kacis(b)}</td>`
-      out += `<td style="${tdC};${baslikZemin}width:24px"></td><td style="${tdC};${baslikZemin}">Renk Barkodu</td>`
-      out += '</tr></thead><tbody>'
+      for (const g of kGruplar) out += `<td${rs} style="${tdC};${baslikZemin}">${kacis(g)}</td>`
+      if (etiketVar) out += `<td${rs} style="${tdC};${baslikZemin}"></td>`
+      for (const b of bedenler) out += `<td${rs} style="${tdC};${baslikZemin}">${kacis(b)}</td>`
+      out += `<td${rs} style="${tdC};${baslikZemin}width:24px"></td><td${rs} style="${tdC};${baslikZemin}">Renk Barkodu</td>`
+      out += '</tr>'
+      if (etiketVar) out += `<tr><td style="${tdC};${baslikZemin}"></td></tr>`
+      out += '</thead><tbody>'
       renkler.forEach((rid, ri) => {
         // 1. satır: renk kodları + sipariş + barkod
         out += '<tr>'
@@ -483,6 +494,7 @@ export class SablonService {
           const fg = yaziRengi(r?.['khex'])
           out += `<td style="${tdC};${bg ? `background-color:${bg};` : ''}${fg ? `color:${fg};` : ''}">${kacis(r?.['kkod'])}</td>`
         }
+        if (etiketVar) out += `<td style="${tdEtiket}">${kacis(satirEtiketleri[0] ?? '')}</td>`
         for (const b of bedenler) out += `<td style="${tdC}">${kacis(bMap.get(`${rid}|${b}`)?.['siparis'])}</td>`
         out += `<td style="${td}"></td>`
         const bkod = barkodMap.get(rid) ?? ''
@@ -498,12 +510,13 @@ export class SablonService {
           const r = kMap.get(`${rid}|${g}`)
           out += `<td style="${tdC}">${kacis(r?.['kad'])}</td>`
         }
+        if (etiketVar) out += `<td style="${tdEtiket}">${kacis(satirEtiketleri[1] ?? satirEtiketleri[0] ?? '')}</td>`
         for (const b of bedenler) out += `<td style="${tdC}">${kacis(bMap.get(`${rid}|${b}`)?.['kesilecek'])}</td>`
         out += `<td style="${td}"></td>`
         out += '</tr>'
         // Renk grupları arası boşluk (son gruptan sonra yok)
         if (bosluk > 0 && ri < renkler.length - 1) {
-          out += `<tr><td colspan="${kGruplar.length + bedenler.length + 2}" style="border:none; height:${bosluk}px"></td></tr>`
+          out += `<tr><td colspan="${kGruplar.length + bedenler.length + 2 + (etiketVar ? 1 : 0)}" style="border:none; height:${bosluk}px"></td></tr>`
         }
       })
       return out + '</tbody></table>'

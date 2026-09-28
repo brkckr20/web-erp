@@ -64,6 +64,30 @@ export interface KumasPlanlamaSatir {
   varyant1RenkId: number | null
   gerekenMiktar: number
   birim: string
+  guncelMi: boolean
+}
+
+export interface TedarikOzet {
+  tipler: { tip: string; kalemSayisi: number; satirSayisi: number; bayatSatirSayisi: number }[]
+  kalemSayisi: number
+  satirSayisi: number
+  bayatSatirSayisi: number
+}
+
+export interface SiparisHesaplaSonuc {
+  tipler: string[]
+  kalemSayisi: number
+  islenen: number
+  hataSayisi: number
+  hatalar: string[]
+}
+
+export interface BayatGuncellemeSonuc {
+  islenen: number
+  guncellenen: number
+  hataSayisi: number
+  kalan: number
+  hatalar: string[]
 }
 
 export interface KumasHareketSatiri {
@@ -95,6 +119,11 @@ export const tedarikApi = {
       `/tedarik?siparisId=${siparisId}${tip ? `&tip=${tip}` : ''}${siparisKalemId ? `&siparisKalemId=${siparisKalemId}` : ''}`,
     ),
   planlamaKumas: () => api.get<KumasPlanlamaSatir[]>('/tedarik/planlama/kumas'),
+  guncelleBayatlar: (limit?: number) =>
+    api.post<BayatGuncellemeSonuc>(`/tedarik/guncelle-bayatlar${limit ? `?limit=${limit}` : ''}`),
+  ozet: (siparisId: number) => api.get<TedarikOzet>(`/tedarik/ozet?siparisId=${siparisId}`),
+  siparisHesapla: (siparisId: number) =>
+    api.post<SiparisHesaplaSonuc>(`/tedarik/siparis-hesapla?siparisId=${siparisId}`),
   planlamaKumasHareketler: (siparisNo: string, malzemeKod: string) =>
     api.get<KumasHareketSatiri[]>(
       `/tedarik/planlama/kumas/hareketler?siparisNo=${encodeURIComponent(siparisNo)}&malzemeKod=${encodeURIComponent(malzemeKod)}`,

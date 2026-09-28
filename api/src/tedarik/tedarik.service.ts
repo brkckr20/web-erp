@@ -3,14 +3,18 @@ import { PrismaService } from '../prisma/prisma.service'
 import { HesaplaParamsDto, HesaplaSonuc, TedarikHesaplaSatir } from './dto/hesapla.dto'
 import { TedarikIhtiyacCreateDto } from './dto/create.dto'
 import { TedarikIhtiyacUpdateDto } from './dto/update.dto'
+import { BAYAT, GUNCEL } from './tedarik.constants'
 
 @Injectable()
 export class TedarikService {
   constructor(private prisma: PrismaService) {}
 
   async hesapla(params: HesaplaParamsDto): Promise<HesaplaSonuc> {
-    const { satirlar: tumSatirlar, toplamNet } = await this.hesaplaRaw(params)
+    return this.kaydet(params, await this.hesaplaRaw(params))
+  }
 
+  private async kaydet(params: HesaplaParamsDto, ham: HesaplaSonuc): Promise<HesaplaSonuc> {
+    const { satirlar: tumSatirlar, toplamNet } = ham
     const satirlar = tumSatirlar.filter((s) => Math.abs(Number(s.netMiktar) || 0) > 0.0001)
 
     await this.prisma.$transaction(async (tx) => {
@@ -40,12 +44,102 @@ export class TedarikService {
             brutMiktar: s.brutMiktar,
             netMiktar: s.netMiktar,
             tip: params.tip ?? 'kumas',
+            durum: GUNCEL,
           })),
         })
       }
     })
 
     return { satirlar, toplamNet, kaydedildi: true }
+  }
+
+  /** Siparişe ait tedarik kaydı özeti (Sipariş Kartı'ndaki onay kutusu için) */
+  async ozet(siparisId: number) {
+    const rows = await this.prisma.$queryRaw<
+      { tip: string; kalemSayisi: bigint | number; satirSayisi: bigint | number; bayatSatirSayisi: bigint | number }[]
+    >`
+      SELECT
+        ti.tip                                                          AS tip,
+        COUNT(DISTINCT ti.siparis_kalem_id)                             AS kalemSayisi,
+        COUNT(*)                                                        AS satirSayisi,
+        SUM(CASE WHEN ti.durum = N'guncel-degil' THEN 1 ELSE 0 END)     AS bayatSatirSayisi
+      FROM tedarik_ihtiyac ti
+      WHERE ti.siparis_id = ${siparisId}
+      GROUP BY ti.tip
+      ORDER BY ti.tip
+    `
+
+    const tipler = rows.map((r) => ({
+      tip: r.tip,
+      kalemSayisi: Number(r.kalemSayisi) || 0,
+      satirSayisi: Number(r.satirSayisi) || 0,
+      bayatSatirSayisi: Number(r.bayatSatirSayisi) || 0,
+    }))
+
+    return {
+      tipler,
+      kalemSayisi: tipler.reduce((a, t) => a + t.kalemSayisi, 0),
+      satirSayisi: tipler.reduce((a, t) => a + t.satirSayisi, 0),
+      bayatSatirSayisi: tipler.reduce((a, t) => a + t.bayatSatirSayisi, 0),
+    }
+  }
+
+  /** Siparişin tamamını, kayıtlı olduğu tipler için yeniden hesaplar */
+  async siparisHesapla(siparisId: number) {
+    const ozet = await this.ozet(siparisId)
+    const tipler = ozet.tipler.length ? ozet.tipler.map((t) => t.tip) : ['kumas']
+
+    const kalemler = await this.prisma.siparisKalem.findMany({
+      where: { siparisId },
+      select: { id: true },
+      orderBy: { sira: 'asc' },
+    })
+
+    let islenen = 0
+    const hatalar: string[] = []
+    for (const tip of tipler) {
+      for (const k of kalemler) {
+        try {
+          await this.hesapla({ siparisId, kalemId: k.id, tip })
+          islenen++
+        } catch (e) {
+          hatalar.push(
+            `Kalem #${k.id} / ${tip}: ${e instanceof Error ? e.message : String(e)}`,
+          )
+        }
+      }
+    }
+
+    return { tipler, kalemSayisi: kalemler.length, islenen, hataSayisi: hatalar.length, hatalar }
+  }
+
+  /** Sipariş değişikliği sonrası bayat kalan tedarik hesaplarını topluca tazeler */
+  async guncelleBayatlar(limit = 500) {
+    const bayatlar = await this.prisma.tedarikIhtiyac.findMany({
+      where: { durum: BAYAT },
+      distinct: ['siparisId', 'siparisKalemId', 'tip'],
+      select: { siparisId: true, siparisKalemId: true, tip: true },
+      orderBy: [{ siparisId: 'asc' }, { siparisKalemId: 'asc' }],
+      take: limit,
+    })
+
+    let guncellenen = 0
+    const hatalar: string[] = []
+    for (const b of bayatlar) {
+      try {
+        await this.hesapla({ siparisId: b.siparisId, kalemId: b.siparisKalemId, tip: b.tip })
+        guncellenen++
+      } catch (e) {
+        hatalar.push(
+          `Sipariş #${b.siparisId} / kalem #${b.siparisKalemId} / ${b.tip}: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        )
+      }
+    }
+
+    const kalan = await this.prisma.tedarikIhtiyac.count({ where: { durum: BAYAT } })
+    return { islenen: bayatlar.length, guncellenen, hataSayisi: hatalar.length, kalan, hatalar }
   }
 
   private async hesaplaRaw(params: HesaplaParamsDto): Promise<HesaplaSonuc> {
@@ -202,6 +296,7 @@ export class TedarikService {
         varyant1Aciklama: string
         varyant1RenkId: number | null
         gerekenMiktar: unknown
+        bayat: unknown
         birim: string
       }[]
     >`
@@ -218,6 +313,7 @@ export class TedarikService {
         ti.renk_ad          AS varyant1Aciklama,
         ti.renk_id          AS varyant1RenkId,
         SUM(ti.net_miktar)  AS gerekenMiktar,
+        MIN(CASE WHEN ti.durum = N'guncel-degil' THEN 1 ELSE 0 END) AS bayat,
         MIN(ti.birim)       AS birim
       FROM tedarik_ihtiyac ti
       JOIN siparis s          ON s.id = ti.siparis_id
@@ -246,6 +342,7 @@ export class TedarikService {
       varyant1Aciklama: r.varyant1Aciklama,
       varyant1RenkId: r.varyant1RenkId,
       gerekenMiktar: Number(r.gerekenMiktar) || 0,
+      guncelMi: Number(r.bayat ?? 0) === 0,
       birim: r.birim,
     }))
   }
@@ -265,6 +362,7 @@ export class TedarikService {
         varyant1Aciklama: string
         varyant1RenkId: number | null
         gerekenMiktar: unknown
+        bayat: unknown
         birim: string
       }[]
     >`
@@ -281,6 +379,7 @@ export class TedarikService {
         ti.renk_ad          AS varyant1Aciklama,
         ti.renk_id          AS varyant1RenkId,
         SUM(ti.net_miktar)  AS gerekenMiktar,
+        MIN(CASE WHEN ti.durum = N'guncel-degil' THEN 1 ELSE 0 END) AS bayat,
         MIN(ti.birim)       AS birim
       FROM tedarik_ihtiyac ti
       JOIN siparis s          ON s.id = ti.siparis_id
@@ -309,6 +408,7 @@ export class TedarikService {
       varyant1Aciklama: r.varyant1Aciklama,
       varyant1RenkId: r.varyant1RenkId,
       gerekenMiktar: Number(r.gerekenMiktar) || 0,
+      guncelMi: Number(r.bayat ?? 0) === 0,
       birim: r.birim,
     }))
   }

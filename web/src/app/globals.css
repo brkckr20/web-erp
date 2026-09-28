@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+.bayat-satir {
+  background-color: #fffbeb !important;
+  box-shadow: inset 3px 0 0 0 #f59e0b;
+}
+
+.bayat-satir .ag-cell {
+  color: #92400e;
+}
+
 @media print {
   body * {
     visibility: hidden;

@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Select, Button, App, Spin, Dropdown } from 'antd'
 import type { MenuProps } from 'antd'
-import { CalculatorOutlined } from '@ant-design/icons'
+import { CalculatorOutlined, WarningOutlined } from '@ant-design/icons'
 import DataGrid from '@/components/shared/DataGrid'
 import { siparisApi, type Siparis, type SiparisKalem } from '@/lib/siparis-api'
 import { tedarikApi, type HesaplaSonuc } from '@/lib/tedarik-api'
@@ -102,6 +102,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
   const [ihtiyacSatirlar, setIhtiyacSatirlar] = useState<(KumasIhtiyacSatir | MalzemeIhtiyacSatir)[]>([])
   const [durum, setDurum] = useState('')
   const [seciliDetayId, setSeciliDetayId] = useState<number | null>(null)
+  const [bayatMi, setBayatMi] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -252,12 +253,14 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
         setDetaySatirlar([])
         setIhtiyacSatirlar([])
         setSeciliDetayId(null)
+        setBayatMi(false)
         return
       }
       setKayitLoading(true)
       try {
         const kayitlar = await tedarikApi.list(siparisId, tip, kalem.id)
         setSeciliDetayId(null)
+        setBayatMi(kayitlar.some((k) => k.durum === 'guncel-degil'))
         if (kayitlar.length === 0) {
           setDetaySatirlar([])
           setIhtiyacSatirlar([])
@@ -547,6 +550,26 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
 
         <Spin spinning={siparisLoading || kayitLoading}>
           <div className="!flex-1 !flex !flex-col !min-h-0 !p-3 !gap-3">
+            {bayatMi && (
+              <div className="!flex !items-center !gap-2 !rounded-sm !border !border-[#fcd34d] !bg-[#fffbeb] !px-3 !py-1.5 !flex-shrink-0">
+                <WarningOutlined style={{ color: '#d97706' }} />
+                <span className="!text-[12px] !text-[#92400e]">
+                  Bu modelin <span className="!font-semibold">{tip} tedarik hesabı güncel değil</span> —
+                  sipariş bilgileri sonradan değiştirildi. Aşağıdaki miktarlar eski olabilir.
+                </span>
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<CalculatorOutlined />}
+                  loading={hesaplamaLoading}
+                  onClick={handleHesapla}
+                  className="!ml-auto !h-6 !text-[11px] !font-semibold !rounded-sm"
+                  style={{ backgroundColor: '#f57c00' }}
+                >
+                  Şimdi Hesapla
+                </Button>
+              </div>
+            )}
             <div className="!h-[60%] !min-h-[300px] !border !border-gray-200 !rounded-sm !p-2">
               <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-2">
                 Tedarik Detayları
