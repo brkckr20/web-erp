@@ -221,7 +221,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const openYeniIrsaliye = useCallback(
     (irsaliyeTipi: string, fasonTipiId?: number | null, baslangicKalemler?: IrsaliyeBaslangicKalem[]) => {
-      if (irsaliyeTipi === '201' || irsaliyeTipi === '1') {
+      // 201/1 Satın Alma Siparişi -> Satın Alma İrsaliyesi, 202/134 fason: planlamadan
+      // doldurulmuş kalemlerle açılan fişler. Bu tipler dışında kalem taşınmaz.
+      if (irsaliyeTipi === '201' || irsaliyeTipi === '1' || irsaliyeTipi === '202' || irsaliyeTipi === '134') {
         setSatinalmaBaslangicKalemler(baslangicKalemler ?? [])
       }
       const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
@@ -246,9 +248,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 
   const handleCreateIrsaliye = useCallback(
-    (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[]) => {
+    (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null) => {
       setSatinalmaSiparisKey((k) => k + 1)
-      openYeniIrsaliye(irsaliyeTipi, null, kalemler)
+      openYeniIrsaliye(irsaliyeTipi, fasonTipiId ?? null, kalemler)
+    },
+    [openYeniIrsaliye],
+  )
+
+  // Kumaş/İplik planlamadan Fason Talimatı (202) açar. Alt tip seçilen fason tipiyle gelir.
+  const openFasonTalimat = useCallback(
+    (fasonTipiId: number, kalemler: IrsaliyeBaslangicKalem[]) => {
+      openYeniIrsaliye('202', fasonTipiId, kalemler)
     },
     [openYeniIrsaliye],
   )
@@ -1187,10 +1197,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <TedarikEkrani tip="aksesuar" />
     }
     if (tab.key === 'kumas-planlama') {
-      return <KumasPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} />
+      return <KumasPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onFasonTalimat={openFasonTalimat} />
     }
     if (tab.key === 'iplik-planlama') {
-      return <IplikPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onIrsaliyeAc={openIrsaliyeKarti} />
+      return <IplikPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onIrsaliyeAc={openIrsaliyeKarti} onFasonTalimat={openFasonTalimat} />
     }
     if (tab.key === 'siparis-karti-yeni') {
       return <SiparisKarti isNew key={`yeni-${yeniSiparisKey}`} onTedarik={openTedarik} />
@@ -1222,11 +1232,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'satinalma-siparis') {
       return <IrsaliyeListesi mod="satinalma-siparis" onNew={() => openYeniSatinalmaSiparis([])} onSelect={openIrsaliyeKarti} />
     }
+    // Fason Hareket Fişleri -> Fason Talimatı (202) listesi, alt tip Fason Tipleri'nden seçilir.
+    if (tab.key === 'fason-hareket') {
+      return <IrsaliyeListesi mod="satinalma-siparis" onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />
+    }
     if (tab.key.startsWith('satis-irsaliye-yeni-')) {
       const match = tab.key.match(/^satis-irsaliye-yeni-(\d+)(?:-ft(\d+))?$/)
       const irsaliyeTipi = match?.[1] ?? tab.key.replace('satis-irsaliye-yeni-', '')
       const fasonTipiId = match?.[2] ? Number(match[2]) : null
-       const isYeniSatinalma = irsaliyeTipi === '201' || irsaliyeTipi === '1'
+       const isYeniSatinalma = irsaliyeTipi === '201' || irsaliyeTipi === '1' || irsaliyeTipi === '202' || irsaliyeTipi === '134'
       return (
         <IrsaliyeKarti
           key={isYeniSatinalma ? `yeni201-${satinalmaSiparisKey}` : undefined}

@@ -405,6 +405,7 @@ model Irsaliye {
   faturaTarihi      DateTime? @map("fatura_tarihi")
   sevkNo            String?  @map("sevk_no") @db.VarChar(50)
   sevkTarihi        DateTime? @map("sevk_tarihi")
+  terminTarihi      DateTime? @map("termin_tarihi")
   onaylandi         Boolean  @default(false)
   tamamlandi        Boolean  @default(false)
   kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
@@ -454,16 +455,19 @@ model IrsaliyeKalem {
   satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 2)
   aciklama          String?  @db.VarChar(1000)
   uuid              String?  @db.VarChar(100)
+  siparisKalemId    Int?     @map("siparis_kalem_id")
+  fire              Decimal? @db.Decimal(18, 4)
 
   varyant1RenkId    Int?     @map("varyant1_renk_id")
-  varyant1RenkKod   String?  @map("varyant1_renk_kod") @db.NVarChar(50)
-  varyant1RenkAd    String?  @map("varyant1_renk_ad") @db.NVarChar(200)
   varyant2RenkId    Int?     @map("varyant2_renk_id")
-  varyant2RenkKod   String?  @map("varyant2_renk_kod") @db.NVarChar(50)
-  varyant2RenkAd    String?  @map("varyant2_renk_ad") @db.NVarChar(200)
+  // varyant2 = baskı deseni olarak kullanılacak (DESEN KARTI YOK, sonraki aşama).
+  // Şimdilik boş bırakıldı. varyant1 = sipariş/müşteri rengi.
+  // Boyahane hedef rengi (Renk.tip=2, Boyahane Renk Kartı) ayrı kolonlarda tutulur.
+  boyahaneRenkId    Int?     @map("boyahane_renk_id")
 
   varyant1Renk      Renk?    @relation("IrsaliyeKalemVaryant1Renk", fields: [varyant1RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   varyant2Renk      Renk?    @relation("IrsaliyeKalemVaryant2Renk", fields: [varyant2RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  boyahaneRenk      Renk?    @relation("IrsaliyeKalemBoyahaneRenk", fields: [boyahaneRenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -666,6 +670,7 @@ model Renk {
   siparisRenkler    SiparisRenkKumasGrup[] @relation("SiparisRenkRenkRef")
   irsaliyeVaryant1  IrsaliyeKalem[] @relation("IrsaliyeKalemVaryant1Renk")
   irsaliyeVaryant2  IrsaliyeKalem[] @relation("IrsaliyeKalemVaryant2Renk")
+  irsaliyeBoyahane   IrsaliyeKalem[] @relation("IrsaliyeKalemBoyahaneRenk")
 
   @@unique([kod, tip])
   @@map("renk")

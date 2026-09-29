@@ -33,7 +33,11 @@ const fisTipiAdlari: Record<string, string> = {
   '201': 'Satın Alma Siparişi',
 }
 
-export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void }) {
+export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }: {
+  onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void
+  /** Fason Talimatı (202) açar; fasonId fiş alt tipi olarak gelir. */
+  onFasonTalimat?: (fasonTipiId: number, kalemler: IrsaliyeBaslangicKalem[]) => void
+}) {
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
   const [arama, setArama] = useState('')
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
@@ -229,6 +233,23 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
     { key: 'renkler', label: 'Renkler', icon: <BgColorsOutlined /> },
   ]
 
+  // Seçili planlama satırlarını fason/satın alma fiş kalemlerine çevirir.
+  // siparisKalemId taşınır: fason kalemi siparişe bağlanır (fire raporu için).
+  // varyant1 = sipariş kumaş rengi, 202-Fason Talimatı'nda görünür (planlama bilgisi);
+  // 134'e aktarılırken düşer -> çıkış ham/varyantsız, 11 girişinde boyahane kartı seçilir.
+  const satirlariKalemeCevir = (satirlar: KumasPlanlamaSatir[]): IrsaliyeBaslangicKalem[] =>
+    satirlar.map((r) => ({
+      malzemeKod: r.malzemeKod,
+      malzemeAd: r.malzemeAd,
+      miktar: Number(r.gerekenMiktar) || 0,
+      birim: r.birim || 'mt',
+      aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+      siparisKalemId: r.siparisKalemId ?? null,
+      varyant1RenkId: r.varyant1RenkId ?? null,
+      varyant1RenkKod: r.varyant1 || null,
+      varyant1RenkAd: r.varyant1Aciklama || null,
+    }))
+
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'satinalma-talimat' || key === 'ham-satinalma-talimat') {
       const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
@@ -247,8 +268,6 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
         }
         if (!ham) {
           kalem.varyant1RenkId = r.varyant1RenkId ?? null
-          kalem.varyant1RenkKod = r.varyant1 || null
-          kalem.varyant1RenkAd = r.varyant1Aciklama || null
         }
         return kalem
       })
@@ -289,8 +308,16 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis }: { onYeniSatina
       return
     }
     if (key.startsWith('fason:')) {
-      const fason = fasonTipleri.find((f) => `fason:${f.id}` === key)
-      message.info(`${fason?.ad ?? 'Fason'} işlemi yakında`)
+      const fasonId = Number(key.slice('fason:'.length))
+      const fason = fasonTipleri.find((f) => f.id === fasonId)
+      if (!fason) return
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
+        return
+      }
+      // Fason Talimatı (202): fiş alt tipi seçilen fason tipiyle (readonly) gelir.
+      onFasonTalimat?.(fasonId, satirlariKalemeCevir(secili))
       return
     }
   }

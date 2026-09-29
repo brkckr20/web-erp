@@ -52,6 +52,9 @@ export interface TedarikIhtiyac {
 
 export interface KumasPlanlamaSatir {
   siparisNo: string
+  /** Fason talimatı (202) kalemini siparişe bağlamak için. */
+  siparisId?: number | null
+  siparisKalemId?: number | null
   modelKod: string | null
   modelAd: string | null
   siparisMiktar: number

@@ -17,12 +17,10 @@ export class CreateIrsaliyeKalemDto {
   satirTutari?: number
   aciklama?: string
   uuid?: string
+  siparisKalemId?: number | null
   varyant1RenkId?: number
-  varyant1RenkKod?: string
-  varyant1RenkAd?: string
+  boyahaneRenkId?: number | null
   varyant2RenkId?: number
-  varyant2RenkKod?: string
-  varyant2RenkAd?: string
 }
 
 export class UpdateIrsaliyeKalemDto extends CreateIrsaliyeKalemDto {}
@@ -36,6 +34,7 @@ export class CreateIrsaliyeDto {
   faturaTarihi?: string
   sevkNo?: string
   sevkTarihi?: string
+  terminTarihi?: string | null
   onaylandi?: boolean
   tamamlandi?: boolean
   kayitYapan?: string

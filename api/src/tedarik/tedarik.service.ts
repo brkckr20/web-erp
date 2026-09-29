@@ -285,6 +285,8 @@ export class TedarikService {
     const rows = await this.prisma.$queryRaw<
       {
         siparisNo: string
+        siparisId: number | null
+        siparisKalemId: number | null
         modelKod: string | null
         modelAd: string | null
         siparisMiktar: unknown
@@ -302,6 +304,8 @@ export class TedarikService {
     >`
       SELECT
         s.siparis_no        AS siparisNo,
+        MIN(s.id)           AS siparisId,
+        MIN(ti.siparis_kalem_id) AS siparisKalemId,
         mm.kod              AS modelKod,
         mm.ad               AS modelAd,
         sk.miktar           AS siparisMiktar,
@@ -331,6 +335,8 @@ export class TedarikService {
 
     return rows.map((r) => ({
       siparisNo: r.siparisNo,
+      siparisId: r.siparisId ?? null,
+      siparisKalemId: r.siparisKalemId ?? null,
       modelKod: r.modelKod,
       modelAd: r.modelAd,
       siparisMiktar: Number(r.siparisMiktar) || 0,
@@ -351,6 +357,8 @@ export class TedarikService {
     const rows = await this.prisma.$queryRaw<
       {
         siparisNo: string
+        siparisId: number | null
+        siparisKalemId: number | null
         modelKod: string | null
         modelAd: string | null
         siparisMiktar: unknown
@@ -368,6 +376,8 @@ export class TedarikService {
     >`
       SELECT
         s.siparis_no        AS siparisNo,
+        MIN(s.id)           AS siparisId,
+        MIN(ti.siparis_kalem_id) AS siparisKalemId,
         mm.kod              AS modelKod,
         mm.ad               AS modelAd,
         sk.miktar           AS siparisMiktar,
@@ -397,6 +407,8 @@ export class TedarikService {
 
     return rows.map((r) => ({
       siparisNo: r.siparisNo,
+      siparisId: r.siparisId ?? null,
+      siparisKalemId: r.siparisKalemId ?? null,
       modelKod: r.modelKod,
       modelAd: r.modelAd,
       siparisMiktar: Number(r.siparisMiktar) || 0,

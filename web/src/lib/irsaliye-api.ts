@@ -12,6 +12,7 @@ export interface Irsaliye {
   faturaTarihi: string | null
   sevkNo: string | null
   sevkTarihi: string | null
+  terminTarihi: string | null
   onaylandi: boolean
   tamamlandi: boolean
   kayitYapan: string | null
@@ -47,15 +48,21 @@ export interface IrsaliyeKalem {
   satirTutari: number | null
   aciklama: string | null
   uuid: string | null
+  /** Fason akışında kalemin bağlandığı sipariş kalemi (fire raporu için). */
+  siparisKalemId?: number | null
+  /** Fason fire'ı: sunucu hesaplar (brüt − net), readonly. */
+  fire?: number | null
+  /**
+   * Boyahane hedef rengi (Boyahane Renk Kartı, Renk.tip=2). varyant1 = sipariş/müşteri
+   * rengi, varyant2 = baskı deseni (kartı yok, sonraki aşama) olarak ayrılmıştır.
+   */
+  boyahaneRenkId?: number | null
   varyant1RenkId?: number | null
-  varyant1RenkKod?: string | null
-  varyant1RenkAd?: string | null
   varyant2RenkId?: number | null
-  varyant2RenkKod?: string | null
-  varyant2RenkAd?: string | null
   varyant1Renk?: { id: number; kod: string; ad: string } | null
   varyant2Renk?: { id: number; kod: string; ad: string } | null
-  malzeme?: { id: number; kod: string; ad: string } | null
+  boyahaneRenk?: { id: number; kod: string; ad: string } | null
+  malzeme?: { id: number; kod: string; ad: string; barkod?: string | null } | null
 }
 
 export type IrsaliyeFormData = Omit<Irsaliye, 'id' | 'kalemler'>

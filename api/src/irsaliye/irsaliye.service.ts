@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateIrsaliyeDto } from './dto/create-irsaliye.dto'
 import { UpdateIrsaliyeDto } from './dto/create-irsaliye.dto'
@@ -7,6 +8,37 @@ import { CreateIrsaliyeKalemDto } from './dto/create-irsaliye.dto'
 
 function padIrsaliyeNo(n: number): string {
   return n.toString().padStart(8, '0')
+}
+
+// Fason fire'ı kalemin ölçü birimine göre brüt − net'ten hesaplanır (Decimal(18,4)).
+// İstemciden gelen fire değeri yok sayılır; fire her kayıtta yeniden yazılır.
+// kg tarafı brut_agirlik − net_agirlik, mt tarafı brut_metre − net_metre.
+// Adet (veya ölçü birimi boş) ölçüsünde fire tutulmaz -> null.
+// Giden (brüt) kalemde fire anlamsızdır: henüz dönen mal yoktur, fire ancak
+// fason GİRİŞ kaleminde (11) net girildiğinde oluşur -> net yoksa null.
+function fireHesapla(k: any): Prisma.Decimal | null {
+  const birim = String(k.olcuBirimi ?? '').toLowerCase()
+  let brut: any
+  let net: any
+  if (birim === 'brutkg' || birim === 'kg') {
+    brut = k.brutAgirlik
+    net = k.netAgirlik
+  } else if (birim === 'brutmt' || birim === 'mt') {
+    brut = k.brutMetre
+    net = k.netMetre
+  } else {
+    return null
+  }
+  // Net miktar girilmemişse fire hesaplanamaz (giden kalem, taslak fiş vb.)
+  if (net == null || net === '' || net === 0) return null
+  if (brut == null || brut === '') return null
+  return new Prisma.Decimal(brut).minus(new Prisma.Decimal(net))
+}
+
+// Kalem verisini yazmaya hazırlar: ilişki alanlarını temizler, fire'ı hesaplar.
+function kalemDataHazirla(k: any): any {
+  const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, fire: _fire, ...rest } = k
+  return { ...rest, fire: fireHesapla(k) }
 }
 
 @Injectable()
@@ -40,7 +72,7 @@ export class IrsaliyeService {
         cariHesap: true,
         depo: true,
         fasonTipi: true,
-        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
       },
     })
   }
@@ -52,7 +84,7 @@ export class IrsaliyeService {
         cariHesap: true,
         depo: true,
         fasonTipi: true,
-        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
       },
     })
     if (!irsaliye) throw new NotFoundException('İrsaliye bulunamadı')
@@ -64,6 +96,7 @@ export class IrsaliyeService {
     if (dto.irsaliyeTarihi) data.irsaliyeTarihi = new Date(dto.irsaliyeTarihi)
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
     if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
+    if (dto.terminTarihi) data.terminTarihi = new Date(dto.terminTarihi)
     if (dto.kayitTarihi) data.kayitTarihi = new Date(dto.kayitTarihi)
     if (dto.guncellemeTarihi) data.guncellemeTarihi = new Date(dto.guncellemeTarihi)
     delete data.kalemler
@@ -72,7 +105,7 @@ export class IrsaliyeService {
       const irsaliye = await tx.irsaliye.create({ data })
       if (dto.kalemler && dto.kalemler.length > 0) {
         for (const k of dto.kalemler) {
-          const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, ...kalemData } = k as any
+          const kalemData = kalemDataHazirla(k)
           await tx.irsaliyeKalem.create({
             data: { ...kalemData, irsaliyeId: irsaliye.id, uuid: kalemData.uuid ?? randomUUID() } as any,
           })
@@ -84,7 +117,7 @@ export class IrsaliyeService {
           cariHesap: true,
           depo: true,
           fasonTipi: true,
-          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
         },
       })
     })
@@ -96,6 +129,7 @@ export class IrsaliyeService {
     if (dto.irsaliyeTarihi) data.irsaliyeTarihi = new Date(dto.irsaliyeTarihi)
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
     if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
+    if (dto.terminTarihi) data.terminTarihi = new Date(dto.terminTarihi)
     if (dto.kayitTarihi) data.kayitTarihi = new Date(dto.kayitTarihi)
     if (dto.guncellemeTarihi) data.guncellemeTarihi = new Date(dto.guncellemeTarihi)
     const kalemler = (dto as any).kalemler
@@ -117,7 +151,7 @@ export class IrsaliyeService {
       if (Array.isArray(kalemler)) {
         await tx.irsaliyeKalem.deleteMany({ where: { irsaliyeId: id } })
         for (const k of kalemler) {
-          const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, ...kalemData } = k as any
+          const kalemData = kalemDataHazirla(k)
           await tx.irsaliyeKalem.create({
             data: { ...kalemData, irsaliyeId: id, uuid: kalemData.uuid ?? randomUUID() } as any,
           })
@@ -129,7 +163,7 @@ export class IrsaliyeService {
           cariHesap: true,
           depo: true,
           fasonTipi: true,
-          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true } },
+          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
         },
       })
     })
@@ -151,11 +185,11 @@ export class IrsaliyeService {
   }
 
   async createKalem(dto: CreateIrsaliyeKalemDto) {
-    return this.prisma.irsaliyeKalem.create({ data: { ...dto } as any })
+    return this.prisma.irsaliyeKalem.create({ data: kalemDataHazirla(dto) as any })
   }
 
   async updateKalem(id: number, dto: CreateIrsaliyeKalemDto) {
-    return this.prisma.irsaliyeKalem.update({ where: { id }, data: { ...dto } as any })
+    return this.prisma.irsaliyeKalem.update({ where: { id }, data: kalemDataHazirla(dto) as any })
   }
 
   async removeKalem(id: number) {

@@ -54,25 +54,23 @@ export class BarkodService {
     return barkod
   }
 
+  // Etiketlerde basılan format çıplak 9 haneli kod (000000009); tam format
+  // SIPARIS_NO|#|KISA_KOD da kabul edilir. Çıplak kodda sipariş no koddan bulunur.
   async parseAndLookup(tamBarkod: string) {
-    // Format: IH26-0001|#|a3f7k2
-    const parts = tamBarkod.split('|#|')
-    if (parts.length < 2) {
-      throw new BadRequestException('Geçersiz barkod formatı. Beklenen: SIPARIS_NO|#|KISA_KOD')
+    const girilen = (tamBarkod ?? '').trim()
+    if (!girilen) {
+      throw new BadRequestException('Barkod boş')
     }
-
-    const siparisNo = parts[0].trim()
-    const barkodKodu = parts[1].trim()
-
-    const eslesme = await this.prisma.barkodEslesme.findFirst({
-      where: {
-        siparisNo,
-        barkodKodu,
-      },
-    })
+    const parts = girilen.split('|#|')
+    const eslesme =
+      parts.length >= 2
+        ? await this.prisma.barkodEslesme.findFirst({
+            where: { siparisNo: parts[0].trim(), barkodKodu: parts[1].trim() },
+          })
+        : await this.prisma.barkodEslesme.findUnique({ where: { barkodKodu: parts[0] } })
 
     if (!eslesme) {
-      throw new NotFoundException(`Barkod bulunamadı: ${tamBarkod}`)
+      throw new NotFoundException(`Barkod bulunamadı: ${girilen}`)
     }
 
     return eslesme

@@ -44,7 +44,12 @@ const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
     sevkNo: i.sevkNo ?? '',
     aciklama: i.aciklama ?? '',
     irsaliyeToplam,
-    eIrsaliye: i.tamamlandi ? (i.irsaliyeTipi === '201' ? 'Teslim Alındı' : 'Tamamlandı') : i.onaylandi ? (i.irsaliyeTipi === '201' ? 'Kesinleşti' : 'Onaylandı') : 'Taslak',
+    // 201 ve 202 talimat/sipariş belgeleri: durum dili "Teslim Alındı / Kesinleşti"
+    eIrsaliye: i.tamamlandi
+      ? (i.irsaliyeTipi === '201' || i.irsaliyeTipi === '202' ? 'Teslim Alındı' : 'Tamamlandı')
+      : i.onaylandi
+        ? (i.irsaliyeTipi === '201' || i.irsaliyeTipi === '202' ? 'Kesinleşti' : 'Onaylandı')
+        : 'Taslak',
     kayitEden: i.kayitYapan ?? '-',
   }
 }
@@ -83,6 +88,8 @@ const satinalmaIrsaliyeTipiMap: Record<string, string> = {
 
 const satinalmaSiparisTipiMap: Record<string, string> = {
   '201': '201-Satın Alma Siparişi',
+  // 202 stok etkisiz talimat belgesidir (rapor.service.ts giriş/çıkış listesinde yok).
+  '202': '202-Fason Talimatı',
 }
 
 const irsaliyeTipiMap: Record<string, string> = { ...satisIrsaliyeTipiMap, ...satinalmaIrsaliyeTipiMap, ...satinalmaSiparisTipiMap }
@@ -96,10 +103,12 @@ interface IrsaliyeListesiProps {
   onSelect?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string; ekranAdi?: string }) => void
 }
 
+// Fason alt tipi seçilebilen fiş tipleri (yeni kayıtta Fason Tanımı Select açılır).
+// 202-Fason Talimatı alt tipi buradan gelir; 201-Satın Alma Siparişinin alt tipi yoktur.
 const fasonFisTipleri = {
   satis: ['12', '125', '134'],
   satinalma: ['6', '11', '133'],
-  'satinalma-siparis': [] as string[],
+  'satinalma-siparis': ['202'],
 }
 
 export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: IrsaliyeListesiProps) {

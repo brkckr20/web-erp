@@ -13,7 +13,7 @@ import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
-import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem } from '@/lib/irsaliye-api'
+import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem, type IrsaliyeFormData } from '@/lib/irsaliye-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
@@ -54,7 +54,7 @@ interface IrsaliyeKartiProps {
   ekranAdi?: string
   onDeleted?: (irsaliyeTipi: string) => void
   baslangicKalemler?: IrsaliyeBaslangicKalem[]
-  onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[]) => void
+  onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null) => void
 }
 
 export interface IrsaliyeBaslangicKalem {
@@ -66,9 +66,9 @@ export interface IrsaliyeBaslangicKalem {
   cariHesapKod?: string
   depoKod?: string
   aciklama?: string
+  siparisKalemId?: number | null
+  boyahaneRenkId?: number | null
   varyant1RenkId?: number | null
-  varyant1RenkKod?: string | null
-  varyant1RenkAd?: string | null
 }
 
 interface KalemRow {
@@ -88,9 +88,15 @@ interface KalemRow {
   kdv: number
   satirTutari: number
   aciklama: string
+  siparisKalemId: number | null
+  /** Boyahane Renk Kartı (Renk.tip=2): fason hedef rengi. varyant2 = desen (sonraki aşama). */
+  boyahaneRenkId: number | null
+  boyahaneRenkKod: string
+  boyahaneRenkAd: string
   varyant1RenkId: number | null
   varyant1RenkKod: string
   varyant1RenkAd: string
+  fire: number | null
 }
 
 const emptyKalem = (): KalemRow => ({
@@ -110,9 +116,14 @@ const emptyKalem = (): KalemRow => ({
   kdv: 0,
   satirTutari: 0,
   aciklama: '',
+  siparisKalemId: null,
+  boyahaneRenkId: null,
+  boyahaneRenkKod: '',
+  boyahaneRenkAd: '',
   varyant1RenkId: null,
   varyant1RenkKod: '',
   varyant1RenkAd: '',
+  fire: null,
 })
 
 const irsaliyeTipiMap: Record<string, string> = {
@@ -131,9 +142,12 @@ const irsaliyeTipiMap: Record<string, string> = {
   '138': '138-Verilen Hizmet İrsaliyesi',
   '192': '192-Serbest Meslek Makbuzu',
   '201': '201-Satın Alma Siparişi',
+  '202': '202-Fason Talimatı',
 }
 
-const fasonFisTipleri = ['6', '11', '12', '125', '133', '134']
+// Fason fişleri: miktarlar brüt/net ayrı girilir (fasoncu brüt üzerinden çalışır).
+// 202-Fason Talimatı da miktarlı bir belgedir, aynı kolonları kullanır.
+const fasonFisTipleri = ['6', '11', '12', '125', '133', '134', '202']
 const uretimKolonlari = ['tip', 'barkod', 'brutKg', 'kg', 'brutMt', 'mt', 'adet', 'hesapBirimi']
 const satinalmaSiparisKolonlari = ['tip', 'barkod']
 const defaultHiddenColsFor = (irsaliyeTipi: string): Set<string> => {
@@ -250,12 +264,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
 
   const [fasonTipiAd, setFasonTipiAd] = useState('')
   const [fasonTipiKayit, setFasonTipiKayit] = useState<number | null>(fasonTipiId ?? null)
+  const [fasonTipleri, setFasonTipleri] = useState<{ id: number; ad: string }[]>([])
 
   const [irsaliyeNo, setIrsaliyeNo] = useState('')
   const [cariKod, setCariKod] = useState<string>(() => baslangicKalemler?.[0]?.cariHesapKod ?? '')
   const [depoKod, setDepoKod] = useState<string>(() => baslangicKalemler?.[0]?.depoKod ?? '')
   const [irsaliyeTarihi, setIrsaliyeTarihi] = useState(dayjs())
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
+  const [terminTarihi, setTerminTarihi] = useState<dayjs.Dayjs | null>(null)
   const [belgeNo, setBelgeNo] = useState('')
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
@@ -264,7 +280,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '' }
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, boyahaneRenkId: b.boyahaneRenkId ?? null, varyant1RenkId: b.varyant1RenkId ?? null }
           const val = b.miktar || 0
           if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
           else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
@@ -286,7 +302,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           if (cancelled) return
           setIrsaliyeNo(i.irsaliyeNo)
           if (i.irsaliyeTarihi) setIrsaliyeTarihi(dayjs(i.irsaliyeTarihi))
-          if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
+           if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
+           if (i.terminTarihi) setTerminTarihi(dayjs(i.terminTarihi))
           setBelgeNo(i.sevkNo ?? '')
           setAciklama(i.aciklama ?? '')
           setYetkili((i as Irsaliye).yetkili ?? '')
@@ -314,9 +331,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             kdv: Number(k.kdv) || 0,
             satirTutari: Number(k.satirTutari) || 0,
             aciklama: k.aciklama ?? '',
+            siparisKalemId: (k as IrsaliyeKalem).siparisKalemId ?? null,
+            boyahaneRenkId: (k as IrsaliyeKalem).boyahaneRenkId ?? (k as IrsaliyeKalem).boyahaneRenk?.id ?? null,
+            boyahaneRenkKod: (k as IrsaliyeKalem).boyahaneRenk?.kod ?? '',
+            boyahaneRenkAd: (k as IrsaliyeKalem).boyahaneRenk?.ad ?? '',
             varyant1RenkId: (k as IrsaliyeKalem).varyant1RenkId ?? (k as IrsaliyeKalem).varyant1Renk?.id ?? null,
-            varyant1RenkKod: (k as IrsaliyeKalem).varyant1RenkKod ?? (k as IrsaliyeKalem).varyant1Renk?.kod ?? '',
-            varyant1RenkAd: (k as IrsaliyeKalem).varyant1RenkAd ?? (k as IrsaliyeKalem).varyant1Renk?.ad ?? '',
+            varyant1RenkKod: (k as IrsaliyeKalem).varyant1Renk?.kod ?? '',
+            varyant1RenkAd: (k as IrsaliyeKalem).varyant1Renk?.ad ?? '',
+            fire: (k as IrsaliyeKalem).fire != null ? Number((k as IrsaliyeKalem).fire) : null,
           }))
           setKalemler(rows.length > 0 ? rows : [])
         })
@@ -343,6 +365,15 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         .catch(() => {})
     }
   }, [id, fasonTipiId])
+
+  // Fason Talimatı (202) alt tipini kullanıcı seçer -> seçenek listesi gerekir
+  useEffect(() => {
+    if (irsaliyeTipi !== '202') return
+    fasonTipiApi
+      .list()
+      .then((list) => setFasonTipleri(list.filter((f) => f.kullanimda).map((f) => ({ id: f.id, ad: f.ad }))))
+      .catch(() => setFasonTipleri([]))
+  }, [irsaliyeTipi])
 
   const hesapMiktariGetir = (k: KalemRow): number => {
     switch (k.hesapBirimi) {
@@ -419,15 +450,16 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         kdv: k.kdv || null,
         satirTutari: k.satirTutari,
         aciklama: k.aciklama || null,
+        siparisKalemId: k.siparisKalemId,
+        boyahaneRenkId: k.boyahaneRenkId,
         varyant1RenkId: k.varyant1RenkId,
-        varyant1RenkKod: k.varyant1RenkKod || null,
-        varyant1RenkAd: k.varyant1RenkAd || null,
-      }))
+      })) as IrsaliyeKalem[]
 
       if (id) {
         await irsaliyeApi.update(id, {
           irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
+          terminTarihi: terminTarihi ? terminTarihi.format('YYYY-MM-DD') : null,
           sevkNo: belgeNo || null,
           onaylandi,
           tamamlandi,
@@ -446,6 +478,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         irsaliyeTipi,
         irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
         sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
+        terminTarihi: terminTarihi ? terminTarihi.format('YYYY-MM-DD') : null,
         sevkNo: belgeNo || null,
         onaylandi,
         tamamlandi: ['1','2','3','4','5','8','9','11','12','120','121','122','123','124','134'].includes(irsaliyeTipi) ? true : tamamlandi,
@@ -456,7 +489,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         yetkili: yetkili || null,
         kayitYapan,
         kalemler: kalemPayload,
-      })
+      } as IrsaliyeFormData & { kalemler: IrsaliyeKalem[] })
       setLocalId(created.id)
       message.success('İrsaliye ve kalemler kaydedildi')
     }
@@ -613,6 +646,36 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       headerName: 'Varyant 1 Açıklama', field: 'varyant1RenkAd', width: 160,
       valueFormatter: (p) => p.value || '-',
     },
+    ...(fasonFisTipleri.includes(irsaliyeTipi)
+      ? [
+          {
+            // Boyahane Renk Kartı (Renk.tip=2). Seçim yapılınca kodu ve adı satıra yazılır.
+            headerName: 'Boyahane Rengi', field: 'boyahaneRenkId', width: 130, cellClass: '!p-0',
+            cellRenderer: (p: { data: KalemRow }) => (
+              <SearchableRenkSelect
+                tip={2}
+                value={p.data.boyahaneRenkId}
+                adGoster={false}
+                widthClass="!w-full"
+                className="!w-full !h-full"
+                onChange={(id, rec) => updateKalem(p.data.key, {
+                  boyahaneRenkId: id ?? null,
+                  boyahaneRenkKod: rec?.kod ?? '',
+                  boyahaneRenkAd: rec?.ad ?? '',
+                })}
+              />
+            ),
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'Boyahane Renk Kodu', field: 'boyahaneRenkKod', width: 120,
+            valueFormatter: (p) => p.value || '-',
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'Boyahane Renk Adı', field: 'boyahaneRenkAd', width: 160,
+            valueFormatter: (p) => p.value || '-',
+          } as ColDef<KalemRow>,
+        ]
+      : []),
     {
       headerName: 'Barkod', field: 'barkod', width: 120, resizable: true,
       valueFormatter: (p) => p.value || '-',
@@ -671,6 +734,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           className="!w-full !h-full !text-[12px] kalem-input"
         />
       ),
+    },
+    {
+      headerName: 'Fire', field: 'fire', width: 90, type: 'rightAligned', editable: false,
+      valueFormatter: (p) => (p.value == null || p.value === '' ? '-' : numberFormat(p.value as number)),
     },
     {
       headerName: 'Hesap Birimi', field: 'hesapBirimi', width: 110, cellClass: '!p-0',
@@ -879,6 +946,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         message.error(`${k.malzemeKod} ${k.malzemeAd} için miktar girilmemiş`)
         return
       }
+      // 202-Fason Talimatı -> 134-Fasona Çıkış: varyant (sipariş rengi) DÜŞÜRÜLÜR.
+      // Çıkış ham kumaştır; boyahane kartı dönüşte (11-Fasondan Giriş) seçilir.
       kalemlerOut.push({
         malzemeKod: k.malzemeKod,
         malzemeAd: k.malzemeAd,
@@ -888,12 +957,15 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         cariHesapKod: cariKod || undefined,
         depoKod: depoKod || undefined,
         aciklama: k.aciklama || undefined,
-        varyant1RenkId: k.varyant1RenkId ?? null,
-        varyant1RenkKod: k.varyant1RenkKod || null,
-        varyant1RenkAd: k.varyant1RenkAd || null,
+        siparisKalemId: k.siparisKalemId ?? null,
+        // Boyahane rengi boya siparişinin kendisi -> 202'den 134'e taşınır.
+        boyahaneRenkId: k.boyahaneRenkId ?? null,
+        // varyant1 (sipariş rengi) 202'den 134'e taşınmaz: çıkış ham kumaştır.
+        varyant1RenkId: irsaliyeTipi === '202' ? null : (k.varyant1RenkId ?? null),
       })
     }
-    onCreateIrsaliye?.('1', kalemlerOut)
+    // 201 -> Satın Alma İrsaliyesi (tip 1); 202 -> Fasona Çıkış (tip 134, fason tipi aynen taşınır)
+    onCreateIrsaliye?.(irsaliyeTipi === '202' ? '134' : '1', kalemlerOut, irsaliyeTipi === '202' ? fasonTipiKayit : null)
   }
 
   const contextMenuItems: MenuProps['items'] =
@@ -903,7 +975,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         ? [
             { key: 'irsaliye-olustur', label: 'İrsaliye Oluştur', onClick: handleIrsaliyeOlustur },
           ]
-        : []
+        : irsaliyeTipi === '202'
+          ? [
+              { key: 'irsaliye-olustur', label: 'Fasona Çıkış (134) Oluştur', onClick: handleIrsaliyeOlustur },
+            ]
+          : []
 
   const iceriAktar = () => {
     const secili = fasonGidenGridRef.current?.getSelectedRows() ?? []
@@ -917,20 +993,28 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       malzemeKod: k.malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
       malzemeAd: k.malzeme?.ad ?? '',
       barkod: k.id != null ? String(k.id) : (k.takipNo ?? ''),
+      // Fason girişinde brüt miktar TAŞINIR (ne kadar gitti), net ve fire BOŞ kalır:
+      // operatör gerçekte dönen miktarı girer, fire = brüt − net sunucuda hesaplanır.
       brutKg: Number(k.brutAgirlik) || 0,
-      kg: Number(k.netAgirlik) || 0,
+      kg: 0,
       brutMt: Number(k.brutMetre) || 0,
-      mt: Number(k.netMetre) || 0,
+      mt: 0,
       adet: Number(k.adet) || 0,
       hesapBirimi: k.olcuBirimi || 'kg',
-      birimFiyat: 0,
-      doviz: 'TL',
-      kdv: 0,
-      satirTutari: 0,
+      birimFiyat: Number(k.birimFiyat) || 0,
+      doviz: k.doviz || 'TL',
+      kdv: Number(k.kdv) || 0,
+      satirTutari: Number(k.satirTutari) || 0,
       aciklama: k.aciklama ?? '',
+      siparisKalemId: k.siparisKalemId ?? null,
+      // Boyahane rengi 134'den gelir (boya siparişi verilirken seçilmişti), aynen taşınır.
+      boyahaneRenkId: k.boyahaneRenkId ?? k.boyahaneRenk?.id ?? null,
+      boyahaneRenkKod: k.boyahaneRenk?.kod ?? '',
+      boyahaneRenkAd: k.boyahaneRenk?.ad ?? '',
       varyant1RenkId: k.varyant1RenkId ?? k.varyant1Renk?.id ?? null,
-      varyant1RenkKod: k.varyant1RenkKod ?? k.varyant1Renk?.kod ?? '',
-      varyant1RenkAd: k.varyant1RenkAd ?? k.varyant1Renk?.ad ?? '',
+      varyant1RenkKod: k.varyant1Renk?.kod ?? '',
+      varyant1RenkAd: k.varyant1Renk?.ad ?? '',
+      fire: null,
     }))
     setKalemler((prev) => {
       const bosMu = prev.every((p) => !p.malzemeKod)
@@ -1107,7 +1191,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Açıklama</div>
                     <Input size="small" value={aciklama} onChange={(e) => setAciklama(e.target.value)} className="!w-48 !text-[12px]" />
                   </div>
-                  {irsaliyeTipi === '201' && (
+                  {(irsaliyeTipi === '201' || irsaliyeTipi === '202') && (
                     <div className="!flex !items-center !gap-3">
                       <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Durum</div>
                       <Select
@@ -1126,10 +1210,44 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                       />
                     </div>
                   )}
-                  {fasonTipiAd && (
+                  {/* Fason Talimatı (202): alt tip Fason Tipleri listesinden seçilir.
+                      Diğer fason fişlerinde alt tip çağıran tarafından sabit gelir, salt-okunur. */}
+                  {irsaliyeTipi === '202' ? (
                     <div className="!flex !items-center !gap-3">
-                      <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fiş Alt Tipi</div>
-                      <Input size="small" value={fasonTipiAd} readOnly className="!w-48 !text-[12px]" />
+                      <div className="!text-[12px] !text-[red] !w-24 !shrink-0">Fason Tipi</div>
+                      <Select
+                        size="small"
+                        className="!w-48 !text-[12px]"
+                        showSearch
+                        optionFilterProp="label"
+                        value={fasonTipiKayit ?? undefined}
+                        placeholder="Fason tipi seçin"
+                        onChange={(val) => {
+                          setFasonTipiKayit(val ?? null)
+                          setFasonTipiAd(fasonTipleri.find((f) => f.id === val)?.ad ?? '')
+                        }}
+                        options={fasonTipleri.map((f) => ({ value: f.id, label: f.ad }))}
+                      />
+                    </div>
+                  ) : (
+                    fasonTipiAd && (
+                      <div className="!flex !items-center !gap-3">
+                        <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fiş Alt Tipi</div>
+                        <Input size="small" value={fasonTipiAd} readOnly className="!w-48 !text-[12px]" />
+                      </div>
+                    )
+                  )}
+                  {irsaliyeTipi === '202' && (
+                    <div className="!flex !items-center !gap-3">
+                      <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Termin Tarihi</div>
+                      <DatePicker
+                        size="small"
+                        value={terminTarihi}
+                        onChange={(d) => setTerminTarihi(d)}
+                        format="DD.MM.YYYY"
+                        placeholder="Boya termin tarihi"
+                        className="!w-48 !text-[12px]"
+                      />
                     </div>
                   )}
                 </div>

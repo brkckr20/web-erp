@@ -360,7 +360,11 @@ export class SablonService {
   }
 
   // Kesim talimat tablosu: kumaş grup kolonları + beden kolonları + barkod hücresi, renk başına 2 satır.
-  // Kullanım ({{#each}} içinde): {{#kesimTablo kumas=kesim_kumas beden=kesim_beden filtre=kalem_id}}
+  // Kullanım ({{#each}} içinde): {{#kesimTablo kesim_kumas kesim_beden filtre=kalem_id}}
+  // Satır etiketi: satirEtiket="Sip.Ad,Üretim Fazlası" -> grup kolonlarından sonra, beden kolonlarından
+  //   önce 1 hucrelik etiket kolonu (1. etiket renk kodu satırına, 2. etiket renk adı satırına);
+  //   etiketBosluk=4 -> etiketin soluna o kadar px'lik ince boşluk kolonu; etiketStil="font-weight:bold".
+  //   Hiçbiri verilmezse çıktı değişmez.
   // Opsiyonel: barkod=kesim_barkod bosluk=2 cerceve="1px solid black" baslikZemin="#eee" stil="font-family:Arial;font-size:10px"
   // Olculer: genislik=70 yukseklik=24 maxGenislik=90 (px)
   // Beden sıralama: siralama=beden (varsayılan, küçükten büyüğe) | siralama=yazim (bsira'ya göre)
@@ -388,6 +392,9 @@ export class SablonService {
         : []
       const etiketVar = satirEtiketleri.length > 0
       const etiketStil = params['etiketStil'] ? ` ${params['etiketStil'].replace(/;?$/, ';')}` : ''
+      // Etiket kolonunun solundaki ince boşluk sütunu (px). Verilmezse 0 = boşluk yok, çıktı değişmez.
+      const etiketBosluk = etiketVar ? Math.max(0, parseInt(params['etiketBosluk'] ?? '0', 10) || 0) : 0
+      const etiketAralikVar = etiketVar && etiketBosluk > 0
       const maxGenislik = parseInt(params['maxGenislik'] ?? '0', 10) || 0
       const daralt = maxGenislik > 0 ? `max-width:${maxGenislik}px; overflow:hidden;` : ''
       // Hucre olculeri: genislik=70 yukseklik=24 (px; tum hucrelere uygulanir)
@@ -479,6 +486,7 @@ export class SablonService {
       let out = `<table style="border-collapse:collapse; margin-top:4px; font-size:10px;${tabloStil}">`
       out += '<thead><tr>'
       for (const g of kGruplar) out += `<td${rs} style="${tdC};${baslikZemin}">${kacis(g)}</td>`
+      if (etiketAralikVar) out += `<td${rs} style="${tdC};${baslikZemin}width:${etiketBosluk}px"></td>`
       if (etiketVar) out += `<td${rs} style="${tdC};${baslikZemin}"></td>`
       for (const b of bedenler) out += `<td${rs} style="${tdC};${baslikZemin}">${kacis(b)}</td>`
       out += `<td${rs} style="${tdC};${baslikZemin}width:24px"></td><td${rs} style="${tdC};${baslikZemin}">Renk Barkodu</td>`
@@ -494,6 +502,7 @@ export class SablonService {
           const fg = yaziRengi(r?.['khex'])
           out += `<td style="${tdC};${bg ? `background-color:${bg};` : ''}${fg ? `color:${fg};` : ''}">${kacis(r?.['kkod'])}</td>`
         }
+        if (etiketAralikVar) out += `<td style="${td}"></td>`
         if (etiketVar) out += `<td style="${tdEtiket}">${kacis(satirEtiketleri[0] ?? '')}</td>`
         for (const b of bedenler) out += `<td style="${tdC}">${kacis(bMap.get(`${rid}|${b}`)?.['siparis'])}</td>`
         out += `<td style="${td}"></td>`
@@ -510,13 +519,15 @@ export class SablonService {
           const r = kMap.get(`${rid}|${g}`)
           out += `<td style="${tdC}">${kacis(r?.['kad'])}</td>`
         }
+        if (etiketAralikVar) out += `<td style="${td}"></td>`
         if (etiketVar) out += `<td style="${tdEtiket}">${kacis(satirEtiketleri[1] ?? satirEtiketleri[0] ?? '')}</td>`
         for (const b of bedenler) out += `<td style="${tdC}">${kacis(bMap.get(`${rid}|${b}`)?.['kesilecek'])}</td>`
         out += `<td style="${td}"></td>`
         out += '</tr>'
         // Renk grupları arası boşluk (son gruptan sonra yok)
         if (bosluk > 0 && ri < renkler.length - 1) {
-          out += `<tr><td colspan="${kGruplar.length + bedenler.length + 2 + (etiketVar ? 1 : 0)}" style="border:none; height:${bosluk}px"></td></tr>`
+          const colspan = kGruplar.length + bedenler.length + 2 + (etiketVar ? 1 : 0) + (etiketAralikVar ? 1 : 0)
+          out += `<tr><td colspan="${colspan}" style="border:none; height:${bosluk}px"></td></tr>`
         }
       })
       return out + '</tbody></table>'
