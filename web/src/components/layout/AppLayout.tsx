@@ -78,6 +78,8 @@ import ProgramParametreleri from '@/components/pages/ProgramParametreleri'
 import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
 import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
 import LogoYonetimi from '@/components/pages/LogoYonetimi'
+import SirketListesi from '@/components/pages/SirketListesi'
+import SirketKarti from '@/components/pages/SirketKarti'
 import SablonListesi from '@/components/pages/SablonListesi'
 import SablonEditori from '@/components/pages/SablonEditori'
 import MalzemeStokEkstresi from '@/components/pages/MalzemeStokEkstresi'
@@ -381,6 +383,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'cari-hesap-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Cari Hesap Kartı', moduleKey: 'satis', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openSirketKarti = useCallback((sirketId: number) => {
+    const key = 'sirket-karti-' + sirketId
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Şirket Kartı - ' + sirketId, moduleKey: 'ayarlar', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniSirket = useCallback(() => {
+    const key = 'sirket-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Şirket Kartı', moduleKey: 'ayarlar', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -836,6 +860,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'kullanici-tanimlari') {
       return <KullaniciListesi onSelect={openKullaniciKarti} onNew={openYeniKullanici} />
+    }
+    if (tab.key === 'sirket-tanimlari') {
+      return <SirketListesi onSelect={openSirketKarti} onNew={openYeniSirket} />
+    }
+    if (tab.key === 'sirket-karti-yeni') {
+      return <SirketKarti />
+    }
+    if (tab.key.startsWith('sirket-karti-')) {
+      const sirketId = Number(tab.key.replace('sirket-karti-', ''))
+      if (!isNaN(sirketId)) return <SirketKarti id={sirketId} />
     }
     if (tab.key === 'log-takibi') {
       return <LogTakibi />

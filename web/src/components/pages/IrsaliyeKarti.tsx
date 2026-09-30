@@ -68,6 +68,8 @@ export interface IrsaliyeBaslangicKalem {
   aciklama?: string
   siparisKalemId?: number | null
   boyahaneRenkId?: number | null
+  boyahaneRenkKod?: string
+  boyahaneRenkAd?: string
   varyant1RenkId?: number | null
 }
 
@@ -280,7 +282,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, boyahaneRenkId: b.boyahaneRenkId ?? null, varyant1RenkId: b.varyant1RenkId ?? null }
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null }
           const val = b.miktar || 0
           if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
           else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
@@ -649,8 +651,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     ...(fasonFisTipleri.includes(irsaliyeTipi)
       ? [
           {
-            // Boyahane Renk Kartı (Renk.tip=2). Seçim yapılınca kodu ve adı satıra yazılır.
-            headerName: 'Boyahane Rengi', field: 'boyahaneRenkId', width: 130, cellClass: '!p-0',
+            // Boyahane Renk Kartı (Renk.tip=2). Seçici Kod sütununda; id arka planda tutulur,
+            // ad ayrı sütunda gösterilir. Kayda sadece boyahaneRenkId gider.
+            headerName: 'Boyahane Renk Kodu', field: 'boyahaneRenkId', width: 130, cellClass: '!p-0',
             cellRenderer: (p: { data: KalemRow }) => (
               <SearchableRenkSelect
                 tip={2}
@@ -665,10 +668,6 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                 })}
               />
             ),
-          } as ColDef<KalemRow>,
-          {
-            headerName: 'Boyahane Renk Kodu', field: 'boyahaneRenkKod', width: 120,
-            valueFormatter: (p) => p.value || '-',
           } as ColDef<KalemRow>,
           {
             headerName: 'Boyahane Renk Adı', field: 'boyahaneRenkAd', width: 160,
@@ -734,10 +733,6 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           className="!w-full !h-full !text-[12px] kalem-input"
         />
       ),
-    },
-    {
-      headerName: 'Fire', field: 'fire', width: 90, type: 'rightAligned', editable: false,
-      valueFormatter: (p) => (p.value == null || p.value === '' ? '-' : numberFormat(p.value as number)),
     },
     {
       headerName: 'Hesap Birimi', field: 'hesapBirimi', width: 110, cellClass: '!p-0',
@@ -958,8 +953,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         depoKod: depoKod || undefined,
         aciklama: k.aciklama || undefined,
         siparisKalemId: k.siparisKalemId ?? null,
-        // Boyahane rengi boya siparişinin kendisi -> 202'den 134'e taşınır.
+        // Boyahane rengi boya siparişinin kendisi -> 202'den 134'e taşınır (kod/ad dahil, ekranda görünsün).
         boyahaneRenkId: k.boyahaneRenkId ?? null,
+        boyahaneRenkKod: k.boyahaneRenkKod || undefined,
+        boyahaneRenkAd: k.boyahaneRenkAd || undefined,
         // varyant1 (sipariş rengi) 202'den 134'e taşınmaz: çıkış ham kumaştır.
         varyant1RenkId: irsaliyeTipi === '202' ? null : (k.varyant1RenkId ?? null),
       })

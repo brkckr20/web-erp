@@ -244,6 +244,7 @@ export const modules: Module[] = [
         title: 'Sistem',
         items: [
           { key: 'kullanici-tanimlari', label: 'Kullanıcı Tanımları', isForm: true },
+          { key: 'sirket-tanimlari', label: 'Şirket Tanımları', isForm: true },
           { key: 'log-takibi', label: 'Log Takibi' },
           { key: 'genel-ayarlar', label: 'Genel Ayarlar', isForm: true },
           { key: 'logo-yonetimi', label: 'Logo Yönetimi' },

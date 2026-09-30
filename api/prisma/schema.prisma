@@ -19,6 +19,63 @@ model Parametre {
   @@map("parametre")
 }
 
+model Sirket {
+  id              Int          @id @default(autoincrement())
+  ad              String       @db.NVarChar(200)
+  telefon         String?      @db.NVarChar(30)
+  fax             String?      @db.NVarChar(30)
+  eposta          String?      @db.NVarChar(200)
+  vergiDairesi    String?      @map("vergi_dairesi") @db.NVarChar(100)
+  vergiNo         String?      @map("vergi_no") @db.NVarChar(20)
+  mersisNo        String?      @map("mersis_no") @db.NVarChar(20)
+  eFaturaEtiketi  String?      @map("e_fatura_etiketi") @db.NVarChar(100)
+  eIrsaliyeEtiketi String?     @map("e_irsaliye_etiketi") @db.NVarChar(100)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  adresler        SirketAdres[]
+  webler          SirketWeb[]
+  ibanlar         SirketIban[]
+
+  @@map("sirket")
+}
+
+model SirketAdres {
+  id        Int      @id @default(autoincrement())
+  sirketId  Int      @map("sirket_id")
+  sirket    Sirket   @relation(fields: [sirketId], references: [id], onDelete: Cascade)
+  baslik    String?  @db.NVarChar(100)
+  adres     String?  @db.NVarChar(1000)
+  ilce      String?  @db.NVarChar(100)
+  il        String?  @db.NVarChar(100)
+  postaKodu String?  @map("posta_kodu") @db.NVarChar(20)
+  sira      Int?     @default(0)
+
+  @@map("sirket_adres")
+}
+
+model SirketWeb {
+  id       Int    @id @default(autoincrement())
+  sirketId Int    @map("sirket_id")
+  sirket   Sirket @relation(fields: [sirketId], references: [id], onDelete: Cascade)
+  site     String @db.NVarChar(200)
+  sira     Int?   @default(0)
+
+  @@map("sirket_web")
+}
+
+model SirketIban {
+  id        Int    @id @default(autoincrement())
+  sirketId  Int    @map("sirket_id")
+  sirket    Sirket @relation(fields: [sirketId], references: [id], onDelete: Cascade)
+  banka     String? @db.NVarChar(200)
+  iban      String  @db.NVarChar(40)
+  aciklama  String? @db.NVarChar(500)
+  sira      Int?    @default(0)
+
+  @@map("sirket_iban")
+}
+
 model KolonSecimi {
   id          Int      @id @default(autoincrement())
   kullaniciId Int      @map("kullanici_id")
