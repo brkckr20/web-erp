@@ -72,6 +72,8 @@ import IplikPlanlama from '@/components/pages/IplikPlanlama'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
+import FaturaListesi, { faturaTipiLabelMap } from '@/components/pages/FaturaListesi'
+import FaturaKarti from '@/components/pages/FaturaKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
 import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
 import ProgramParametreleri from '@/components/pages/ProgramParametreleri'
@@ -278,6 +280,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setActiveTab(key)
     },
     [irsaliyeTipiLabelMap],
+  )
+
+  const openYeniFatura = useCallback(
+    (faturaTipi: string, fasonTipiId?: number | null) => {
+      const label = faturaTipiLabelMap[faturaTipi] || faturaTipi
+      const key = `fatura-yeni-${faturaTipi}${fasonTipiId ? `-ft${fasonTipiId}` : ''}`
+      setTabs((prev) => {
+        const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true }
+        const exists = prev.find((t) => t.key === key)
+        if (!exists) return [...prev, tab]
+        return prev
+      })
+      setActiveTab(key)
+    },
+    [],
+  )
+
+  const openFaturaKarti = useCallback(
+    (info: { id: number; faturaTipi: string; faturaNo: string; ekranAdi?: string }) => {
+      const key = 'fatura-karti-' + info.id
+      const label = (faturaTipiLabelMap[info.faturaTipi] || info.faturaTipi) + '-' + info.faturaNo
+      setTabs((prev) => {
+        const tab: Tab = { key, label, moduleKey: 'satis', isForm: true, faturaTipi: info.faturaTipi, ekranAdi: info.ekranAdi }
+        const exists = prev.find((t) => t.key === key)
+        if (!exists) return [...prev, tab]
+        return prev
+      })
+      setActiveTab(key)
+    },
+    [],
   )
 
   const openYeniMalzemeYonetimFisi = useCallback((irsaliyeTipi: string) => {
@@ -1288,6 +1320,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
       return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} />
+    }
+    // Faturalar: satis-/satinalma- + [kumas|iplik|aksesuar]- + faturalari
+    if (tab.key.endsWith('-faturalari')) {
+      const mod = tab.key.startsWith('satinalma-') ? 'satinalma' : 'satis'
+      const kategori = tab.key.includes('-kumas-') ? 'kumas' : tab.key.includes('-iplik-') ? 'iplik' : tab.key.includes('-aksesuar-') ? 'aksesuar' : 'genel'
+      return <FaturaListesi mod={mod} kategori={kategori} onNew={openYeniFatura} onSelect={openFaturaKarti} />
+    }
+    if (tab.key.startsWith('fatura-yeni-')) {
+      const match = tab.key.match(/^fatura-yeni-(\d+)(?:-ft(\d+))?$/)
+      const faturaTipi = match?.[1] ?? tab.key.replace('fatura-yeni-', '')
+      const fasonTipiId = match?.[2] ? Number(match[2]) : null
+      return (
+        <FaturaKarti
+          key={tab.key}
+          faturaTipi={faturaTipi}
+          fasonTipiId={fasonTipiId}
+          ekranAdi={tab.ekranAdi}
+          onDeleted={() => handleTabClose(tab.key)}
+        />
+      )
+    }
+    if (tab.key.startsWith('fatura-karti-')) {
+      const faturaId = Number(tab.key.replace('fatura-karti-', ''))
+      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} />
     }
     return (
       <div className="!p-3">

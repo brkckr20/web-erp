@@ -131,6 +131,7 @@ model Depo {
 
   kaliteKontrolFisler KaliteKontrol[] @relation("KKFisDepo")
   irsaliyeler       Irsaliye[] @relation("IrsaliyeDepo")
+  faturalar         Fatura[] @relation("FaturaDepo")
   rafi              DepoRaf[] @relation("DepoRafDepo")
 
   @@map("depo")
@@ -290,6 +291,7 @@ model Malzeme {
   malzemeKumasGruplari MalzemeKumasGrup[] @relation("MalzemeKumasGrupMalzeme")
   ekler             MalzemeEk[] @relation("MalzemeEk")
   irsaliyeKalemler  IrsaliyeKalem[] @relation("IrsaliyeKalemMalzeme")
+  faturaKalemler    FaturaKalem[] @relation("FaturaKalemMalzeme")
   siparisKalemler   SiparisKalem[] @relation("SiparisKalemMalzeme")
 
   @@index([createdAt])
@@ -445,6 +447,7 @@ model CariHesap {
   renkler           Renk[] @relation("RenkCariHesap")
   malzemeler        Malzeme[] @relation("MalzemeUreticiFirma")
   irsaliyeler       Irsaliye[] @relation("IrsaliyeCariHesap")
+  faturalar         Fatura[] @relation("FaturaCariHesap")
   siparisler        Siparis[] @relation("SiparisCariHesap")
 
   @@index([vergiNo])
@@ -454,7 +457,7 @@ model CariHesap {
 
 model Irsaliye {
   id                Int      @id @default(autoincrement())
-  irsaliyeNo        String   @map("irsaliye_no") @db.VarChar(50)
+  irsaliyeNo        String?  @map("irsaliye_no") @db.VarChar(50)
   irsaliyeTipi      String   @map("irsaliye_tipi") @db.VarChar(20)
   irsaliyeTarihi    DateTime @map("irsaliye_tarihi")
   aciklama          String?  @db.VarChar(1000)
@@ -525,11 +528,84 @@ model IrsaliyeKalem {
   varyant1Renk      Renk?    @relation("IrsaliyeKalemVaryant1Renk", fields: [varyant1RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   varyant2Renk      Renk?    @relation("IrsaliyeKalemVaryant2Renk", fields: [varyant2RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   boyahaneRenk      Renk?    @relation("IrsaliyeKalemBoyahaneRenk", fields: [boyahaneRenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  faturaKalemleri   FaturaKalem[] @relation("FaturaKalemIrsaliyeKalem")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("irsaliye_kalem")
+}
+
+model Fatura {
+  id                Int      @id @default(autoincrement())
+  faturaNo          String   @map("fatura_no") @db.VarChar(50)
+  faturaTipi        String   @map("fatura_tipi") @db.VarChar(20)
+  faturaTarihi      DateTime @map("fatura_tarihi")
+  aciklama          String?  @db.VarChar(1000)
+  yetkili           String?  @db.VarChar(200)
+  kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
+  kayitTarihi       DateTime? @map("kayit_tarihi")
+  guncelleyen       String?  @db.VarChar(100)
+  guncellemeTarihi  DateTime? @map("guncelleme_tarihi")
+
+  cariHesapId       Int?     @map("cari_hesap_id")
+  cariHesap         CariHesap? @relation("FaturaCariHesap", fields: [cariHesapId], references: [id])
+  depoId            Int?     @map("depo_id")
+  depo              Depo?    @relation("FaturaDepo", fields: [depoId], references: [id])
+
+  fasonTipiId       Int?     @map("fason_tipi_id")
+  fasonTipi         FasonTipi? @relation("FaturaFasonTipi", fields: [fasonTipiId], references: [id])
+
+  kalemler          FaturaKalem[] @relation("FaturaKalemleri")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([faturaTipi, faturaNo])
+  @@index([cariHesapId])
+  @@index([createdAt])
+  @@map("fatura")
+}
+
+model FaturaKalem {
+  id                Int      @id @default(autoincrement())
+  faturaId          Int      @map("fatura_id")
+  fatura            Fatura   @relation("FaturaKalemleri", fields: [faturaId], references: [id])
+
+  irsaliyeKalemId   Int?     @map("irsaliye_kalem_id")
+  irsaliyeKalem     IrsaliyeKalem? @relation("FaturaKalemIrsaliyeKalem", fields: [irsaliyeKalemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  malzemeId         Int?     @map("malzeme_id")
+  malzeme           Malzeme? @relation("FaturaKalemMalzeme", fields: [malzemeId], references: [id])
+
+  tip               String?  @db.VarChar(20)
+  takipNo           String?  @map("takip_no") @db.VarChar(100)
+  brutAgirlik       Decimal? @map("brut_agirlik") @db.Decimal(18, 4)
+  netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 4)
+  brutMetre         Decimal? @map("brut_metre") @db.Decimal(18, 4)
+  netMetre          Decimal? @map("net_metre") @db.Decimal(18, 4)
+  adet              Int?
+  olcuBirimi        String?  @map("olcu_birimi") @db.VarChar(20)
+  miktar            Decimal? @db.Decimal(18, 4)
+  birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 4)
+  doviz             String?  @db.VarChar(10)
+  kdv               Decimal? @db.Decimal(18, 2)
+  satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 2)
+  aciklama          String?  @db.VarChar(1000)
+  uuid              String?  @db.VarChar(100)
+
+  varyant1RenkId    Int?     @map("varyant1_renk_id")
+  varyant2RenkId    Int?     @map("varyant2_renk_id")
+  boyahaneRenkId    Int?     @map("boyahane_renk_id")
+
+  varyant1Renk      Renk?    @relation("FaturaKalemVaryant1Renk", fields: [varyant1RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  varyant2Renk      Renk?    @relation("FaturaKalemVaryant2Renk", fields: [varyant2RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  boyahaneRenk      Renk?    @relation("FaturaKalemBoyahaneRenk", fields: [boyahaneRenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("fatura_kalem")
 }
 
 model IadeTalep {
@@ -728,6 +804,9 @@ model Renk {
   irsaliyeVaryant1  IrsaliyeKalem[] @relation("IrsaliyeKalemVaryant1Renk")
   irsaliyeVaryant2  IrsaliyeKalem[] @relation("IrsaliyeKalemVaryant2Renk")
   irsaliyeBoyahane   IrsaliyeKalem[] @relation("IrsaliyeKalemBoyahaneRenk")
+  faturaVaryant1    FaturaKalem[] @relation("FaturaKalemVaryant1Renk")
+  faturaVaryant2    FaturaKalem[] @relation("FaturaKalemVaryant2Renk")
+  faturaBoyahane    FaturaKalem[] @relation("FaturaKalemBoyahaneRenk")
 
   @@unique([kod, tip])
   @@map("renk")
@@ -886,6 +965,7 @@ model FasonTipi {
   kullanimda        Boolean  @default(true)
 
   fasonIrsaliyeler   Irsaliye[] @relation("IrsaliyeFasonTipi")
+  fasonFaturalar    Fatura[] @relation("FaturaFasonTipi")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

@@ -30,6 +30,7 @@ import { MalzemeEkModule } from './malzeme-ek/malzeme-ek.module';
 import { DovizModule } from './doviz/doviz.module';
 import { MalzemeFiyatModule } from './malzeme-fiyat/malzeme-fiyat.module';
 import { IrsaliyeModule } from './irsaliye/irsaliye.module';
+import { FaturaModule } from './fatura/fatura.module';
 import { FasonTipiModule } from './fason-tipi/fason-tipi.module';
 import { SiparisModule } from './siparis/siparis.module';
 import { TedarikModule } from './tedarik/tedarik.module';
@@ -48,7 +49,7 @@ import { AuditModule } from './audit/audit.module';
 import { SirketModule } from './sirket/sirket.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule, SirketModule],
+  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FaturaModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule, SirketModule],
   controllers: [AppController],
   providers: [AppService],
 })

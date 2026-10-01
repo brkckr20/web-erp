@@ -14,7 +14,7 @@ export interface Parametre {
 export const parametreApi = {
   list: (grup?: string) => api.get<Parametre[]>(grup ? `/parametre?grup=${encodeURIComponent(grup)}` : '/parametre'),
   get: (grup: string, anahtar: string) =>
-    api.get<Parametre>(`/parametre/${encodeURIComponent(grup)}/${encodeURIComponent(anahtar)}`),
+    api.get<Parametre | null>(`/parametre/${encodeURIComponent(grup)}/${encodeURIComponent(anahtar)}`),
   set: (grup: string, anahtar: string, deger: string, guncelleyen?: string) =>
     api.put<Parametre>(`/parametre/${encodeURIComponent(grup)}/${encodeURIComponent(anahtar)}`, {
       deger,

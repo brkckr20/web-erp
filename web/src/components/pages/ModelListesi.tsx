@@ -42,7 +42,7 @@ export default function ModelListesi({ onSelect, onNew }: ModelListesiProps) {
     try {
       const [list, kendiParam] = await Promise.all([
         malzemeApi.list(5),
-        parametreApi.get('siparis', 'kendiModelKartlari').then((p) => p.deger === 'true').catch(() => false),
+        parametreApi.get('siparis', 'kendiModelKartlari').then((p) => p?.deger === 'true').catch(() => false),
       ])
       const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
       let rows = list.map((m: Malzeme) => ({

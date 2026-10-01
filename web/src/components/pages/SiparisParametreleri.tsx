@@ -25,8 +25,8 @@ export default function SiparisParametreleri() {
 
   useEffect(() => {
     Promise.all([
-      parametreApi.get('siparis', 'kesimFazlasi').then((p) => p.deger ?? '').catch(() => ''),
-      parametreApi.get('siparis', 'kendiModelKartlari').then((p) => p.deger === 'true').catch(() => false),
+      parametreApi.get('siparis', 'kesimFazlasi').then((p) => p?.deger ?? '').catch(() => ''),
+      parametreApi.get('siparis', 'kendiModelKartlari').then((p) => p?.deger === 'true').catch(() => false),
     ])
       .then(([kf, kendiAktif]) => {
         setKesimFazlasi(kf)

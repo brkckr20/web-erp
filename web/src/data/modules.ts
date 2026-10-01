@@ -23,6 +23,7 @@ export interface Tab {
   moduleKey: string
   isForm?: boolean
   irsaliyeTipi?: string
+  faturaTipi?: string
   ekranAdi?: string
 }
 
@@ -167,6 +168,15 @@ export const modules: Module[] = [
           { key: 'satinalma-irsaliyeleri', label: 'Satın Alma İrsaliyeleri', isForm: true },
         ],
       },
+      {
+        title: 'Faturalar',
+        items: [
+          { key: 'satinalma-kumas-faturalari', label: 'Kumaş Faturaları', isForm: true },
+          { key: 'satinalma-iplik-faturalari', label: 'İplik Faturaları', isForm: true },
+          { key: 'satinalma-aksesuar-faturalari', label: 'Aksesuar Faturaları', isForm: true },
+          { key: 'satinalma-faturalari', label: 'Satın Alma Faturaları', isForm: true },
+        ],
+      },
     ],
   },
   {
@@ -190,12 +200,20 @@ export const modules: Module[] = [
         ],
       },
       {
+        title: 'Faturalar',
+        items: [
+          { key: 'satis-kumas-faturalari', label: 'Kumaş Faturaları', isForm: true },
+          { key: 'satis-iplik-faturalari', label: 'İplik Faturaları', isForm: true },
+          { key: 'satis-aksesuar-faturalari', label: 'Aksesuar Faturaları', isForm: true },
+          { key: 'satis-faturalari', label: 'Satış Faturaları', isForm: true },
+        ],
+      },
+      {
         title: 'İşlemler',
         items: [
           { key: 'musteri-siparis', label: 'Müşteri Siparişi', isForm: true },
           { key: 'sevkiyat', label: 'Sevkiyat Planlama', isForm: true },
           { key: 'irsaliye', label: 'İrsaliye', isForm: true },
-          { key: 'fatura', label: 'Fatura', isForm: true },
         ],
       },
     ],

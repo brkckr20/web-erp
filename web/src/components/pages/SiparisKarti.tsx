@@ -766,7 +766,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     let defaultKesimFazlasi = ''
     try {
       const p = await parametreApi.get('siparis', 'kesimFazlasi')
-      defaultKesimFazlasi = p.deger ?? ''
+      defaultKesimFazlasi = p?.deger ?? ''
     } catch {
       defaultKesimFazlasi = ''
     }
