@@ -15,6 +15,7 @@ import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { faturaApi, type Fatura, type FaturaKalem, type FaturaFormData } from '@/lib/fatura-api'
 import type { Irsaliye } from '@/lib/irsaliye-api'
+import { irsaliyeApi } from '@/lib/irsaliye-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
@@ -54,6 +55,7 @@ interface FaturaKartiProps {
   fasonTipiId?: number | null
   id?: number
   ekranAdi?: string
+  baslangicIrsaliyeIds?: number[]
   onDeleted?: (faturaTipi: string) => void
 }
 
@@ -189,7 +191,7 @@ function CellTextInput({ value, onCommit, onEnter, className }: { value: string;
   )
 }
 
-export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted }: FaturaKartiProps) {
+export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, baslangicIrsaliyeIds, onDeleted }: FaturaKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
@@ -205,6 +207,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const [cariKod, setCariKod] = useState('')
   const [depoKod, setDepoKod] = useState('')
   const [faturaTarihi, setFaturaTarihi] = useState(dayjs())
+  const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
+  const [belgeNo, setBelgeNo] = useState('')
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
@@ -229,6 +233,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           if (cancelled) return
           setFaturaNo(f.faturaNo)
           if (f.faturaTarihi) setFaturaTarihi(dayjs(f.faturaTarihi))
+          if (f.sevkTarihi) setSevkTarihi(dayjs(f.sevkTarihi))
+          setBelgeNo(f.sevkNo ?? '')
           setAciklama(f.aciklama ?? '')
           setYetkili(f.yetkili ?? '')
           setFasonTipiKayit(f.fasonTipiId ?? null)
@@ -366,13 +372,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     }
   }
 
-  const confirmIrsaliyeEkle = () => {
-    const secilen = baglanabilir.filter((i) => seciliIrsaliyeler.includes(i.id))
-    if (secilen.length === 0) {
-      message.warning('İrsaliye seçilmedi')
-      return
-    }
-    if (!cariKod && secilen[0]?.cariHesap?.kod) setCariKod(secilen[0].cariHesap.kod)
+  // İrsaliye listesinden "Fatura Oluştur" ile açıldıysa: kalemler kilitli taşınır.
+  const irsaliyelerdenSatirlar = (secilen: Irsaliye[]): KalemRow[] => {
     const rows: KalemRow[] = []
     for (const irs of secilen) {
       for (const k of irs.kalemler ?? []) {
@@ -404,6 +405,33 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
         })
       }
     }
+    return rows
+  }
+
+  useEffect(() => {
+    if (propId || !baslangicIrsaliyeIds?.length) return
+    let cancelled = false
+    setLoading(true)
+    Promise.all(baslangicIrsaliyeIds.map((irsId) => irsaliyeApi.get(irsId)))
+      .then((list) => {
+        if (cancelled) return
+        if (list[0]?.cariHesap?.kod) setCariKod(list[0].cariHesap.kod)
+        setKalemler(irsaliyelerdenSatirlar(list))
+      })
+      .catch((err) => message.error('İrsaliye kalemleri alınamadı: ' + (err?.message || err)))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propId])
+
+  const confirmIrsaliyeEkle = () => {
+    const secilen = baglanabilir.filter((i) => seciliIrsaliyeler.includes(i.id))
+    if (secilen.length === 0) {
+      message.warning('İrsaliye seçilmedi')
+      return
+    }
+    if (!cariKod && secilen[0]?.cariHesap?.kod) setCariKod(secilen[0].cariHesap.kod)
+    const rows = irsaliyelerdenSatirlar(secilen)
     setKalemler((prev) => {
       const bosMu = prev.every((p) => !p.malzemeKod)
       return bosMu ? rows : [...prev, ...rows]
@@ -455,6 +483,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
       if (id) {
         await faturaApi.update(id, {
           faturaTarihi: faturaTarihi.format('YYYY-MM-DD'),
+          sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
+          sevkNo: belgeNo || null,
           aciklama: aciklama || null,
           cariHesapId,
           depoId,
@@ -469,6 +499,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           faturaNo,
           faturaTipi,
           faturaTarihi: faturaTarihi.format('YYYY-MM-DD'),
+          sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
+          sevkNo: belgeNo || null,
           aciklama: aciklama || null,
           cariHesapId,
           depoId,
@@ -953,6 +985,14 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                   <div className="!flex !items-center !gap-3">
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fatura Tarihi</div>
                     <DatePicker size="small" value={faturaTarihi} onChange={(d) => d && setFaturaTarihi(d)} format="DD.MM.YYYY" placeholder="Fatura tarihi" className="!w-48 !text-[12px]" />
+                  </div>
+                  <div className="!flex !items-center !gap-3">
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Sevk Tarihi</div>
+                    <DatePicker size="small" value={sevkTarihi} onChange={(d) => setSevkTarihi(d)} format="DD.MM.YYYY" placeholder="Sevk tarihi" className="!w-48 !text-[12px]" />
+                  </div>
+                  <div className="!flex !items-center !gap-3">
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Belge No</div>
+                    <Input size="small" value={belgeNo} onChange={(e) => setBelgeNo(e.target.value)} className="!w-48 !text-[12px]" />
                   </div>
                   <div className="!flex !items-center !gap-3">
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Açıklama</div>

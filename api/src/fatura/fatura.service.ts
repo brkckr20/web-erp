@@ -66,6 +66,21 @@ export class FaturaService {
     return fatura
   }
 
+  // Otomatik irsaliye dahil: tipin son nosundan +1 (8 haneli, irsaliye ile aynı kural).
+  private async nextIrsaliyeNo(tx: any, irsaliyeTipi: string): Promise<string> {
+    const last = await tx.irsaliye.findFirst({
+      where: { irsaliyeTipi, irsaliyeNo: { not: null } },
+      orderBy: { irsaliyeNo: 'desc' },
+      select: { irsaliyeNo: true },
+    })
+    let next = 1
+    if (last?.irsaliyeNo) {
+      const parsed = parseInt(last.irsaliyeNo, 10)
+      if (!isNaN(parsed)) next = parsed + 1
+    }
+    return padNo(next)
+  }
+
   // İrsaliye kalemlerinden snapshot satır üretir (miktar tarafı kaynaktan).
   private snapshotKalem(kaynak: any, fiyatOverride?: any) {
     const { id: _id, irsaliyeId: _irsaliyeId, irsaliye: _irsaliye, malzeme: _malzeme, varyant1Renk: _v1, varyant2Renk: _v2, boyahaneRenk: _br, faturaKalemleri: _fk, createdAt: _c, updatedAt: _u, fire: _fire, ...miktar } = kaynak
@@ -83,6 +98,7 @@ export class FaturaService {
   async create(dto: CreateFaturaDto) {
     const data: any = { ...dto }
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
+    if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
     if (dto.kayitTarihi) data.kayitTarihi = new Date(dto.kayitTarihi)
     if (dto.guncellemeTarihi) data.guncellemeTarihi = new Date(dto.guncellemeTarihi)
     const kalemler = dto.kalemler ?? []
@@ -140,7 +156,8 @@ export class FaturaService {
       }
 
       // 3) Direkt fatura (irsaliye bağlantısı yok): aynı tip + alt tipte otomatik irsaliye oluşur.
-      //    Ayrım: irsaliyeNo boş, faturaNo dolu. Stoku oynatan taraf bu irsaliyedir.
+      //    No, tipin son nosundan alınır (normal irsaliye gibi); faturadan geldiği faturaId'den belli olur.
+      //    Stoku oynatan taraf bu irsaliyedir.
       const baglantiVar = irsaliyeIds.length > 0 || kalemler.some((k) => k.irsaliyeKalemId)
       if (!baglantiVar && kalemler.length > 0) {
         const otoKalemler = kalemler.map((k: any) => {
@@ -149,11 +166,14 @@ export class FaturaService {
         })
         await tx.irsaliye.create({
           data: {
-            irsaliyeNo: null,
+            irsaliyeNo: await this.nextIrsaliyeNo(tx, fatura.faturaTipi),
             irsaliyeTipi: fatura.faturaTipi,
             irsaliyeTarihi: fatura.faturaTarihi,
             faturaNo: fatura.faturaNo,
             faturaTarihi: fatura.faturaTarihi,
+            faturaId: fatura.id,
+            sevkNo: fatura.sevkNo,
+            sevkTarihi: fatura.sevkTarihi,
             aciklama: fatura.aciklama,
             cariHesapId: fatura.cariHesapId,
             depoId: fatura.depoId,
@@ -172,6 +192,7 @@ export class FaturaService {
     await this.findOne(id)
     const data: any = { ...dto }
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
+    if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
     if (dto.kayitTarihi) data.kayitTarihi = new Date(dto.kayitTarihi)
     if (dto.guncellemeTarihi) data.guncellemeTarihi = new Date(dto.guncellemeTarihi)
     const kalemler = (dto as any).kalemler
@@ -213,30 +234,48 @@ export class FaturaService {
   }
 
   async remove(id: number) {
-    const fatura = await this.findOne(id)
+    await this.findOne(id)
     return this.prisma.$transaction(async (tx) => {
+      // Bağlı irsaliyelerin referansını temizlemeden önce kalem bağlarını topla.
+      const bagliKalemler = await tx.faturaKalem.findMany({
+        where: { faturaId: id, irsaliyeKalemId: { not: null } },
+        select: { irsaliyeKalemId: true },
+      })
+      const bagliIrsaliyeKalemIds = bagliKalemler.map((k) => k.irsaliyeKalemId as number)
+      let bagliIrsaliyeIds: number[] = []
+      if (bagliIrsaliyeKalemIds.length > 0) {
+        const kalemler = await tx.irsaliyeKalem.findMany({
+          where: { id: { in: bagliIrsaliyeKalemIds } },
+          select: { irsaliyeId: true },
+        })
+        bagliIrsaliyeIds = [...new Set(kalemler.map((k) => k.irsaliyeId))]
+      }
       await tx.faturaKalem.deleteMany({ where: { faturaId: id } })
-      // Sadece otomatik oluşan irsaliyeler silinir (irsaliyeNo boş + bu faturanın nosu).
-      await tx.irsaliyeKalem.deleteMany({
-        where: { irsaliye: { irsaliyeNo: null, faturaNo: fatura.faturaNo } },
-      })
-      await tx.irsaliye.deleteMany({
-        where: { irsaliyeNo: null, faturaNo: fatura.faturaNo },
-      })
+      // Sadece otomatik oluşan irsaliyeler silinir (faturaId işaretli).
+      const oto = await tx.irsaliye.findMany({ where: { faturaId: id }, select: { id: true } })
+      const otoIds = oto.map((o) => o.id)
+      if (otoIds.length > 0) {
+        await tx.irsaliyeKalem.deleteMany({ where: { irsaliyeId: { in: otoIds } } })
+        await tx.irsaliye.deleteMany({ where: { id: { in: otoIds } } })
+      }
       // İrsaliyeden oluşan faturalarda bağlı irsaliyelerin fatura referansı temizlenir.
-      await tx.irsaliye.updateMany({
-        where: { faturaNo: fatura.faturaNo, irsaliyeNo: { not: null } },
-        data: { faturaNo: null, faturaTarihi: null },
-      })
+      if (bagliIrsaliyeIds.length > 0) {
+        await tx.irsaliye.updateMany({
+          where: { id: { in: bagliIrsaliyeIds } },
+          data: { faturaNo: null, faturaTarihi: null },
+        })
+      }
       return tx.fatura.delete({ where: { id } })
     })
   }
 
-  // Fatura kartından bağlanabilir irsaliyeler: hiçbir kalemi faturaya bağlı olmayanlar.
+  // Fatura kartından bağlanabilir irsaliyeler: otomatik oluşanlar hariç,
+  // hiçbir kalemi faturaya bağlı olmayanlar.
   baglanabilirIrsaliyeler(cariHesapId?: number) {
     return this.prisma.irsaliye.findMany({
       where: {
         ...(cariHesapId ? { cariHesapId } : {}),
+        faturaId: null,
         kalemler: { none: { faturaKalemleri: { some: {} } } },
       },
       orderBy: [{ irsaliyeTarihi: 'desc' }],

@@ -8,6 +8,8 @@ export interface Fatura {
   faturaTipi: string
   faturaTarihi: string | null
   aciklama: string | null
+  sevkNo: string | null
+  sevkTarihi: string | null
   yetkili: string | null
   kayitYapan: string | null
   kayitTarihi: string | null

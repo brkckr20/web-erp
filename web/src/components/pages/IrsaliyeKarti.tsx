@@ -55,6 +55,7 @@ interface IrsaliyeKartiProps {
   onDeleted?: (irsaliyeTipi: string) => void
   baslangicKalemler?: IrsaliyeBaslangicKalem[]
   onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null) => void
+  onCreateFatura?: (info: { faturaTipi: string; irsaliyeIds: number[]; fasonTipiId?: number | null }) => void
 }
 
 export interface IrsaliyeBaslangicKalem {
@@ -255,7 +256,7 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye, onCreateFatura }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -967,7 +968,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
 
   const contextMenuItems: MenuProps['items'] =
     irsaliyeTipi === '11'
-      ? [{ key: 'fason-gidenler', label: 'Fason Gidenler (134)...', onClick: () => openFasonGidenler() }]
+      ? [
+          { key: 'fason-gidenler', label: 'Fason Gidenler (134)...', onClick: () => openFasonGidenler() },
+          ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
+        ]
       : irsaliyeTipi === '201'
         ? [
             { key: 'irsaliye-olustur', label: 'İrsaliye Oluştur', onClick: handleIrsaliyeOlustur },
@@ -976,7 +980,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           ? [
               { key: 'irsaliye-olustur', label: 'Fasona Çıkış (134) Oluştur', onClick: handleIrsaliyeOlustur },
             ]
-          : []
+          : id
+            ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }]
+            : []
 
   const iceriAktar = () => {
     const secili = fasonGidenGridRef.current?.getSelectedRows() ?? []

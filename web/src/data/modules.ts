@@ -25,6 +25,7 @@ export interface Tab {
   irsaliyeTipi?: string
   faturaTipi?: string
   ekranAdi?: string
+  baslangicIrsaliyeIds?: number[]
 }
 
 export const modules: Module[] = [

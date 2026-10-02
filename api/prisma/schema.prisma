@@ -463,6 +463,9 @@ model Irsaliye {
   aciklama          String?  @db.VarChar(1000)
   faturaNo          String?  @map("fatura_no") @db.VarChar(50)
   faturaTarihi      DateTime? @map("fatura_tarihi")
+  // Doluysa: faturadan otomatik oluşmuş irsaliyedir (faturayı silmek bunu da siler).
+  // İlişkisiz skaler FK'dır ( SiparisKalemId kalıbı ), referansı uygulama yönetir.
+  faturaId          Int?     @map("fatura_id")
   sevkNo            String?  @map("sevk_no") @db.VarChar(50)
   sevkTarihi        DateTime? @map("sevk_tarihi")
   terminTarihi      DateTime? @map("termin_tarihi")
@@ -542,6 +545,8 @@ model Fatura {
   faturaTipi        String   @map("fatura_tipi") @db.VarChar(20)
   faturaTarihi      DateTime @map("fatura_tarihi")
   aciklama          String?  @db.VarChar(1000)
+  sevkNo            String?  @map("sevk_no") @db.VarChar(50)
+  sevkTarihi        DateTime? @map("sevk_tarihi")
   yetkili           String?  @db.VarChar(200)
   kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
   kayitTarihi       DateTime? @map("kayit_tarihi")

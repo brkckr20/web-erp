@@ -10,6 +10,7 @@ export interface Irsaliye {
   aciklama: string | null
   faturaNo: string | null
   faturaTarihi: string | null
+  faturaId?: number | null
   sevkNo: string | null
   sevkTarihi: string | null
   terminTarihi: string | null

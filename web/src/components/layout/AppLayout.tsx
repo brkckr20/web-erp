@@ -283,11 +283,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 
   const openYeniFatura = useCallback(
-    (faturaTipi: string, fasonTipiId?: number | null) => {
+    (faturaTipi: string, fasonTipiId?: number | null, irsaliyeIds?: number[]) => {
       const label = faturaTipiLabelMap[faturaTipi] || faturaTipi
-      const key = `fatura-yeni-${faturaTipi}${fasonTipiId ? `-ft${fasonTipiId}` : ''}`
+      const key = `fatura-yeni-${faturaTipi}${fasonTipiId ? `-ft${fasonTipiId}` : ''}${irsaliyeIds?.length ? `-irs${irsaliyeIds.join('_')}` : ''}`
       setTabs((prev) => {
-        const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true }
+        const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true, baslangicIrsaliyeIds: irsaliyeIds }
         const exists = prev.find((t) => t.key === key)
         if (!exists) return [...prev, tab]
         return prev
@@ -310,6 +310,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setActiveTab(key)
     },
     [],
+  )
+
+  const handleCreateFatura = useCallback(
+    (info: { faturaTipi: string; irsaliyeIds: number[]; fasonTipiId?: number | null }) => {
+      openYeniFatura(info.faturaTipi, info.fasonTipiId ?? null, info.irsaliyeIds)
+    },
+    [openYeniFatura],
   )
 
   const openYeniMalzemeYonetimFisi = useCallback((irsaliyeTipi: string) => {
@@ -1290,10 +1297,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <IadeTalepleri onIrsaliyeAc={openIrsaliyeKarti} />
     }
     if (tab.key === 'satis-irsaliyeleri') {
-      return <IrsaliyeListesi onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />
+      return <IrsaliyeListesi onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} onCreateFatura={(info) => openYeniFatura(info.faturaTipi, null, info.irsaliyeIds)} />
     }
     if (tab.key === 'satinalma-irsaliyeleri') {
-      return <IrsaliyeListesi mod="satinalma" onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />
+      return <IrsaliyeListesi mod="satinalma" onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} onCreateFatura={(info) => openYeniFatura(info.faturaTipi, null, info.irsaliyeIds)} />
     }
     if (tab.key === 'satinalma-siparis') {
       return <IrsaliyeListesi mod="satinalma-siparis" onNew={() => openYeniSatinalmaSiparis([])} onSelect={openIrsaliyeKarti} />
@@ -1319,7 +1326,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} />
     }
     // Faturalar: satis-/satinalma- + [kumas|iplik|aksesuar]- + faturalari
     if (tab.key.endsWith('-faturalari')) {
@@ -1337,6 +1344,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           faturaTipi={faturaTipi}
           fasonTipiId={fasonTipiId}
           ekranAdi={tab.ekranAdi}
+          baslangicIrsaliyeIds={tab.baslangicIrsaliyeIds}
           onDeleted={() => handleTabClose(tab.key)}
         />
       )

@@ -101,6 +101,7 @@ interface IrsaliyeListesiProps {
   mod?: 'satis' | 'satinalma' | 'satinalma-siparis'
   onNew?: (irsaliyeTipi: string, fasonTipiId?: number | null) => void
   onSelect?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string; ekranAdi?: string }) => void
+  onCreateFatura?: (info: { faturaTipi: string; irsaliyeIds: number[]; ekranAdi?: string }) => void
 }
 
 // Fason alt tipi seçilebilen fiş tipleri (yeni kayıtta Fason Tanımı Select açılır).
@@ -111,7 +112,7 @@ const fasonFisTipleri = {
   'satinalma-siparis': ['202'],
 }
 
-export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: IrsaliyeListesiProps) {
+export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCreateFatura }: IrsaliyeListesiProps) {
   const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : satisTipleri
   const irsaliyeTipiOptions = gorselTipler.map((value) => ({ value, label: irsaliyeTipiMap[value] }))
   const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : 'Satış İrsaliyeleri'
@@ -175,6 +176,17 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect }: Irsa
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.({ ...r, ekranAdi }) } },
+    ...(mod !== 'satinalma-siparis'
+      ? [{
+          key: 'fatura-olustur',
+          label: 'Fatura Oluştur',
+          disabled: !selectedRow,
+          onClick: () => {
+            const r = data.find((d) => d.key === selectedRow)
+            if (r) onCreateFatura?.({ faturaTipi: r.irsaliyeTipi, irsaliyeIds: [r.id], ekranAdi })
+          },
+        }]
+      : []),
     { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
   ]

@@ -31,6 +31,8 @@ export class CreateFaturaDto {
   faturaTipi: string
   faturaTarihi?: string
   aciklama?: string
+  sevkNo?: string
+  sevkTarihi?: string
   yetkili?: string
   kayitYapan?: string
   kayitTarihi?: string
