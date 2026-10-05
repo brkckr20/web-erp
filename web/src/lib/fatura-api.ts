@@ -62,6 +62,8 @@ export const faturaApi = {
   list: (faturaTipi?: string) =>
     api.get<Fatura[]>(faturaTipi ? `/fatura?faturaTipi=${encodeURIComponent(faturaTipi)}` : '/fatura'),
   get: (id: number) => api.get<Fatura>(`/fatura/${id}`),
+  byNo: (faturaTipi: string, faturaNo: string) =>
+    api.get<Fatura>(`/fatura/by-no?faturaTipi=${encodeURIComponent(faturaTipi)}&faturaNo=${encodeURIComponent(faturaNo)}`),
   create: (data: FaturaFormData & { kalemler?: FaturaKalem[]; irsaliyeIds?: number[] }) =>
     api.post<Fatura>('/fatura', data),
   update: (id: number, data: Partial<FaturaFormData> & { kalemler?: FaturaKalem[] }) =>

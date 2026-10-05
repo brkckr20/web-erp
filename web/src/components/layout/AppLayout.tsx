@@ -1326,7 +1326,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} onOpenFatura={openFaturaKarti} />
     }
     // Faturalar: satis-/satinalma- + [kumas|iplik|aksesuar]- + faturalari
     if (tab.key.endsWith('-faturalari')) {
@@ -1335,7 +1335,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <FaturaListesi mod={mod} kategori={kategori} onNew={openYeniFatura} onSelect={openFaturaKarti} />
     }
     if (tab.key.startsWith('fatura-yeni-')) {
-      const match = tab.key.match(/^fatura-yeni-(\d+)(?:-ft(\d+))?$/)
+      const match = tab.key.match(/^fatura-yeni-(\d+)(?:-ft(\d+))?(?:-irs[\d_]*)?$/)
       const faturaTipi = match?.[1] ?? tab.key.replace('fatura-yeni-', '')
       const fasonTipiId = match?.[2] ? Number(match[2]) : null
       return (

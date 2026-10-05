@@ -87,11 +87,11 @@ interface KalemRow {
   boyahaneRenkAd: string
 }
 
-const emptyKalem = (): KalemRow => ({
+const emptyKalem = (tip: KalemRow['tip'] = 'Malzeme'): KalemRow => ({
   key: Math.random().toString(36).slice(2),
   irsaliyeKalemId: null,
   irsaliyeNo: '',
-  tip: 'Malzeme',
+  tip,
   malzemeKod: '',
   malzemeAd: '',
   barkod: '',
@@ -319,11 +319,14 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     )
   }
 
-  const addKalem = () => setKalemler((prev) => [...prev, emptyKalem()])
+  // 22-Alınan Hizmet Faturası: yeni satırlar Hizmet tipli açılır, kod listesi hizmet kartlarından gelir.
+  const varsayilanKalemTip: KalemRow['tip'] = faturaTipi === '22' ? 'Hizmet' : 'Malzeme'
+
+  const addKalem = () => setKalemler((prev) => [...prev, emptyKalem(varsayilanKalemTip)])
   const removeKalem = (key: string) =>
     setKalemler((prev) => {
       if (prev.length > 1) return prev.filter((k) => k.key !== key)
-      return prev.map((k) => (k.key === key ? { ...emptyKalem(), key: k.key } : k))
+      return prev.map((k) => (k.key === key ? { ...emptyKalem(varsayilanKalemTip), key: k.key } : k))
     })
 
   const focusCellEditor = (colId: string, rowIndex: number) => {
@@ -355,7 +358,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     let newIndex = 0
     setKalemler((prev) => {
       newIndex = prev.length
-      return [...prev, emptyKalem()]
+      return [...prev, emptyKalem(varsayilanKalemTip)]
     })
     setTimeout(() => focusCellEditor('malzemeKod', newIndex), 50)
   }
@@ -598,6 +601,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           value={p.data.malzemeKod}
           widthClass="!w-full"
           className="!w-full !h-full !text-[12px] kalem-select"
+          tip={p.data.tip === 'Hizmet' ? 5 : undefined}
           onChange={(kod, rec) => {
             const rawKdv = rec ? String((rec as Malzeme).kdvGenel ?? '').replace('%', '').replace(',', '.') : ''
             const kdv = parseFloat(rawKdv) || 0

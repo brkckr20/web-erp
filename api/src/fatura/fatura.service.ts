@@ -66,6 +66,16 @@ export class FaturaService {
     return fatura
   }
 
+  // İrsaliye kartındaki "Fatura : <no>" rozetinden fatura açmak için (tip+no unique).
+  async findByNo(faturaTipi: string, faturaNo: string) {
+    const fatura = await this.prisma.fatura.findUnique({
+      where: { faturaTipi_faturaNo: { faturaTipi, faturaNo } },
+      include: FATURA_INCLUDE,
+    })
+    if (!fatura) throw new NotFoundException('Fatura bulunamadı')
+    return fatura
+  }
+
   // Otomatik irsaliye dahil: tipin son nosundan +1 (8 haneli, irsaliye ile aynı kural).
   private async nextIrsaliyeNo(tx: any, irsaliyeTipi: string): Promise<string> {
     const last = await tx.irsaliye.findFirst({

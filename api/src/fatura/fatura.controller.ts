@@ -29,6 +29,11 @@ export class FaturaController {
     )
   }
 
+  @Get('by-no')
+  findByNo(@Query('faturaTipi') faturaTipi: string, @Query('faturaNo') faturaNo: string) {
+    return this.service.findByNo(faturaTipi, faturaNo)
+  }
+
   @Get()
   findAll(@Query('faturaTipi') faturaTipi?: string) {
     return this.service.findAll(faturaTipi)

@@ -1,6 +1,6 @@
 'use client'
 
-import { Input, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown } from 'antd'
+import { Input, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown, Tag } from 'antd'
 import type { MenuProps } from 'antd'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AgGridReact } from 'ag-grid-react'
@@ -14,6 +14,7 @@ import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem, type IrsaliyeFormData } from '@/lib/irsaliye-api'
+import { faturaApi } from '@/lib/fatura-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
@@ -56,6 +57,7 @@ interface IrsaliyeKartiProps {
   baslangicKalemler?: IrsaliyeBaslangicKalem[]
   onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null) => void
   onCreateFatura?: (info: { faturaTipi: string; irsaliyeIds: number[]; fasonTipiId?: number | null }) => void
+  onOpenFatura?: (info: { id: number; faturaTipi: string; faturaNo: string }) => void
 }
 
 export interface IrsaliyeBaslangicKalem {
@@ -256,7 +258,7 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye, onCreateFatura }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye, onCreateFatura, onOpenFatura }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -276,6 +278,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
   const [terminTarihi, setTerminTarihi] = useState<dayjs.Dayjs | null>(null)
   const [belgeNo, setBelgeNo] = useState('')
+  const [bagliFaturaNo, setBagliFaturaNo] = useState('')
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
   const [onaylandi, setOnaylandi] = useState(false)
@@ -308,6 +311,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
            if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
            if (i.terminTarihi) setTerminTarihi(dayjs(i.terminTarihi))
           setBelgeNo(i.sevkNo ?? '')
+          setBagliFaturaNo(i.faturaNo ?? '')
           setAciklama(i.aciklama ?? '')
           setYetkili((i as Irsaliye).yetkili ?? '')
           setOnaylandi(!!i.onaylandi)
@@ -500,6 +504,16 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     message.error('Hata: ' + ((err as Error)?.message ?? String(err)))
   } finally {
     setLoading(false)
+    }
+  }
+
+  const handleFaturaAc = async () => {
+    if (!bagliFaturaNo) return
+    try {
+      const f = await faturaApi.byNo(irsaliyeTipi, bagliFaturaNo)
+      onOpenFatura?.({ id: f.id, faturaTipi: f.faturaTipi, faturaNo: f.faturaNo })
+    } catch {
+      message.warning('Bağlı fatura bulunamadı')
     }
   }
 
@@ -1273,6 +1287,22 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                   </div>
                 </div>
               </div>
+
+              {bagliFaturaNo && (
+              <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
+                <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Entegrasyon Bilgileri</div>
+                <div className="!space-y-0.5">
+                  <div className="!flex !items-center !gap-3">
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fatura</div>
+                    <Tooltip title="Faturayı aç">
+                      <Tag color="orange" onClick={handleFaturaAc} className="!cursor-pointer !text-[12px] !mr-0">
+                        {bagliFaturaNo}
+                      </Tag>
+                    </Tooltip>
+                  </div>
+                </div>
+              </div>
+              )}
             </div>
           </div>
 
