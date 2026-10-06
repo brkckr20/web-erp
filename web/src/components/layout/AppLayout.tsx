@@ -64,10 +64,10 @@ import SiparisKarti from '@/components/pages/SiparisKarti'
 import TedarikEkrani from '@/components/pages/TedarikEkrani'
 import UretimHareketGirisi from '@/components/pages/UretimHareketGirisi'
 import IslemKartlari from '@/components/pages/IslemKartlari'
-import SiparisDurumu from '@/components/pages/SiparisDurumu'
 import KesimKarti from '@/components/pages/KesimKarti'
 import IadeTalepleri from '@/components/pages/IadeTalepleri'
 import KumasPlanlama from '@/components/pages/KumasPlanlama'
+import KumasTedarikRaporu from '@/components/pages/KumasTedarikRaporu'
 import IplikPlanlama from '@/components/pages/IplikPlanlama'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
@@ -88,6 +88,7 @@ import MalzemeStokEkstresi from '@/components/pages/MalzemeStokEkstresi'
 import HizmetTalepListesi from '@/components/pages/HizmetTalepListesi'
 import HizmetTalepKarti from '@/components/pages/HizmetTalepKarti'
 import HizmetListesi from '@/components/pages/HizmetListesi'
+import HizmetKarti from '@/components/pages/HizmetKarti'
 import LogTakibi from '@/components/pages/LogTakibi'
 
 const { Content } = Layout
@@ -367,6 +368,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'malzeme-stok-ekstresi-' + kod
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Ekstre - ' + kod, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openHizmetKarti = useCallback((kod: string) => {
+    const key = 'hizmet-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Hizmet Kartı - ' + kod, moduleKey: 'satinalma', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniHizmet = useCallback(() => {
+    const key = 'hizmet-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Hizmet Kartı', moduleKey: 'satinalma', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -1055,7 +1078,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <MalzemeListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} onStokEkstresi={openMalzemeStokEkstresi} />
     }
     if (tab.key === 'hizmet-kartlari') {
-      return <HizmetListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} />
+      return <HizmetListesi onSelect={openHizmetKarti} onNew={openYeniHizmet} />
+    }
+    if (tab.key === 'hizmet-karti-yeni') {
+      return <HizmetKarti isNew />
+    }
+    if (tab.key.startsWith('hizmet-karti-')) {
+      return <HizmetKarti kod={tab.key.replace('hizmet-karti-', '')} />
     }
     if (tab.key === 'malzeme-karti-yeni') {
       return <MalzemeKarti isNew />
@@ -1287,8 +1316,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'islem-kartlari') {
       return <IslemKartlari />
     }
-    if (tab.key === 'siparis-durum') {
-      return <SiparisDurumu />
+    if (tab.key === 'kumas-tedarik-raporu') {
+      return <KumasTedarikRaporu />
     }
     if (tab.key === 'kesim-emri') {
       return <KesimKarti />
@@ -1346,12 +1375,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ekranAdi={tab.ekranAdi}
           baslangicIrsaliyeIds={tab.baslangicIrsaliyeIds}
           onDeleted={() => handleTabClose(tab.key)}
+          onOpenIrsaliye={openIrsaliyeKarti}
         />
       )
     }
     if (tab.key.startsWith('fatura-karti-')) {
       const faturaId = Number(tab.key.replace('fatura-karti-', ''))
-      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} />
+      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onOpenIrsaliye={openIrsaliyeKarti} />
     }
     return (
       <div className="!p-3">

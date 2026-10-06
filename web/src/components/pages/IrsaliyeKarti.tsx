@@ -74,6 +74,42 @@ export interface IrsaliyeBaslangicKalem {
   boyahaneRenkKod?: string
   boyahaneRenkAd?: string
   varyant1RenkId?: number | null
+  varyant1RenkKod?: string | null
+  varyant1RenkAd?: string | null
+  /** Birleşmiş satırın sipariş/model dağılımı (planlamadan gelir, salt-okunur). */
+  tahsis?: KalemTahsis[]
+}
+
+/** 202 talimat satırındaki miktarın hangi sipariş/model ihtiyacından geldiği. */
+export interface KalemTahsis {
+  siparisKalemId: number | null
+  siparisNo: string
+  modelKod: string
+  miktar: number
+}
+
+/**
+ * Aynı kumaş + renkteki başlangıç kalemlerini tek satırda birleştirir (anahtar:
+ * malzemeKod + varyant1RenkId + birim), miktarları toplar, kaynakları tahsis
+ * listesinde saklar. Tahsis salt-okunurdur; satır miktarı sonradan değişirse
+ * Tahsis Detayları modalı farkı uyarı olarak gösterir.
+ */
+export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]): IrsaliyeBaslangicKalem[] {
+  const gruplar = new Map<string, IrsaliyeBaslangicKalem>()
+  for (const k of kalemler) {
+    const anahtar = `${k.malzemeKod}||${k.varyant1RenkId ?? ''}||${k.birim}`
+    const mevcut = gruplar.get(anahtar)
+    if (!mevcut) {
+      gruplar.set(anahtar, { ...k, tahsis: [...(k.tahsis ?? [])] })
+      continue
+    }
+    mevcut.miktar = (Number(mevcut.miktar) || 0) + (Number(k.miktar) || 0)
+    mevcut.tahsis = [...(mevcut.tahsis ?? []), ...(k.tahsis ?? [])]
+    const parcalar = [...(mevcut.aciklama ?? '').split(' + '), ...(k.aciklama ?? '').split(' + ')].filter(Boolean)
+    mevcut.aciklama = [...new Set(parcalar)].join(' + ')
+    if (mevcut.siparisKalemId !== k.siparisKalemId) mevcut.siparisKalemId = null
+  }
+  return [...gruplar.values()]
 }
 
 interface KalemRow {
@@ -102,6 +138,8 @@ interface KalemRow {
   varyant1RenkKod: string
   varyant1RenkAd: string
   fire: number | null
+  /** Birleşmiş satırın sipariş/model dağılımı (salt-okunur tahsis detayı). */
+  tahsis: KalemTahsis[]
 }
 
 const emptyKalem = (): KalemRow => ({
@@ -129,6 +167,7 @@ const emptyKalem = (): KalemRow => ({
   varyant1RenkKod: '',
   varyant1RenkAd: '',
   fire: null,
+  tahsis: [],
 })
 
 const irsaliyeTipiMap: Record<string, string> = {
@@ -286,7 +325,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null }
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [] }
           const val = b.miktar || 0
           if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
           else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
@@ -298,6 +337,18 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
   const [raporModalAcik, setRaporModalAcik] = useState(false)
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
+  // Sağ tık menüsü hangi satırda açıldıysa Tahsis Detayları onu gösterir (yoksa seçili satır).
+  const [sagTikSatir, setSagTikSatir] = useState<KalemRow | null>(null)
+  const [tahsisSatir, setTahsisSatir] = useState<KalemRow | null>(null)
+
+  const openTahsisDetay = () => {
+    const hedef = sagTikSatir ?? gridApiRef.current?.getSelectedRows()?.[0] ?? null
+    if (!hedef || !hedef.malzemeKod) {
+      message.warning('Önce bir satır seçin (satıra tıklayıp sağ tık menüsünü açın)')
+      return
+    }
+    setTahsisSatir(hedef)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -346,6 +397,12 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             varyant1RenkKod: (k as IrsaliyeKalem).varyant1Renk?.kod ?? '',
             varyant1RenkAd: (k as IrsaliyeKalem).varyant1Renk?.ad ?? '',
             fire: (k as IrsaliyeKalem).fire != null ? Number((k as IrsaliyeKalem).fire) : null,
+            tahsis: ((k as IrsaliyeKalem).tahsisler ?? []).map((t) => ({
+              siparisKalemId: t.siparisKalemId ?? null,
+              siparisNo: t.siparisNo ?? '',
+              modelKod: t.modelKod ?? '',
+              miktar: Number(t.miktar) || 0,
+            })),
           }))
           setKalemler(rows.length > 0 ? rows : [])
         })
@@ -383,10 +440,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }, [irsaliyeTipi])
 
   const hesapMiktariGetir = (k: KalemRow): number => {
-    switch (k.hesapBirimi) {
-      case 'brutKg': return k.brutKg || 0
+    // Kartlardan büyük/küçük harf karışık gelebilir ('Adet' vs 'adet') → normalize et.
+    switch (String(k.hesapBirimi ?? '').toLowerCase()) {
+      case 'brutkg': return k.brutKg || 0
       case 'kg': return k.kg || 0
-      case 'brutMt': return k.brutMt || 0
+      case 'brutmt': return k.brutMt || 0
       case 'mt': return k.mt || 0
       case 'adet': return k.adet || 0
       default: return 0
@@ -460,6 +518,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         siparisKalemId: k.siparisKalemId,
         boyahaneRenkId: k.boyahaneRenkId,
         varyant1RenkId: k.varyant1RenkId,
+        tahsisler: k.tahsis,
       })) as IrsaliyeKalem[]
 
       if (id) {
@@ -940,8 +999,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }
 
   const handleIrsaliyeOlustur = () => {
-    const secili = gridApiRef.current?.getSelectedRows() as KalemRow[] | undefined
-    const kaynak = secili && secili.length > 0 ? secili : kalemler.filter((k) => Boolean(k.malzemeKod))
+    // Belge bazında aktarım: seçimden bağımsız TÜM geçerli satırlar aktarılır.
+    // (Satıra tıklanması seçim oluşturuyordu ve 134'e tek satır gidiyordu.)
+    const kaynak = kalemler.filter((k) => Boolean(k.malzemeKod))
     if (kaynak.length === 0) {
       message.warning('Aktarılacak kalem yok')
       return
@@ -974,6 +1034,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         boyahaneRenkAd: k.boyahaneRenkAd || undefined,
         // varyant1 (sipariş rengi) 202'den 134'e taşınmaz: çıkış ham kumaştır.
         varyant1RenkId: irsaliyeTipi === '202' ? null : (k.varyant1RenkId ?? null),
+        // Birleşmiş satırın tahsis dağılımı sonraki fişe de taşınır (salt-okunur detay).
+        tahsis: k.tahsis ?? [],
       })
     }
     // 201 -> Satın Alma İrsaliyesi (tip 1); 202 -> Fasona Çıkış (tip 134, fason tipi aynen taşınır)
@@ -993,10 +1055,16 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         : irsaliyeTipi === '202'
           ? [
               { key: 'irsaliye-olustur', label: 'Fasona Çıkış (134) Oluştur', onClick: handleIrsaliyeOlustur },
+              { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
             ]
-          : id
-            ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }]
-            : []
+          : irsaliyeTipi === '134'
+            ? [
+                ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
+                { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
+              ]
+            : id
+              ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }]
+              : []
 
   const iceriAktar = () => {
     const secili = fasonGidenGridRef.current?.getSelectedRows() ?? []
@@ -1032,6 +1100,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       varyant1RenkKod: k.varyant1Renk?.kod ?? '',
       varyant1RenkAd: k.varyant1Renk?.ad ?? '',
       fire: null,
+      // 134'teki birleşmiş satırın tahsis dağılımı 11 girişine de taşınır.
+      tahsis: (k.tahsisler ?? []).map((t) => ({
+        siparisKalemId: t.siparisKalemId ?? null,
+        siparisNo: t.siparisNo ?? '',
+        modelKod: t.modelKod ?? '',
+        miktar: Number(t.miktar) || 0,
+      })),
     }))
     setKalemler((prev) => {
       const bosMu = prev.every((p) => !p.malzemeKod)
@@ -1351,6 +1426,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                       gridApiRef.current = e.api
                       tryLoadKolonFromDb(e.api)
                     }}
+                    onCellContextMenu={(e: { data?: KalemRow | null }) => {
+                      if (e.data) setSagTikSatir(e.data)
+                    }}
                     onCellFocused={(e: CellFocusedEvent) => {
                       const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
                       if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
@@ -1435,6 +1513,68 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         parametreler={id ? { id } : undefined}
         onCancel={() => setRaporModalAcik(false)}
       />
+      <Modal
+        open={tahsisSatir != null}
+        onCancel={() => setTahsisSatir(null)}
+        width={560}
+        title={
+          <span className="!text-[13px] !font-semibold">
+            Tahsis Detayları — {tahsisSatir?.malzemeKod} {tahsisSatir?.malzemeAd}
+          </span>
+        }
+        footer={[
+          <Button key="kapat" type="primary" onClick={() => setTahsisSatir(null)} className="!text-[12px]">
+            Kapat
+          </Button>,
+        ]}
+      >
+        {(() => {
+          const liste = tahsisSatir?.tahsis ?? []
+          const tahsisToplam = liste.reduce((t, x) => t + (Number(x.miktar) || 0), 0)
+          const satirMiktar = tahsisSatir ? hesapMiktariGetir(tahsisSatir) : 0
+          const fark = satirMiktar - tahsisToplam
+          return (
+            <div className="!flex !flex-col !gap-2">
+              <div className="!text-[11px] !text-[#6b7280]">
+                Bu satırdaki miktarın hangi sipariş/model ihtiyacından geldiği (salt-okunur).
+              </div>
+              {liste.length === 0 ? (
+                <div className="!text-[12px] !text-[#6b7280]">Bu satırda tahsis detayı yok.</div>
+              ) : (
+                <table className="!w-full !text-[12px] !border-collapse">
+                  <thead>
+                    <tr className="!bg-[#f9fafb] !text-[#6b7280] !text-left">
+                      <th className="!font-semibold !px-2 !py-1 !border !border-gray-100">Sipariş</th>
+                      <th className="!font-semibold !px-2 !py-1 !border !border-gray-100">Model</th>
+                      <th className="!font-semibold !px-2 !py-1 !border !border-gray-100 !text-right">İhtiyaç</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liste.map((t, i) => (
+                      <tr key={i} className={i % 2 === 1 ? '!bg-[#fafafa]' : ''}>
+                        <td className="!px-2 !py-1 !border !border-gray-100">{t.siparisNo || '-'}</td>
+                        <td className="!px-2 !py-1 !border !border-gray-100">{t.modelKod || '-'}</td>
+                        <td className="!px-2 !py-1 !border !border-gray-100 !text-right !tabular-nums">
+                          {(Number(t.miktar) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="!flex !items-center !justify-end !gap-4 !text-[12px] !text-[#333]">
+                <span>Tahsis toplamı: <span className="!font-semibold !tabular-nums">{tahsisToplam.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span></span>
+                <span>Satır miktarı: <span className="!font-semibold !tabular-nums">{satirMiktar.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span></span>
+              </div>
+              {Math.abs(fark) > 0.0005 && (
+                <div className="!text-[12px] !bg-[#fff7ed] !border !border-[#fed7aa] !text-[#c2410c] !rounded-sm !px-2 !py-1.5">
+                  Uyarı: satır miktarı sonradan değiştirilmiş — tahsis toplamından {Math.abs(fark).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {fark > 0 ? 'fazla' : 'eksik'}.
+                </div>
+              )}
+            </div>
+          )
+        })()}
+      </Modal>
     </Spin>
   )
 }

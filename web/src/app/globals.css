@@ -9,6 +9,12 @@
   color: #92400e;
 }
 
+/* Kumaş Tedarik Raporu: çift satırlara hafif gri zemin (sadece bu rapor). */
+.kumas-tedarik-raporu .cift-satir,
+.kumas-tedarik-raporu .cift-satir .ag-cell {
+  background-color: #f6f8fa !important;
+}
+
 @media print {
   body * {
     visibility: hidden;

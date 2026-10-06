@@ -1,6 +1,8 @@
 export class CreateMalzemeDto {
   kod: string
   ad: string
+  ozelKod?: string
+  aciklama?: string
   kullanimda?: boolean
   tip?: number
   malzemeTuru?: string

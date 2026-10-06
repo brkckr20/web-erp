@@ -19,6 +19,7 @@ import DataGrid, { DataGridHandle } from '@/components/shared/DataGrid'
 import { tedarikApi, type KumasPlanlamaSatir, type KumasHareketSatiri } from '@/lib/tedarik-api'
 import { fasonTipiApi, parseKategoriler, type FasonTipi } from '@/lib/fason-tipi-api'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
+import { baslangicKalemleriBirlestir } from '@/components/pages/IrsaliyeKarti'
 
 const fisTipiAdlari: Record<string, string> = {
   '1': 'Mal Alım İrsaliyesi',
@@ -230,21 +231,35 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc, on
   ]
 
   // Seçili planlama satırlarını fiş kalemlerine çevirir. İplik tarafında birim kg'dir.
-  // siparisKalemId taşınır: fason kalemi siparişe bağlanır (fire raporu için).
+  // Aynı iplik + renkteki satırlar tek kalemde birleşir (miktar toplanır);
+  // kaynaklar tahsis listesinde saklanır (202 satırında sağ tık -> Tahsis Detayları).
   // varyant1 = sipariş iplik rengi, 202-Fason Talimatı'nda görünür (planlama bilgisi);
   // 134'e aktarılırken düşer -> çıkış ham/varyantsız, 11 girişinde boyahane kartı seçilir.
   const satirlariKalemeCevir = (satirlar: KumasPlanlamaSatir[]): IrsaliyeBaslangicKalem[] =>
-    satirlar.map((r) => ({
-      malzemeKod: r.malzemeKod,
-      malzemeAd: r.malzemeAd,
-      miktar: Number(r.gerekenMiktar) || 0,
-      birim: 'kg',
-      aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
-      siparisKalemId: r.siparisKalemId ?? null,
-      varyant1RenkId: r.varyant1RenkId ?? null,
-      varyant1RenkKod: r.varyant1 || null,
-      varyant1RenkAd: r.varyant1Aciklama || null,
-    }))
+    baslangicKalemleriBirlestir(
+      satirlar.map((r) => {
+        const miktar = Number(r.gerekenMiktar) || 0
+        return {
+          malzemeKod: r.malzemeKod,
+          malzemeAd: r.malzemeAd,
+          miktar,
+          birim: 'kg',
+          aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+          siparisKalemId: r.siparisKalemId ?? null,
+          varyant1RenkId: r.varyant1RenkId ?? null,
+          varyant1RenkKod: r.varyant1 || null,
+          varyant1RenkAd: r.varyant1Aciklama || null,
+          tahsis: [
+            {
+              siparisKalemId: r.siparisKalemId ?? null,
+              siparisNo: r.siparisNo ?? '',
+              modelKod: r.modelKod ?? '',
+              miktar,
+            },
+          ],
+        }
+      }),
+    )
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'satinalma-talimat' || key === 'ham-satinalma-talimat') {

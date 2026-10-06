@@ -22,6 +22,7 @@ export interface Fatura {
   depo?: { id: number; kod: string; ad: string } | null
   fasonTipi?: { id: number; ad: string } | null
   kalemler?: FaturaKalem[]
+  irsaliyeler?: { id: number; irsaliyeTipi: string; irsaliyeNo: string | null }[]
 }
 
 export interface FaturaKalem {

@@ -64,6 +64,17 @@ export interface IrsaliyeKalem {
   varyant2Renk?: { id: number; kod: string; ad: string } | null
   boyahaneRenk?: { id: number; kod: string; ad: string } | null
   malzeme?: { id: number; kod: string; ad: string; barkod?: string | null } | null
+  /** Birleşmiş 202 talimat satırının sipariş/model dağılımı (salt-okunur). */
+  tahsisler?: IrsaliyeKalemTahsis[]
+}
+
+export interface IrsaliyeKalemTahsis {
+  id?: number
+  irsaliyeKalemId?: number
+  siparisKalemId?: number | null
+  siparisNo?: string | null
+  modelKod?: string | null
+  miktar: number | string | null
 }
 
 export type IrsaliyeFormData = Omit<Irsaliye, 'id' | 'kalemler'>

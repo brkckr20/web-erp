@@ -37,8 +37,34 @@ function fireHesapla(k: any): Prisma.Decimal | null {
 
 // Kalem verisini yazmaya hazırlar: ilişki alanlarını temizler, fire'ı hesaplar.
 function kalemDataHazirla(k: any): any {
-  const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, fire: _fire, ...rest } = k
+  const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, fire: _fire, tahsisler: _tahsisler, ...rest } = k
   return { ...rest, fire: fireHesapla(k) }
+}
+
+const kalemInclude = {
+  malzeme: true,
+  varyant1Renk: true,
+  varyant2Renk: true,
+  boyahaneRenk: true,
+  tahsisler: true,
+}
+
+// Kalem satırına bağlı tahsis dağılımını yazar (aynı transaction içinde).
+async function tahsisleriYaz(tx: any, irsaliyeKalemId: number, tahsisler: any[] | undefined) {
+  if (!Array.isArray(tahsisler) || tahsisler.length === 0) return
+  for (const t of tahsisler) {
+    const miktar = Number(t.miktar) || 0
+    if (!miktar) continue
+    await tx.irsaliyeKalemTahsis.create({
+      data: {
+        irsaliyeKalemId,
+        siparisKalemId: t.siparisKalemId ?? null,
+        siparisNo: t.siparisNo ?? null,
+        modelKod: t.modelKod ?? null,
+        miktar: new Prisma.Decimal(miktar),
+      },
+    })
+  }
 }
 
 @Injectable()
@@ -72,7 +98,7 @@ export class IrsaliyeService {
         cariHesap: true,
         depo: true,
         fasonTipi: true,
-        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
+        kalemler: { include: kalemInclude },
       },
     })
   }
@@ -84,7 +110,7 @@ export class IrsaliyeService {
         cariHesap: true,
         depo: true,
         fasonTipi: true,
-        kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
+        kalemler: { include: kalemInclude },
       },
     })
     if (!irsaliye) throw new NotFoundException('İrsaliye bulunamadı')
@@ -106,9 +132,10 @@ export class IrsaliyeService {
       if (dto.kalemler && dto.kalemler.length > 0) {
         for (const k of dto.kalemler) {
           const kalemData = kalemDataHazirla(k)
-          await tx.irsaliyeKalem.create({
+          const kalem = await tx.irsaliyeKalem.create({
             data: { ...kalemData, irsaliyeId: irsaliye.id, uuid: kalemData.uuid ?? randomUUID() } as any,
           })
+          await tahsisleriYaz(tx, kalem.id, (k as any).tahsisler)
         }
       }
       return tx.irsaliye.findUnique({
@@ -117,7 +144,7 @@ export class IrsaliyeService {
           cariHesap: true,
           depo: true,
           fasonTipi: true,
-          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
+          kalemler: { include: kalemInclude },
         },
       })
     })
@@ -152,9 +179,10 @@ export class IrsaliyeService {
         await tx.irsaliyeKalem.deleteMany({ where: { irsaliyeId: id } })
         for (const k of kalemler) {
           const kalemData = kalemDataHazirla(k)
-          await tx.irsaliyeKalem.create({
+          const kalem = await tx.irsaliyeKalem.create({
             data: { ...kalemData, irsaliyeId: id, uuid: kalemData.uuid ?? randomUUID() } as any,
           })
+          await tahsisleriYaz(tx, kalem.id, (k as any).tahsisler)
         }
       }
       return tx.irsaliye.findUnique({
@@ -163,7 +191,7 @@ export class IrsaliyeService {
           cariHesap: true,
           depo: true,
           fasonTipi: true,
-          kalemler: { include: { malzeme: true, varyant1Renk: true, varyant2Renk: true, boyahaneRenk: true } },
+          kalemler: { include: kalemInclude },
         },
       })
     })

@@ -1,6 +1,6 @@
 'use client'
 
-import { Input, DatePicker, Select, Button, App, Spin, Modal, Checkbox, Popconfirm, Tooltip, Popover, Dropdown } from 'antd'
+import { Input, DatePicker, Select, Button, App, Spin, Modal, Checkbox, Popconfirm, Tooltip, Popover, Dropdown, Tag } from 'antd'
 import type { MenuProps } from 'antd'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AgGridReact } from 'ag-grid-react'
@@ -57,6 +57,7 @@ interface FaturaKartiProps {
   ekranAdi?: string
   baslangicIrsaliyeIds?: number[]
   onDeleted?: (faturaTipi: string) => void
+  onOpenIrsaliye?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
 }
 
 interface KalemRow {
@@ -191,7 +192,7 @@ function CellTextInput({ value, onCommit, onEnter, className }: { value: string;
   )
 }
 
-export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, baslangicIrsaliyeIds, onDeleted }: FaturaKartiProps) {
+export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, baslangicIrsaliyeIds, onDeleted, onOpenIrsaliye }: FaturaKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
@@ -209,6 +210,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const [faturaTarihi, setFaturaTarihi] = useState(dayjs())
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
   const [belgeNo, setBelgeNo] = useState('')
+  const [bagliIrsaliyeler, setBagliIrsaliyeler] = useState<{ id: number; irsaliyeTipi: string; irsaliyeNo: string | null }[]>([])
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
@@ -241,6 +243,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           setFasonTipiAd(f.fasonTipi?.ad ?? '')
           setCariKod(f.cariHesap?.kod ?? '')
           setDepoKod(f.depo?.kod ?? '')
+          setBagliIrsaliyeler(f.irsaliyeler ?? [])
           const rows: KalemRow[] = (f.kalemler ?? []).map((k) => ({
             key: Math.random().toString(36).slice(2),
             irsaliyeKalemId: k.irsaliyeKalemId ?? null,
@@ -297,10 +300,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   }, [id, fasonTipiId])
 
   const hesapMiktariGetir = (k: KalemRow): number => {
-    switch (k.hesapBirimi) {
-      case 'brutKg': return k.brutKg || 0
+    // Kartlardan büyük/küçük harf karışık gelebilir ('Adet' vs 'adet') → normalize et.
+    switch (String(k.hesapBirimi ?? '').toLowerCase()) {
+      case 'brutkg': return k.brutKg || 0
       case 'kg': return k.kg || 0
-      case 'brutMt': return k.brutMt || 0
+      case 'brutmt': return k.brutMt || 0
       case 'mt': return k.mt || 0
       case 'adet': return k.adet || 0
       default: return 0
@@ -513,6 +517,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           kalemler: kalemPayload,
         } as FaturaFormData & { kalemler: FaturaKalem[] })
         setLocalId(created.id)
+        setBagliIrsaliyeler(created.irsaliyeler ?? [])
         message.success(
           (created.kalemler ?? []).some((k) => k.irsaliyeKalemId != null)
             ? 'Fatura ve kalemler kaydedildi'
@@ -601,7 +606,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           value={p.data.malzemeKod}
           widthClass="!w-full"
           className="!w-full !h-full !text-[12px] kalem-select"
-          tip={p.data.tip === 'Hizmet' ? 5 : undefined}
+          tip={p.data.tip === 'Hizmet' ? 6 : undefined}
           onChange={(kod, rec) => {
             const rawKdv = rec ? String((rec as Malzeme).kdvGenel ?? '').replace('%', '').replace(',', '.') : ''
             const kdv = parseFloat(rawKdv) || 0
@@ -1028,6 +1033,26 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                   </div>
                 </div>
               </div>
+
+              {bagliIrsaliyeler.length > 0 && (
+              <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
+                <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Entegrasyon Bilgileri</div>
+                <div className="!space-y-0.5">
+                  <div className="!flex !items-start !gap-3">
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">İrsaliye</div>
+                    <div className="!flex !flex-wrap !gap-1">
+                      {bagliIrsaliyeler.map((r) => (
+                        <Tooltip key={r.id} title="İrsaliyeyi aç">
+                          <Tag color="blue" onClick={() => onOpenIrsaliye?.({ id: r.id, irsaliyeTipi: r.irsaliyeTipi, irsaliyeNo: r.irsaliyeNo ?? '' })} className="!cursor-pointer !text-[12px] !mr-0">
+                            {r.irsaliyeNo ?? '(nosuz)'}
+                          </Tag>
+                        </Tooltip>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              )}
             </div>
           </div>
 

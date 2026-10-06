@@ -117,8 +117,7 @@ export const modules: Module[] = [
       {
         title: 'Raporlar',
         items: [
-          { key: 'siparis-durum', label: 'Sipariş Durum Raporu' },
-          { key: 'uretim-takip', label: 'Üretim Takip Raporu' },
+          { key: 'kumas-tedarik-raporu', label: 'Kumaş Tedarik Raporu' },
         ],
       },
     ],
@@ -152,6 +151,12 @@ export const modules: Module[] = [
     icon: '🛒',
     categories: [
       {
+        title: 'Tanımlamalar',
+        items: [
+          { key: 'hizmet-kartlari', label: 'Alınan Hizmet Kartları', isForm: true },
+        ],
+      },
+      {
         title: 'İşlemler',
         items: [
           { key: 'satinalma-siparis', label: 'Satın Alma Siparişi', isForm: true },
@@ -162,7 +167,6 @@ export const modules: Module[] = [
       {
         title: 'İrsaliyeler',
         items: [
-          { key: 'hizmet-kartlari', label: 'Alınan Hizmet Kartları', isForm: true },
           { key: 'satinalma-kumas-irsaliyeleri', label: 'Kumaş İrsaliyeleri', isForm: true },
           { key: 'satinalma-iplik-irsaliyeleri', label: 'İplik İrsaliyeleri', isForm: true },
           { key: 'satinalma-aksesuar-irsaliyeleri', label: 'Aksesuar İrsaliyeleri', isForm: true },

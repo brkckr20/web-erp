@@ -6,6 +6,8 @@ export interface Malzeme {
   id: number
   kod: string
   ad: string
+  ozelKod?: string | null
+  aciklama?: string | null
   kullanimda: boolean
   tip: number
   malzemeTuru: string | null

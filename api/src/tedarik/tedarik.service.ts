@@ -297,6 +297,7 @@ export class TedarikService {
         varyant1: string
         varyant1Aciklama: string
         varyant1RenkId: number | null
+        brutMiktar: unknown
         gerekenMiktar: unknown
         bayat: unknown
         birim: string
@@ -316,6 +317,7 @@ export class TedarikService {
         ti.renk_kod         AS varyant1,
         ti.renk_ad          AS varyant1Aciklama,
         ti.renk_id          AS varyant1RenkId,
+        SUM(ti.brut_miktar) AS brutMiktar,
         SUM(ti.net_miktar)  AS gerekenMiktar,
         MIN(CASE WHEN ti.durum = N'guncel-degil' THEN 1 ELSE 0 END) AS bayat,
         MIN(ti.birim)       AS birim
@@ -347,6 +349,7 @@ export class TedarikService {
       varyant1: r.varyant1,
       varyant1Aciklama: r.varyant1Aciklama,
       varyant1RenkId: r.varyant1RenkId,
+      brutMiktar: Number(r.brutMiktar) || 0,
       gerekenMiktar: Number(r.gerekenMiktar) || 0,
       guncelMi: Number(r.bayat ?? 0) === 0,
       birim: r.birim,

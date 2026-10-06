@@ -377,6 +377,14 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         setEkList((prev) => [...uploaded, ...prev])
         setDosyalar([])
       }
+      // Reçete başlığı backend'de otomatik açılır; kaydetme sonrası state'e al ki
+      // kartı kapatıp açmadan Reçete-Kumaş satırı eklenebilsin.
+      if (currentId) {
+        try {
+          const data = await modelReceteApi.getByMalzeme(currentId)
+          if (data) setRecete(data)
+        } catch { /* reçete ilk satır eklenirken açılır */ }
+      }
       message.success('Model kaydedildi')
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : 'Kayıt sırasında hata oluştu')
@@ -406,9 +414,28 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   }
 
   const addKumasKalem = async () => {
-    if (!recete) return
+    // Reçete başlığı yoksa backend'den aç (kaydedilmiş model gerekir).
+    let aktif = recete
+    if (!aktif) {
+      if (!model?.id) {
+        message.warning('Önce model bilgilerini kaydedin')
+        return
+      }
+      try {
+        const data = await modelReceteApi.getByMalzeme(model.id)
+        if (!data) {
+          message.error('Reçete açılamadı')
+          return
+        }
+        setRecete(data)
+        aktif = data
+      } catch (err: unknown) {
+        message.error(err instanceof Error ? err.message : 'Reçete açılamadı')
+        return
+      }
+    }
     try {
-      const created = await modelReceteApi.createKalem({ receteId: recete.id, tip: 2 })
+      const created = await modelReceteApi.createKalem({ receteId: aktif.id, tip: 2 })
       const newRow: KumasRow = {
         key: `recete-${created.id}`,
         backendId: created.id,

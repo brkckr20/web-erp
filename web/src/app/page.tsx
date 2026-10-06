@@ -3,6 +3,7 @@
 import { Card, Row, Col } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { depoApi } from '@/lib/depo-api'
+import { dovizApi, type DovizKuruSatir } from '@/lib/doviz-api'
 import { irsaliyeApi, type Irsaliye } from '@/lib/irsaliye-api'
 
 interface SonHareket {
@@ -43,12 +44,14 @@ export default function Home() {
   const [hareketYukleniyor, setHareketYukleniyor] = useState(true)
   const [buAyGiris, setBuAyGiris] = useState<number | null>(null)
   const [buAyCikis, setBuAyCikis] = useState<number | null>(null)
+  const [kurlar, setKurlar] = useState<DovizKuruSatir[]>([])
 
   useEffect(() => {
     depoApi
       .list()
       .then((depolar) => setAktifDepo(depolar.filter((d) => d.durum).length))
       .catch(() => setAktifDepo(null))
+    dovizApi.getSonKurlar().then(setKurlar).catch(() => setKurlar([]))
   }, [])
 
   useEffect(() => {
@@ -99,11 +102,30 @@ export default function Home() {
     return () => { cancelled = true }
   }, [])
 
-  const stats = useMemo(() => [
-    { label: 'Bu Ay Giriş', value: buAyGiris === null ? '—' : String(buAyGiris), color: '#10b981' },
-    { label: 'Bu Ay Çıkış', value: buAyCikis === null ? '—' : String(buAyCikis), color: '#ef4444' },
-    { label: 'Aktif Depo', value: aktifDepo === null ? '—' : String(aktifDepo), color: '#3b82f6' },
-  ], [aktifDepo, buAyGiris, buAyCikis])
+  const formatKur = (v: number | null) =>
+    v == null ? '—' : v.toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+
+  const stats = useMemo(() => {
+    const usd = kurlar.find((k) => k.dovizKodu === 'USD')
+    const eur = kurlar.find((k) => k.dovizKodu === 'EUR')
+    return [
+      { label: 'Bu Ay Giriş', value: buAyGiris === null ? '—' : String(buAyGiris), color: '#10b981' },
+      { label: 'Bu Ay Çıkış', value: buAyCikis === null ? '—' : String(buAyCikis), color: '#ef4444' },
+      { label: 'Aktif Depo', value: aktifDepo === null ? '—' : String(aktifDepo), color: '#3b82f6' },
+      {
+        label: `USD${usd?.tarih ? ' · ' + formatTarihKisa(usd.tarih) : ''}`,
+        value: formatKur(usd?.satisKuru ?? null),
+        sub: usd ? `Alış ${formatKur(usd.alisKuru)}` : undefined,
+        color: '#8b5cf6',
+      },
+      {
+        label: `EUR${eur?.tarih ? ' · ' + formatTarihKisa(eur.tarih) : ''}`,
+        value: formatKur(eur?.satisKuru ?? null),
+        sub: eur ? `Alış ${formatKur(eur.alisKuru)}` : undefined,
+        color: '#f59e0b',
+      },
+    ]
+  }, [aktifDepo, buAyGiris, buAyCikis, kurlar])
 
   return (
     <div className="!p-3">
@@ -113,7 +135,7 @@ export default function Home() {
 
       <Row gutter={[8, 8]}>
         {stats.map((s) => (
-          <Col span={6} key={s.label}>
+          <Col flex="1 1 0" key={s.label}>
             <Card
               className="!rounded-sm !shadow-none"
               styles={{ body: { padding: '10px 12px' } }}
@@ -124,6 +146,7 @@ export default function Home() {
               <div className="!text-xl !font-bold" style={{ color: s.color }}>
                 {s.value}
               </div>
+              <div className="!text-[10px] !text-[#9ca3af] !mt-0.5">{'sub' in s ? (s.sub ?? ' ') : ' '}</div>
             </Card>
           </Col>
         ))}

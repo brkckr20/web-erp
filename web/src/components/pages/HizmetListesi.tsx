@@ -13,9 +13,8 @@ interface HizmetRow {
   id: number
   kod: string
   ad: string
-  malzemeTuru: string | null
-  tipi: string | null
-  kategori: string | null
+  ozelKod: string | null
+  kdvGenel: string | null
   kullanimda: boolean
 }
 
@@ -32,16 +31,15 @@ export default function HizmetListesi({ onSelect, onNew }: HizmetListesiProps) {
   const load = async () => {
     setLoading(true)
     try {
-      const list = await malzemeApi.list(5)
+      const list = await malzemeApi.list(6)
       setData(
         list.map((d: Malzeme) => ({
           key: String(d.id),
           id: d.id,
           kod: d.kod,
           ad: d.ad,
-          malzemeTuru: d.malzemeTuru,
-          tipi: d.tipi,
-          kategori: d.kategori,
+          ozelKod: d.ozelKod ?? null,
+          kdvGenel: d.kdvGenel ?? null,
           kullanimda: d.kullanimda,
         })),
       )
@@ -71,9 +69,8 @@ export default function HizmetListesi({ onSelect, onNew }: HizmetListesiProps) {
         cellStyle: { color: '#e65100', fontWeight: 500 },
       },
       { headerName: 'Adı', field: 'ad', flex: 1, minWidth: 160 },
-      { headerName: 'Türü', field: 'malzemeTuru', width: 120, valueFormatter: (p) => p.value ?? '-' },
-      { headerName: 'Tipi', field: 'tipi', width: 120, valueFormatter: (p) => p.value ?? '-' },
-      { headerName: 'Kategori', field: 'kategori', width: 120, valueFormatter: (p) => p.value ?? '-' },
+      { headerName: 'Özel Kod', field: 'ozelKod', width: 130, valueFormatter: (p) => p.value ?? '-' },
+      { headerName: 'KDV', field: 'kdvGenel', width: 80, valueFormatter: (p) => p.value ?? '-' },
       {
         headerName: 'Durum',
         field: 'kullanimda',

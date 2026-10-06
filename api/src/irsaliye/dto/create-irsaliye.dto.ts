@@ -21,6 +21,14 @@ export class CreateIrsaliyeKalemDto {
   varyant1RenkId?: number
   boyahaneRenkId?: number | null
   varyant2RenkId?: number
+  tahsisler?: CreateIrsaliyeKalemTahsisDto[]
+}
+
+export class CreateIrsaliyeKalemTahsisDto {
+  siparisKalemId?: number | null
+  siparisNo?: string
+  modelKod?: string
+  miktar: number
 }
 
 export class UpdateIrsaliyeKalemDto extends CreateIrsaliyeKalemDto {}

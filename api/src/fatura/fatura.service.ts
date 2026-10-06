@@ -63,7 +63,7 @@ export class FaturaService {
       include: FATURA_INCLUDE,
     })
     if (!fatura) throw new NotFoundException('Fatura bulunamadı')
-    return fatura
+    return this.withIrsaliyeler(this.prisma, fatura)
   }
 
   // İrsaliye kartındaki "Fatura : <no>" rozetinden fatura açmak için (tip+no unique).
@@ -73,7 +73,17 @@ export class FaturaService {
       include: FATURA_INCLUDE,
     })
     if (!fatura) throw new NotFoundException('Fatura bulunamadı')
-    return fatura
+    return this.withIrsaliyeler(this.prisma, fatura)
+  }
+
+  // Fatura kartındaki "Entegrasyon Bilgileri" kutusu için: faturaya bağlı irsaliyeler (faturaId işaretliler).
+  private async withIrsaliyeler(client: any, fatura: any) {
+    const irsaliyeler = await client.irsaliye.findMany({
+      where: { faturaId: fatura.id },
+      select: { id: true, irsaliyeTipi: true, irsaliyeNo: true },
+      orderBy: { irsaliyeNo: 'asc' },
+    })
+    return { ...fatura, irsaliyeler }
   }
 
   // Otomatik irsaliye dahil: tipin son nosundan +1 (8 haneli, irsaliye ile aynı kural).
@@ -194,7 +204,8 @@ export class FaturaService {
         })
       }
 
-      return tx.fatura.findUnique({ where: { id: fatura.id }, include: FATURA_INCLUDE })
+      const kayit = await tx.fatura.findUnique({ where: { id: fatura.id }, include: FATURA_INCLUDE })
+      return this.withIrsaliyeler(tx, kayit)
     })
   }
 
@@ -239,7 +250,8 @@ export class FaturaService {
           await tx.faturaKalem.create({ data: { ...kalemData, faturaId: id } as any })
         }
       }
-      return tx.fatura.findUnique({ where: { id }, include: FATURA_INCLUDE })
+      const kayit = await tx.fatura.findUnique({ where: { id }, include: FATURA_INCLUDE })
+      return this.withIrsaliyeler(tx, kayit)
     })
   }
 

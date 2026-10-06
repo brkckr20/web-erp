@@ -34,8 +34,10 @@ export default function MalzemeListesi({ onSelect, onNew, onStokEkstresi }: Malz
     setLoading(true)
     try {
       const list = await malzemeApi.list()
+      // Model (tip 5) ve Alınan Hizmet (tip 6) kartları bu listede görünmez; kendi menülerinden açılır.
+      const haricModel = list.filter((d: Malzeme) => d.tip !== 5 && d.tip !== 6)
       setData(
-        list.map((d: Malzeme) => ({
+        haricModel.map((d: Malzeme) => ({
           key: String(d.id),
           id: d.id,
           kod: d.kod,
