@@ -37,7 +37,7 @@ function fireHesapla(k: any): Prisma.Decimal | null {
 
 // Kalem verisini yazmaya hazırlar: ilişki alanlarını temizler, fire'ı hesaplar.
 function kalemDataHazirla(k: any): any {
-  const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, fire: _fire, tahsisler: _tahsisler, ...rest } = k
+  const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, fire: _fire, tahsisler: _tahsisler, islemler: _islemler, prosesler: _prosesler, ...rest } = k
   return { ...rest, fire: fireHesapla(k) }
 }
 
@@ -47,6 +47,21 @@ const kalemInclude = {
   varyant2Renk: true,
   boyahaneRenk: true,
   tahsisler: true,
+  islemler: { include: { islem: true } },
+}
+
+// Kalem satırına seçilen prosesleri yazar (aynı transaction içinde).
+async function islemleriYaz(tx: any, irsaliyeKalemId: number, prosesler: { islemId: number; sira?: number }[] | undefined) {
+  if (!Array.isArray(prosesler) || prosesler.length === 0) return
+  const gorulen = new Set<number>()
+  let sira = 0
+  for (const p of prosesler) {
+    const islemId = Number(p?.islemId)
+    if (!Number.isFinite(islemId) || islemId <= 0 || gorulen.has(islemId)) continue
+    gorulen.add(islemId)
+    sira += 1
+    await tx.irsaliyeKalemIslem.create({ data: { irsaliyeKalemId, islemId, sira: p?.sira ?? sira } })
+  }
 }
 
 // Kalem satırına bağlı tahsis dağılımını yazar (aynı transaction içinde).
@@ -136,6 +151,7 @@ export class IrsaliyeService {
             data: { ...kalemData, irsaliyeId: irsaliye.id, uuid: kalemData.uuid ?? randomUUID() } as any,
           })
           await tahsisleriYaz(tx, kalem.id, (k as any).tahsisler)
+          await islemleriYaz(tx, kalem.id, (k as any).prosesler)
         }
       }
       return tx.irsaliye.findUnique({
@@ -183,6 +199,7 @@ export class IrsaliyeService {
             data: { ...kalemData, irsaliyeId: id, uuid: kalemData.uuid ?? randomUUID() } as any,
           })
           await tahsisleriYaz(tx, kalem.id, (k as any).tahsisler)
+          await islemleriYaz(tx, kalem.id, (k as any).prosesler)
         }
       }
       return tx.irsaliye.findUnique({
@@ -213,11 +230,22 @@ export class IrsaliyeService {
   }
 
   async createKalem(dto: CreateIrsaliyeKalemDto) {
-    return this.prisma.irsaliyeKalem.create({ data: kalemDataHazirla(dto) as any })
+    return this.prisma.$transaction(async (tx) => {
+      const kalem = await tx.irsaliyeKalem.create({ data: kalemDataHazirla(dto) as any })
+      await islemleriYaz(tx, kalem.id, (dto as any).prosesler)
+      return kalem
+    })
   }
 
   async updateKalem(id: number, dto: CreateIrsaliyeKalemDto) {
-    return this.prisma.irsaliyeKalem.update({ where: { id }, data: kalemDataHazirla(dto) as any })
+    return this.prisma.$transaction(async (tx) => {
+      const kalem = await tx.irsaliyeKalem.update({ where: { id }, data: kalemDataHazirla(dto) as any })
+      if (Array.isArray((dto as any).prosesler)) {
+        await tx.irsaliyeKalemIslem.deleteMany({ where: { irsaliyeKalemId: id } })
+        await islemleriYaz(tx, id, (dto as any).prosesler)
+      }
+      return kalem
+    })
   }
 
   async removeKalem(id: number) {

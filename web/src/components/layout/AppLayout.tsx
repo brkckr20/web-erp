@@ -100,6 +100,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [yeniSiparisKey, setYeniSiparisKey] = useState(0)
   const [satinalmaBaslangicKalemler, setSatinalmaBaslangicKalemler] = useState<IrsaliyeBaslangicKalem[]>([])
+  const [baslangicTalimatId, setBaslangicTalimatId] = useState<number | null>(null)
   const [satinalmaSiparisKey, setSatinalmaSiparisKey] = useState(0)
 
   const handleModuleSelect = (mod: Module) => {
@@ -253,8 +254,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 
   const handleCreateIrsaliye = useCallback(
-    (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null) => {
+    (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null, talimatId?: number | null) => {
       setSatinalmaSiparisKey((k) => k + 1)
+      setBaslangicTalimatId(talimatId ?? null)
       openYeniIrsaliye(irsaliyeTipi, fasonTipiId ?? null, kalemler)
     },
     [openYeniIrsaliye],
@@ -1316,6 +1318,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'islem-kartlari') {
       return <IslemKartlari />
     }
+    if (tab.key === 'proses-tanimlari') {
+      return <IslemKartlari sabitTip={2} />
+    }
     if (tab.key === 'kumas-tedarik-raporu') {
       return <KumasTedarikRaporu />
     }
@@ -1349,13 +1354,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           irsaliyeTipi={irsaliyeTipi}
           fasonTipiId={fasonTipiId}
           baslangicKalemler={isYeniSatinalma ? satinalmaBaslangicKalemler : undefined}
+          baslangicTalimatId={irsaliyeTipi === '134' ? baslangicTalimatId : undefined}
           onCreateIrsaliye={handleCreateIrsaliye}
+          onOpenIrsaliye={openIrsaliyeKarti}
         />
       )
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} onOpenFatura={openFaturaKarti} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} onOpenFatura={openFaturaKarti} onOpenIrsaliye={openIrsaliyeKarti} />
     }
     // Faturalar: satis-/satinalma- + [kumas|iplik|aksesuar]- + faturalari
     if (tab.key.endsWith('-faturalari')) {

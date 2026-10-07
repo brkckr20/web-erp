@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, ParseIntPipe } from '@nestjs/common'
 import { IslemService } from './islem.service'
 import { CreateIslemDto } from './dto/create-islem.dto'
 import { UpdateIslemDto } from './dto/update-islem.dto'
@@ -8,8 +8,8 @@ export class IslemController {
   constructor(private readonly islemService: IslemService) {}
 
   @Get()
-  findAll() {
-    return this.islemService.findAll()
+  findAll(@Query('tip') tip?: string) {
+    return this.islemService.findAll(tip != null ? Number(tip) : undefined)
   }
 
   @Get(':id')

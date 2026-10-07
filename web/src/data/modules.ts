@@ -42,6 +42,7 @@ export const modules: Module[] = [
           { key: 'aksesuar-kartlari', label: 'Aksesuar Kartları', isForm: true },
           { key: 'aksesuar-tipi-kartlari', label: 'Aksesuar Tipi Kartları', isForm: true },
           { key: 'malzeme-kartlari', label: 'Malzeme Kartları', isForm: true },
+          { key: 'proses-tanimlari', label: 'Proses Tanımları', isForm: true },
           { key: 'depo-tanimlari', label: 'Depo Tanımları', isForm: true },
           { key: 'raf-tanimlari', label: 'Raf Tanımları', isForm: true },
           { key: 'makina-kartlari', label: 'Makina Kartları', isForm: true },

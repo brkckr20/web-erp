@@ -7,8 +7,11 @@ import { UpdateIslemDto } from './dto/update-islem.dto'
 export class IslemService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.islem.findMany({ orderBy: { sira: 'asc' } })
+  findAll(tip?: number) {
+    return this.prisma.islem.findMany({
+      where: tip != null ? { tip } : undefined,
+      orderBy: { sira: 'asc' },
+    })
   }
 
   async findOne(id: number) {
@@ -20,8 +23,11 @@ export class IslemService {
   async create(dto: CreateIslemDto) {
     const kod = (dto.kod ?? '').trim().toUpperCase()
     if (!kod) throw new ConflictException('Kod gerekli')
-    const mevcut = await this.prisma.islem.findUnique({ where: { kod } })
-    if (mevcut) throw new ConflictException(`Bu kod zaten kullanılıyor: ${kod}`)
+    const tip = dto.tip ?? 1
+    const mevcut = await this.prisma.islem.findFirst({ where: { kod, tip } })
+    if (mevcut) {
+      throw new ConflictException(`Bu kod bu tipte zaten kullanılıyor: ${kod}`)
+    }
     return this.prisma.islem.create({
       data: {
         kod,
@@ -29,16 +35,18 @@ export class IslemService {
         birim: dto.birim?.trim() ? dto.birim.trim() : null,
         sira: dto.sira ?? 0,
         aktif: dto.aktif ?? true,
+        tip: dto.tip ?? 1,
       },
     })
   }
 
   async update(id: number, dto: UpdateIslemDto) {
-    await this.findOne(id)
+    const mevcut = await this.findOne(id)
     const kod = (dto.kod ?? '').trim().toUpperCase()
     if (kod) {
-      const cakisan = await this.prisma.islem.findUnique({ where: { kod } })
-      if (cakisan && cakisan.id !== id) throw new ConflictException(`Bu kod zaten kullanılıyor: ${kod}`)
+      const tip = dto.tip ?? (mevcut as any).tip ?? 1
+      const cakisan = await this.prisma.islem.findFirst({ where: { kod, tip } })
+      if (cakisan && cakisan.id !== id) throw new ConflictException(`Bu kod bu tipte zaten kullanılıyor: ${kod}`)
     }
     return this.prisma.islem.update({
       where: { id },
@@ -48,6 +56,7 @@ export class IslemService {
         ...(dto.birim !== undefined ? { birim: dto.birim?.trim() ? dto.birim.trim() : null } : {}),
         ...(dto.sira !== undefined ? { sira: dto.sira } : {}),
         ...(dto.aktif !== undefined ? { aktif: dto.aktif } : {}),
+        ...(dto.tip !== undefined ? { tip: dto.tip } : {}),
       },
     })
   }

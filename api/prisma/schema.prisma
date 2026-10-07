@@ -470,6 +470,9 @@ model Irsaliye {
   // Doluysa: faturadan otomatik oluşmuş irsaliyedir (faturayı silmek bunu da siler).
   // İlişkisiz skaler FK'dır ( SiparisKalemId kalıbı ), referansı uygulama yönetir.
   faturaId          Int?     @map("fatura_id")
+  // Doluysa: 202-Fason Talimatı'ndan oluşmuş irsaliyedir (134-Fasona Çıkış).
+  // İlişkisiz skaler FK'dır, referansı uygulama yönetir.
+  talimatId         Int?     @map("talimat_id")
   sevkNo            String?  @map("sevk_no") @db.VarChar(50)
   sevkTarihi        DateTime? @map("sevk_tarihi")
   terminTarihi      DateTime? @map("termin_tarihi")
@@ -523,7 +526,15 @@ model IrsaliyeKalem {
   aciklama          String?  @db.VarChar(1000)
   uuid              String?  @db.VarChar(100)
   siparisKalemId    Int?     @map("siparis_kalem_id")
+  // Bu kalemin üretildiği kaynak irsaliye kalemi (örn. 202-Talimat -> 134-Çıkış,
+  // 134-Çıkış -> 11-Giriş). İlişkisiz skaler FK'dır, referansı uygulama yönetir.
+  kaynakKalemId     Int?     @map("kaynak_kalem_id")
   fire              Decimal? @db.Decimal(18, 4)
+  // Fason kumaş bilgileri: istenen gramaj ve ebat talimattan (202) çıkışa (134)
+  // otomatik taşınır; top sayısı 134 girişinde kullanılır.
+  istenenGram       Decimal? @map("istenen_gram") @db.Decimal(18, 4)
+  ebat              String?  @db.VarChar(100)
+  topSayisi         Int?     @map("top_sayisi")
 
   varyant1RenkId    Int?     @map("varyant1_renk_id")
   varyant2RenkId    Int?     @map("varyant2_renk_id")
@@ -538,6 +549,8 @@ model IrsaliyeKalem {
   faturaKalemleri   FaturaKalem[] @relation("FaturaKalemIrsaliyeKalem")
   // Birleşmiş 202 talimat satırının sipariş/model dağılımı (salt-okunur tahsis detayı).
   tahsisler         IrsaliyeKalemTahsis[] @relation("KalemTahsisleri")
+  // Kalem satırına seçilen boyahane prosesleri (İşlem kartları, sıra yok).
+  islemler          IrsaliyeKalemIslem[] @relation("KalemIslemleri")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -561,6 +574,24 @@ model IrsaliyeKalemTahsis {
   @@index([irsaliyeKalemId])
   @@index([siparisKalemId])
   @@map("irsaliye_kalem_tahsis")
+}
+
+model IrsaliyeKalemIslem {
+  id                Int      @id @default(autoincrement())
+  irsaliyeKalemId   Int      @map("irsaliye_kalem_id")
+  irsaliyeKalem     IrsaliyeKalem @relation("KalemIslemleri", fields: [irsaliyeKalemId], references: [id], onDelete: Cascade)
+  // Skaler bağ: satıra seçilen proses (İşlem kartı). Aynı proses bir satıra bir kez seçilir.
+  islemId           Int      @map("islem_id")
+  islem             Islem    @relation(fields: [islemId], references: [id], onDelete: Cascade)
+  // Satırdaki proses sırası (modalde seçilir, formda bu sırayla gösterilir).
+  sira              Int      @default(0)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([irsaliyeKalemId, islemId])
+  @@index([irsaliyeKalemId])
+  @@index([islemId])
+  @@map("irsaliye_kalem_islem")
 }
 
 model Fatura {
@@ -1385,12 +1416,18 @@ model HizmetTalepDosya {
 
 model Islem {
   id    Int     @id @default(autoincrement())
-  kod   String  @unique @db.NVarChar(50)
+  kod   String  @db.NVarChar(50)
   ad    String  @db.NVarChar(200)
   birim String? @db.NVarChar(20)
   sira  Int     @default(0)
   aktif Boolean @default(true)
+  // İşlem tipi: 1 = genel, 2 = boyahane prosesi (Proses Tanımları).
+  tip   Int     @default(1)
 
+  kalemIslemler IrsaliyeKalemIslem[]
+
+  // Kod tip içinde tektir (aynı kod genel ve proseste ayrı ayrı olabilir).
+  @@unique([kod, tip])
   @@map("islem")
 }
 

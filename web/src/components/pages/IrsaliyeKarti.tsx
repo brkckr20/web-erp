@@ -1,6 +1,6 @@
 'use client'
 
-import { Input, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown, Tag } from 'antd'
+import { Input, InputNumber, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown, Tag } from 'antd'
 import type { MenuProps } from 'antd'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AgGridReact } from 'ag-grid-react'
@@ -14,6 +14,7 @@ import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem, type IrsaliyeFormData } from '@/lib/irsaliye-api'
+import { islemApi, type Islem } from '@/lib/islem-api'
 import { faturaApi } from '@/lib/fatura-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
@@ -55,9 +56,12 @@ interface IrsaliyeKartiProps {
   ekranAdi?: string
   onDeleted?: (irsaliyeTipi: string) => void
   baslangicKalemler?: IrsaliyeBaslangicKalem[]
-  onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null) => void
+  /** 202'den 134 açılırken taşınan talimat id'si (kaydederken talimatId yazılır). */
+  baslangicTalimatId?: number | null
+  onCreateIrsaliye?: (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null, talimatId?: number | null) => void
   onCreateFatura?: (info: { faturaTipi: string; irsaliyeIds: number[]; fasonTipiId?: number | null }) => void
   onOpenFatura?: (info: { id: number; faturaTipi: string; faturaNo: string }) => void
+  onOpenIrsaliye?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
 }
 
 export interface IrsaliyeBaslangicKalem {
@@ -68,8 +72,14 @@ export interface IrsaliyeBaslangicKalem {
   birimFiyat?: number
   cariHesapKod?: string
   depoKod?: string
-  aciklama?: string
-  siparisKalemId?: number | null
+  aciklama: string
+  siparisKalemId: number | null
+  /** Kaynak irsaliye kalem id'si (202→134 aktarımında 202'nin kalem id'si). */
+  kaynakKalemId?: number | null
+  /** Fason kumaş bilgileri: talimattan çıkışa taşınır. */
+  istenenGram?: number | null
+  ebat?: string | null
+  topSayisi?: number | null
   boyahaneRenkId?: number | null
   boyahaneRenkKod?: string
   boyahaneRenkAd?: string
@@ -78,6 +88,8 @@ export interface IrsaliyeBaslangicKalem {
   varyant1RenkAd?: string | null
   /** Birleşmiş satırın sipariş/model dağılımı (planlamadan gelir, salt-okunur). */
   tahsis?: KalemTahsis[]
+  /** Satıra seçilen prosesler (sıralı). */
+  prosesler?: KalemProses[]
 }
 
 /** 202 talimat satırındaki miktarın hangi sipariş/model ihtiyacından geldiği. */
@@ -86,6 +98,18 @@ export interface KalemTahsis {
   siparisNo: string
   modelKod: string
   miktar: number
+}
+
+/** Satıra seçilen proses (İşlem kartı + satırdaki sıra). */
+export interface KalemProses {
+  islemId: number
+  ad: string
+  sira: number
+}
+
+/** Prosesleri sıraya göre 'ad, ad' metnine çevirir (grid + form görüntüleme). */
+export function prosesAdlariGetir(prosesler: KalemProses[] | undefined): string {
+  return [...(prosesler ?? [])].sort((a, b) => a.sira - b.sira).map((p) => p.ad).join(', ')
 }
 
 /**
@@ -108,6 +132,13 @@ export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]):
     const parcalar = [...(mevcut.aciklama ?? '').split(' + '), ...(k.aciklama ?? '').split(' + ')].filter(Boolean)
     mevcut.aciklama = [...new Set(parcalar)].join(' + ')
     if (mevcut.siparisKalemId !== k.siparisKalemId) mevcut.siparisKalemId = null
+    if (mevcut.kaynakKalemId !== k.kaynakKalemId) mevcut.kaynakKalemId = null
+    // Prosesler birleşir (aynı proses teklenir, ilk görülen sıra korunur).
+    for (const p of k.prosesler ?? []) {
+      if (!(mevcut.prosesler ?? []).some((x) => x.islemId === p.islemId)) {
+        mevcut.prosesler = [...(mevcut.prosesler ?? []), { ...p }]
+      }
+    }
   }
   return [...gruplar.values()]
 }
@@ -130,6 +161,14 @@ interface KalemRow {
   satirTutari: number
   aciklama: string
   siparisKalemId: number | null
+  /** Satırın kendi DB id'si (kayıtlı fişlerde; aktarımda kaynak id olur). */
+  kalemId: number | null
+  /** Kaynak irsaliye kalem id'si (bu satır hangi satırdan üretildi). */
+  kaynakKalemId: number | null
+  /** Fason kumaş bilgileri: istenen gramaj, ebat, top sayısı. */
+  istenenGram: number
+  ebat: string
+  topSayisi: number
   /** Boyahane Renk Kartı (Renk.tip=2): fason hedef rengi. varyant2 = desen (sonraki aşama). */
   boyahaneRenkId: number | null
   boyahaneRenkKod: string
@@ -140,6 +179,8 @@ interface KalemRow {
   fire: number | null
   /** Birleşmiş satırın sipariş/model dağılımı (salt-okunur tahsis detayı). */
   tahsis: KalemTahsis[]
+  /** Satıra seçilen prosesler (sıralı). */
+  prosesler: KalemProses[]
 }
 
 const emptyKalem = (): KalemRow => ({
@@ -168,6 +209,12 @@ const emptyKalem = (): KalemRow => ({
   varyant1RenkAd: '',
   fire: null,
   tahsis: [],
+  kalemId: null,
+  kaynakKalemId: null,
+  istenenGram: 0,
+  ebat: '',
+  topSayisi: 0,
+  prosesler: [],
 })
 
 const irsaliyeTipiMap: Record<string, string> = {
@@ -192,14 +239,16 @@ const irsaliyeTipiMap: Record<string, string> = {
 // Fason fişleri: miktarlar brüt/net ayrı girilir (fasoncu brüt üzerinden çalışır).
 // 202-Fason Talimatı da miktarlı bir belgedir, aynı kolonları kullanır.
 const fasonFisTipleri = ['6', '11', '12', '125', '133', '134', '202']
-const uretimKolonlari = ['tip', 'barkod', 'brutKg', 'kg', 'brutMt', 'mt', 'adet', 'hesapBirimi']
-const satinalmaSiparisKolonlari = ['tip', 'barkod']
+const uretimKolonlari = ['tip', 'barkod', 'brutKg', 'kg', 'brutMt', 'mt', 'adet', 'hesapBirimi', 'istenenGram', 'ebat', 'topSayisi', 'prosesler']
+const satinalmaSiparisKolonlari = ['tip', 'barkod', 'istenenGram', 'ebat', 'topSayisi', 'prosesler']
 const defaultHiddenColsFor = (irsaliyeTipi: string): Set<string> => {
   const gizle = new Set<string>()
   if (irsaliyeTipi === '201') {
     satinalmaSiparisKolonlari.forEach((k) => gizle.add(k))
     return gizle
   }
+  // Top Sayısı 202-Talimat'ta kullanılmaz (134/11'de girilir).
+  if (irsaliyeTipi === '202') gizle.add('topSayisi')
   if (!fasonFisTipleri.includes(irsaliyeTipi)) {
     uretimKolonlari.forEach((k) => gizle.add(k))
   }
@@ -297,7 +346,7 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, onCreateIrsaliye, onCreateFatura, onOpenFatura }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, baslangicTalimatId, onCreateIrsaliye, onCreateFatura, onOpenFatura, onOpenIrsaliye }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -318,6 +367,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [terminTarihi, setTerminTarihi] = useState<dayjs.Dayjs | null>(null)
   const [belgeNo, setBelgeNo] = useState('')
   const [bagliFaturaNo, setBagliFaturaNo] = useState('')
+  const [talimatId, setTalimatId] = useState<number | null>(null)
+  const [talimatNo, setTalimatNo] = useState('')
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
   const [onaylandi, setOnaylandi] = useState(false)
@@ -325,7 +376,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [] }
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, kaynakKalemId: b.kaynakKalemId ?? null, istenenGram: b.istenenGram ?? 0, ebat: b.ebat ?? '', topSayisi: b.topSayisi ?? 0, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [], prosesler: b.prosesler ?? [] }
           const val = b.miktar || 0
           if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
           else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
@@ -340,6 +391,60 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   // Sağ tık menüsü hangi satırda açıldıysa Tahsis Detayları onu gösterir (yoksa seçili satır).
   const [sagTikSatir, setSagTikSatir] = useState<KalemRow | null>(null)
   const [tahsisSatir, setTahsisSatir] = useState<KalemRow | null>(null)
+  // Satıra proses (İşlem, tip=2) seçimi modalı. Sıra modalde seçilir.
+  const [prosesSatir, setProsesSatir] = useState<KalemRow | null>(null)
+  const [prosesListesi, setProsesListesi] = useState<Islem[]>([])
+  const [prosesSecili, setProsesSecili] = useState<number[]>([])
+  const [prosesSiralar, setProsesSiralar] = useState<Record<number, number>>({})
+
+  const openProsesler = () => {
+    const hedef = sagTikSatir ?? gridApiRef.current?.getSelectedRows()?.[0] ?? null
+    if (!hedef || !hedef.malzemeKod) {
+      message.warning('Önce bir satır seçin (satıra tıklayıp sağ tık menüsünü açın)')
+      return
+    }
+    setProsesSatir(hedef)
+    const mevcut = [...(hedef.prosesler ?? [])].sort((a, b) => a.sira - b.sira)
+    setProsesSecili(mevcut.map((p) => p.islemId))
+    const siralar: Record<number, number> = {}
+    mevcut.forEach((p, i) => { siralar[p.islemId] = p.sira || i + 1 })
+    setProsesSiralar(siralar)
+    // Proses Tanımları (tip=2) listelenir.
+    islemApi
+      .list(2)
+      .then((liste) => setProsesListesi((liste ?? []).filter((x) => x.aktif !== false)))
+      .catch(() => setProsesListesi([]))
+  }
+
+  const handleProsesSecim = (vals: (number | string)[]) => {
+    const ids = vals.map(Number)
+    setProsesSecili(ids)
+    setProsesSiralar((prev) => {
+      const next = { ...prev }
+      // Yeni seçilene sıradaki en büyük +1 verilir.
+      const max = ids.reduce((m, id) => Math.max(m, next[id] ?? 0), 0)
+      let sira = max
+      for (const id of ids) {
+        if (!next[id]) { sira += 1; next[id] = sira }
+      }
+      return next
+    })
+  }
+
+  const handleProsesKaydet = () => {
+    if (!prosesSatir) return
+    const adMap = new Map(prosesListesi.map((x) => [x.id, x.ad]))
+    const prosesler: KalemProses[] = prosesSecili.map((id) => ({
+      islemId: id,
+      ad: adMap.get(id) ?? '',
+      sira: prosesSiralar[id] ?? 0,
+    })).filter((p) => p.ad)
+    prosesler.sort((a, b) => a.sira - b.sira)
+    // Sıralar 1..n'e normalize edilir.
+    prosesler.forEach((p, i) => { p.sira = i + 1 })
+    updateKalem(prosesSatir.key, { prosesler })
+    setProsesSatir(null)
+  }
 
   const openTahsisDetay = () => {
     const hedef = sagTikSatir ?? gridApiRef.current?.getSelectedRows()?.[0] ?? null
@@ -363,6 +468,15 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
            if (i.terminTarihi) setTerminTarihi(dayjs(i.terminTarihi))
           setBelgeNo(i.sevkNo ?? '')
           setBagliFaturaNo(i.faturaNo ?? '')
+          const tid = (i as Irsaliye).talimatId ?? null
+          setTalimatId(tid)
+          setTalimatNo('')
+          if (tid) {
+            irsaliyeApi
+              .get(tid)
+              .then((t) => { if (!cancelled) setTalimatNo(t.irsaliyeNo ?? '') })
+              .catch(() => {})
+          }
           setAciklama(i.aciklama ?? '')
           setYetkili((i as Irsaliye).yetkili ?? '')
           setOnaylandi(!!i.onaylandi)
@@ -390,6 +504,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             satirTutari: Number(k.satirTutari) || 0,
             aciklama: k.aciklama ?? '',
             siparisKalemId: (k as IrsaliyeKalem).siparisKalemId ?? null,
+            kalemId: k.id ?? null,
+            kaynakKalemId: (k as IrsaliyeKalem).kaynakKalemId ?? null,
+            istenenGram: Number((k as IrsaliyeKalem).istenenGram) || 0,
+            ebat: (k as IrsaliyeKalem).ebat ?? '',
+            topSayisi: Number((k as IrsaliyeKalem).topSayisi) || 0,
             boyahaneRenkId: (k as IrsaliyeKalem).boyahaneRenkId ?? (k as IrsaliyeKalem).boyahaneRenk?.id ?? null,
             boyahaneRenkKod: (k as IrsaliyeKalem).boyahaneRenk?.kod ?? '',
             boyahaneRenkAd: (k as IrsaliyeKalem).boyahaneRenk?.ad ?? '',
@@ -403,6 +522,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
               modelKod: t.modelKod ?? '',
               miktar: Number(t.miktar) || 0,
             })),
+            ...(() => {
+              const il = ((k as IrsaliyeKalem).islemler ?? [])
+                .map((x, i) => ({ islemId: x.islem?.id ?? x.islemId ?? 0, ad: x.islem?.ad ?? '', sira: (x as { sira?: number }).sira ?? i + 1 }))
+                .filter((x) => x.islemId > 0 && x.ad)
+              il.sort((a, b) => a.sira - b.sira)
+              return { prosesler: il }
+            })(),
           }))
           setKalemler(rows.length > 0 ? rows : [])
         })
@@ -516,8 +642,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         satirTutari: k.satirTutari,
         aciklama: k.aciklama || null,
         siparisKalemId: k.siparisKalemId,
+        kaynakKalemId: k.kaynakKalemId ?? null,
+        istenenGram: k.istenenGram || null,
+        ebat: k.ebat || null,
+        topSayisi: k.topSayisi || null,
         boyahaneRenkId: k.boyahaneRenkId,
         varyant1RenkId: k.varyant1RenkId,
+        prosesler: (k.prosesler ?? []).map((p) => ({ islemId: p.islemId, sira: p.sira })),
         tahsisler: k.tahsis,
       })) as IrsaliyeKalem[]
 
@@ -554,9 +685,19 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         fasonTipiId: fasonTipiKayit,
         yetkili: yetkili || null,
         kayitYapan,
+        // 202'den açılan 134: kaynak talimatın id'si yazılır.
+        talimatId: irsaliyeTipi === '134' ? (baslangicTalimatId ?? null) : null,
         kalemler: kalemPayload,
       } as IrsaliyeFormData & { kalemler: IrsaliyeKalem[] })
       setLocalId(created.id)
+      // 134 yeni kaydedildiyse talimat rozeti hemen görünsün.
+      if (irsaliyeTipi === '134' && baslangicTalimatId) {
+        setTalimatId(baslangicTalimatId)
+        irsaliyeApi
+          .get(baslangicTalimatId)
+          .then((t) => setTalimatNo(t.irsaliyeNo ?? ''))
+          .catch(() => {})
+      }
       message.success('İrsaliye ve kalemler kaydedildi')
     }
   } catch (err: unknown) {
@@ -574,6 +715,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     } catch {
       message.warning('Bağlı fatura bulunamadı')
     }
+  }
+
+  const handleTalimatAc = () => {
+    if (!talimatId) return
+    onOpenIrsaliye?.({ id: talimatId, irsaliyeTipi: '202', irsaliyeNo: talimatNo })
   }
 
   const handleSil = () => {
@@ -746,6 +892,44 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           {
             headerName: 'Boyahane Renk Adı', field: 'boyahaneRenkAd', width: 160,
             valueFormatter: (p) => p.value || '-',
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'İstenen Gram', field: 'istenenGram', width: 110, cellClass: '!p-0', type: 'rightAligned',
+            cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
+              <TurkishNumberInput
+                value={p.value}
+                onChange={(val) => updateKalem(p.data.key, { istenenGram: val })}
+                onEnter={() => p.node.rowIndex != null && focusNextCell('istenenGram', p.node.rowIndex)}
+                className="!w-full !h-full !text-[12px] kalem-input"
+              />
+            ),
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'Ebat', field: 'ebat', width: 110, cellClass: '!p-0',
+            cellRenderer: (p: { data: KalemRow; value: string; node: { rowIndex: number | null } }) => (
+              <CellTextInput
+                value={p.value ?? ''}
+                onCommit={(val) => updateKalem(p.data.key, { ebat: val })}
+                onEnter={() => p.node.rowIndex != null && focusNextCell('ebat', p.node.rowIndex)}
+                className="!w-full !h-full !text-[12px] kalem-input"
+              />
+            ),
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'Top Sayısı', field: 'topSayisi', width: 100, cellClass: '!p-0', type: 'rightAligned',
+            cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
+              <TurkishNumberInput
+                value={p.value}
+                onChange={(val) => updateKalem(p.data.key, { topSayisi: Math.round(val) })}
+                onEnter={() => p.node.rowIndex != null && focusNextCell('topSayisi', p.node.rowIndex)}
+                className="!w-full !h-full !text-[12px] kalem-input"
+              />
+            ),
+          } as ColDef<KalemRow>,
+          {
+            // Satıra seçilen prosesler, sıra numarasına göre (sağ tık → Prosesler... ile düzenlenir).
+            headerName: 'Prosesler', field: 'prosesler', width: 180,
+            valueFormatter: (p) => prosesAdlariGetir(p.value as KalemProses[]) || '-',
           } as ColDef<KalemRow>,
         ]
       : []),
@@ -1026,8 +1210,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         birimFiyat: k.birimFiyat || undefined,
         cariHesapKod: cariKod || undefined,
         depoKod: depoKod || undefined,
-        aciklama: k.aciklama || undefined,
+        aciklama: k.aciklama || '',
         siparisKalemId: k.siparisKalemId ?? null,
+        // Kaynak kalem: bu satırın kendi id'si (kayıtlı fişten aktarımda). Yeni satırsa üstten gelen kaynak korunur.
+        kaynakKalemId: k.kalemId ?? k.kaynakKalemId ?? null,
+        // Kumaş bilgileri talimattan çıkışa aynen taşınır.
+        istenenGram: k.istenenGram || undefined,
+        ebat: k.ebat || undefined,
+        topSayisi: k.topSayisi || undefined,
         // Boyahane rengi boya siparişinin kendisi -> 202'den 134'e taşınır (kod/ad dahil, ekranda görünsün).
         boyahaneRenkId: k.boyahaneRenkId ?? null,
         boyahaneRenkKod: k.boyahaneRenkKod || undefined,
@@ -1036,10 +1226,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         varyant1RenkId: irsaliyeTipi === '202' ? null : (k.varyant1RenkId ?? null),
         // Birleşmiş satırın tahsis dağılımı sonraki fişe de taşınır (salt-okunur detay).
         tahsis: k.tahsis ?? [],
+        // Satıra seçilen prosesler sonraki fişe de taşınır (134'te düzenlenebilir).
+        prosesler: (k.prosesler ?? []).map((p) => ({ ...p })),
       })
     }
     // 201 -> Satın Alma İrsaliyesi (tip 1); 202 -> Fasona Çıkış (tip 134, fason tipi aynen taşınır)
-    onCreateIrsaliye?.(irsaliyeTipi === '202' ? '134' : '1', kalemlerOut, irsaliyeTipi === '202' ? fasonTipiKayit : null)
+    // Kayıtlı 202'den açılıyorsa talimat id'si de taşınır (kaydederken 134'e yazılır).
+    onCreateIrsaliye?.(irsaliyeTipi === '202' ? '134' : '1', kalemlerOut, irsaliyeTipi === '202' ? fasonTipiKayit : null, irsaliyeTipi === '202' ? (id ?? null) : null)
   }
 
   const contextMenuItems: MenuProps['items'] =
@@ -1056,11 +1249,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           ? [
               { key: 'irsaliye-olustur', label: 'Fasona Çıkış (134) Oluştur', onClick: handleIrsaliyeOlustur },
               { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
+              { key: 'prosesler', label: 'Prosesler...', onClick: openProsesler },
             ]
           : irsaliyeTipi === '134'
             ? [
                 ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
                 { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
+                { key: 'prosesler', label: 'Prosesler...', onClick: openProsesler },
               ]
             : id
               ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }]
@@ -1092,6 +1287,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       satirTutari: Number(k.satirTutari) || 0,
       aciklama: k.aciklama ?? '',
       siparisKalemId: k.siparisKalemId ?? null,
+      // 11 giriş kaleminin kaynağı 134'ün kalemidir (zincir: 202 → 134 → 11).
+      kalemId: null,
+      kaynakKalemId: k.id ?? null,
+      // Kumaş bilgileri 134'ten 11'e aynen taşınır.
+      istenenGram: Number(k.istenenGram) || 0,
+      ebat: k.ebat ?? '',
+      topSayisi: Number(k.topSayisi) || 0,
       // Boyahane rengi 134'den gelir (boya siparişi verilirken seçilmişti), aynen taşınır.
       boyahaneRenkId: k.boyahaneRenkId ?? k.boyahaneRenk?.id ?? null,
       boyahaneRenkKod: k.boyahaneRenk?.kod ?? '',
@@ -1107,6 +1309,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         modelKod: t.modelKod ?? '',
         miktar: Number(t.miktar) || 0,
       })),
+      // 134'teki proses seçimleri 11 girişine de taşınır (sıralarıyla).
+      prosesler: (k.islemler ?? [])
+        .map((x, i) => ({ islemId: x.islem?.id ?? x.islemId ?? 0, ad: x.islem?.ad ?? '', sira: (x as { sira?: number }).sira ?? i + 1 }))
+        .filter((x) => x.islemId > 0 && x.ad),
     }))
     setKalemler((prev) => {
       const bosMu = prev.every((p) => !p.malzemeKod)
@@ -1363,10 +1569,21 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                 </div>
               </div>
 
-              {bagliFaturaNo && (
+              {(bagliFaturaNo || talimatNo) && (
               <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
                 <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Entegrasyon Bilgileri</div>
                 <div className="!space-y-0.5">
+                  {talimatNo && (
+                    <div className="!flex !items-center !gap-3">
+                      <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Talimat</div>
+                      <Tooltip title="Talimatı aç">
+                        <Tag color="blue" onClick={handleTalimatAc} className="!cursor-pointer !text-[12px] !mr-0">
+                          {talimatNo}
+                        </Tag>
+                      </Tooltip>
+                    </div>
+                  )}
+                  {bagliFaturaNo && (
                   <div className="!flex !items-center !gap-3">
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fatura</div>
                     <Tooltip title="Faturayı aç">
@@ -1375,6 +1592,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                       </Tag>
                     </Tooltip>
                   </div>
+                  )}
                 </div>
               </div>
               )}
@@ -1574,6 +1792,59 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             </div>
           )
         })()}
+      </Modal>
+      <Modal
+        open={prosesSatir != null}
+        onCancel={() => setProsesSatir(null)}
+        width={440}
+        title={
+          <span className="!text-[13px] !font-semibold">
+            Prosesler — {prosesSatir?.malzemeKod} {prosesSatir?.malzemeAd}
+          </span>
+        }
+        footer={[
+          <Button key="vazgec" onClick={() => setProsesSatir(null)} className="!text-[12px]">
+            Vazgeç
+          </Button>,
+          <Button key="kaydet" type="primary" onClick={handleProsesKaydet} className="!text-[12px]">
+            Kaydet
+          </Button>,
+        ]}
+      >
+        <div className="!flex !flex-col !gap-2">
+          <div className="!text-[11px] !text-[#6b7280]">
+            Bu satırda yapılacak boyahane prosesleri (birden fazla seçilebilir). Her satırın sıra
+            numarası formda yazılma sırasıdır. Prosesler Proses Tanımlarından (tip=2) gelir.
+          </div>
+          {prosesListesi.length === 0 ? (
+            <div className="!text-[12px] !text-[#6b7280]">
+              Seçilebilecek proses yok — Proses Tanımlarından (Malzeme Yönetimi) proses tanımlayın.
+            </div>
+          ) : (
+            <Checkbox.Group
+              value={prosesSecili}
+              onChange={handleProsesSecim}
+              className="!flex !flex-col !gap-1"
+            >
+              {prosesListesi.map((x) => (
+                <div key={x.id} className="!flex !items-center !gap-2">
+                  <Checkbox value={x.id} className="!text-[12px] !flex-1">
+                    {x.kod} — {x.ad}
+                  </Checkbox>
+                  {prosesSecili.includes(x.id) && (
+                    <InputNumber
+                      min={1}
+                      size="small"
+                      value={prosesSiralar[x.id] ?? 0}
+                      onChange={(v) => setProsesSiralar((prev) => ({ ...prev, [x.id]: Number(v) || 0 }))}
+                      className="!w-16"
+                    />
+                  )}
+                </div>
+              ))}
+            </Checkbox.Group>
+          )}
+        </div>
       </Modal>
     </Spin>
   )

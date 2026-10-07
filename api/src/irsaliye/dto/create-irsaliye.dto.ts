@@ -18,10 +18,16 @@ export class CreateIrsaliyeKalemDto {
   aciklama?: string
   uuid?: string
   siparisKalemId?: number | null
+  kaynakKalemId?: number | null
+  istenenGram?: number | null
+  ebat?: string | null
+  topSayisi?: number | null
   varyant1RenkId?: number
   boyahaneRenkId?: number | null
   varyant2RenkId?: number
   tahsisler?: CreateIrsaliyeKalemTahsisDto[]
+  /** Satıra seçilen prosesler (İşlem id + sıra). */
+  prosesler?: { islemId: number; sira?: number }[]
 }
 
 export class CreateIrsaliyeKalemTahsisDto {
@@ -40,6 +46,7 @@ export class CreateIrsaliyeDto {
   aciklama?: string
   faturaNo?: string
   faturaTarihi?: string
+  talimatId?: number | null
   sevkNo?: string
   sevkTarihi?: string
   terminTarihi?: string | null

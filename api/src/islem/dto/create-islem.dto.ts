@@ -4,4 +4,5 @@ export class CreateIslemDto {
   birim?: string | null
   sira?: number
   aktif?: boolean
+  tip?: number
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button, Input, InputNumber, Switch, Table, Modal, Form, App, Space } from 'antd'
+import { Button, Input, InputNumber, Switch, Table, Modal, Form, App, Space, Select } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { islemApi, type IslemKarti } from '@/lib/islem-api'
@@ -10,9 +10,11 @@ export type { IslemKarti }
 
 interface IslemKartlariProps {
   onSelect?: (islem: IslemKarti) => void
+  /** Doluysa liste bu tipe kilitlenir (örn. 2 = Proses Tanımları), yeni kayıtlar bu tiple açılır. */
+  sabitTip?: number | null
 }
 
-export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
+export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps) {
   const { message, modal } = App.useApp()
   const [data, setData] = useState<IslemKarti[]>([])
   const [editing, setEditing] = useState<IslemKarti | null>(null)
@@ -23,7 +25,7 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
   const load = async () => {
     setLoading(true)
     try {
-      setData(await islemApi.list())
+      setData(await islemApi.list(sabitTip ?? undefined))
     } catch {
       message.error('İşlemler yüklenemedi')
     } finally {
@@ -74,6 +76,7 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
             birim: (values.birim ?? '').trim() || 'ADET',
             sira: values.sira ?? data.length + 1,
             aktif: values.aktif ?? true,
+            tip: sabitTip ?? values.tip ?? 1,
           })
           message.success('İşlem kartı eklendi')
         }
@@ -118,6 +121,16 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
       title: 'Ad',
       dataIndex: 'ad',
     },
+    ...(sabitTip
+      ? []
+      : [
+          {
+            title: 'Tip',
+            dataIndex: 'tip',
+            width: 90,
+            render: (v: number) => (v === 2 ? 'Proses' : 'Genel'),
+          } as const,
+        ]),
     {
       title: 'Birim',
       dataIndex: 'birim',
@@ -171,7 +184,7 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
     <div className="!p-3">
       <div className="flex items-center justify-between mb-3">
         <div className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider">
-          İşlem Kartları
+          {sabitTip === 2 ? 'Proses Tanımları' : 'İşlem Kartları'}
         </div>
         <Button
           type="primary"
@@ -213,6 +226,16 @@ export default function IslemKartlari({ onSelect }: IslemKartlariProps) {
           <Form.Item name="ad" label="Ad" rules={[{ required: true, message: 'Ad gerekli' }]}>
             <Input placeholder="Örn: Kesim" />
           </Form.Item>
+          {sabitTip ? null : (
+            <Form.Item name="tip" label="Tip" initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: 'Genel' },
+                  { value: 2, label: 'Proses (boyahane)' },
+                ]}
+              />
+            </Form.Item>
+          )}
           <Form.Item name="birim" label="Birim">
             <Input placeholder="Örn: ADET (boşsa ADET sayılır)" />
           </Form.Item>

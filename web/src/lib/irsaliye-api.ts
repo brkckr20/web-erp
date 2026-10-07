@@ -11,6 +11,8 @@ export interface Irsaliye {
   faturaNo: string | null
   faturaTarihi: string | null
   faturaId?: number | null
+  /** Doluysa: 202-Fason Talimatı'ndan oluşmuş irsaliyedir (134). İlişkisiz skaler FK. */
+  talimatId?: number | null
   sevkNo: string | null
   sevkTarihi: string | null
   terminTarihi: string | null
@@ -51,6 +53,12 @@ export interface IrsaliyeKalem {
   uuid: string | null
   /** Fason akışında kalemin bağlandığı sipariş kalemi (fire raporu için). */
   siparisKalemId?: number | null
+  /** Bu kalemin üretildiği kaynak irsaliye kalemi (202→134, 134→11). */
+  kaynakKalemId?: number | null
+  /** Fason kumaş bilgileri: istenen gramaj (18,4), ebat, top sayısı. */
+  istenenGram?: number | string | null
+  ebat?: string | null
+  topSayisi?: number | null
   /** Fason fire'ı: sunucu hesaplar (brüt − net), readonly. */
   fire?: number | null
   /**
@@ -66,6 +74,10 @@ export interface IrsaliyeKalem {
   malzeme?: { id: number; kod: string; ad: string; barkod?: string | null } | null
   /** Birleşmiş 202 talimat satırının sipariş/model dağılımı (salt-okunur). */
   tahsisler?: IrsaliyeKalemTahsis[]
+  /** Satıra seçilen prosesler (İşlem kartları, sıralı). */
+  islemler?: { islemId?: number; sira?: number; islem?: { id: number; kod: string; ad: string } | null }[]
+  /** Kaydetmede/aktarımda taşınan proses listesi. */
+  prosesler?: { islemId: number; ad?: string; sira?: number }[]
 }
 
 export interface IrsaliyeKalemTahsis {
