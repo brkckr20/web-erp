@@ -11,6 +11,8 @@ export interface Islem {
   aktif: boolean
   /** 1 = genel, 2 = boyahane prosesi (Proses Tanımları). */
   tip: number
+  /** Varsayılan proses: 202/134 Prosesler modalında boş satıra seçili gelir. */
+  varsayilan?: boolean
 }
 export interface CreateIslem {
   kod: string
@@ -19,6 +21,7 @@ export interface CreateIslem {
   sira?: number
   aktif?: boolean
   tip?: number
+  varsayilan?: boolean
 }
 
 // Eski adla uyumluluk (IslemKartlari ekranından re-export edilir)

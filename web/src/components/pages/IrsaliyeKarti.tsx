@@ -1,6 +1,6 @@
 'use client'
 
-import { Input, InputNumber, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown, Tag } from 'antd'
+import { Input, InputNumber, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown, Tag, Switch } from 'antd'
 import type { MenuProps } from 'antd'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AgGridReact } from 'ag-grid-react'
@@ -404,28 +404,49 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       return
     }
     setProsesSatir(hedef)
-    const mevcut = [...(hedef.prosesler ?? [])].sort((a, b) => a.sira - b.sira)
-    setProsesSecili(mevcut.map((p) => p.islemId))
-    const siralar: Record<number, number> = {}
-    mevcut.forEach((p, i) => { siralar[p.islemId] = p.sira || i + 1 })
-    setProsesSiralar(siralar)
     // Proses Tanımları (tip=2) listelenir.
     islemApi
       .list(2)
-      .then((liste) => setProsesListesi((liste ?? []).filter((x) => x.aktif !== false)))
+      .then((liste) => {
+        const aktifler = (liste ?? []).filter((x) => x.aktif !== false)
+        setProsesListesi(aktifler)
+        const mevcut = [...(hedef.prosesler ?? [])].sort((a, b) => a.sira - b.sira)
+        // Bayat seçim temizliği: silinmiş kartlar listede yoksa seçimden düşer.
+        const listede = new Set(aktifler.map((x) => x.id))
+        const gecerliMevcut = mevcut.filter((p) => listede.has(p.islemId))
+        if (gecerliMevcut.length > 0) {
+          // Satırda kayıtlı proses varsa aynen gelir.
+          setProsesSecili(gecerliMevcut.map((p) => p.islemId))
+          const siralar: Record<number, number> = {}
+          gecerliMevcut.forEach((p, i) => { siralar[p.islemId] = p.sira || i + 1 })
+          setProsesSiralar(siralar)
+        } else {
+          // Boş satırda kartta "varsayılan" işaretliler seçili gelir (kart sırasına göre).
+          const varsayilanlar = aktifler.filter((x) => x.varsayilan === true)
+          setProsesSecili(varsayilanlar.map((x) => x.id))
+          const siralar: Record<number, number> = {}
+          varsayilanlar.forEach((x, i) => { siralar[x.id] = i + 1 })
+          setProsesSiralar(siralar)
+        }
+      })
       .catch(() => setProsesListesi([]))
   }
 
-  const handleProsesSecim = (vals: (number | string)[]) => {
-    const ids = vals.map(Number)
-    setProsesSecili(ids)
+  /** Proses satırı switch ile açılıp kapatılır (yeni açılana listedeki seçim sırası verilir). */
+  const toggleProses = (id: number, checked: boolean) => {
+    setProsesSecili((prev) => {
+      if (checked) return prev.includes(id) ? prev : [...prev, id]
+      return prev.filter((x) => x !== id)
+    })
     setProsesSiralar((prev) => {
       const next = { ...prev }
-      // Yeni seçilene sıradaki en büyük +1 verilir.
-      const max = ids.reduce((m, id) => Math.max(m, next[id] ?? 0), 0)
-      let sira = max
-      for (const id of ids) {
-        if (!next[id]) { sira += 1; next[id] = sira }
+      if (checked) {
+        if (!next[id]) {
+          const max = Object.values(next).reduce((m, v) => Math.max(m, v), 0)
+          next[id] = max + 1
+        }
+      } else {
+        delete next[id]
       }
       return next
     })
@@ -1821,28 +1842,28 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
               Seçilebilecek proses yok — Proses Tanımlarından (Malzeme Yönetimi) proses tanımlayın.
             </div>
           ) : (
-            <Checkbox.Group
-              value={prosesSecili}
-              onChange={handleProsesSecim}
-              className="!flex !flex-col !gap-1"
-            >
-              {prosesListesi.map((x) => (
-                <div key={x.id} className="!flex !items-center !gap-2">
-                  <Checkbox value={x.id} className="!text-[12px] !flex-1">
-                    {x.kod} — {x.ad}
-                  </Checkbox>
-                  {prosesSecili.includes(x.id) && (
-                    <InputNumber
-                      min={1}
-                      size="small"
-                      value={prosesSiralar[x.id] ?? 0}
-                      onChange={(v) => setProsesSiralar((prev) => ({ ...prev, [x.id]: Number(v) || 0 }))}
-                      className="!w-16"
-                    />
-                  )}
-                </div>
-              ))}
-            </Checkbox.Group>
+            <div className="!flex !flex-col !gap-1">
+              {prosesListesi.map((x) => {
+                const acik = prosesSecili.includes(x.id)
+                return (
+                  <div key={x.id} className="!flex !items-center !gap-2">
+                    <Switch size="small" checked={acik} onChange={(v) => toggleProses(x.id, v)} />
+                    <span className="!text-[12px] !flex-1">
+                      {x.kod} — {x.ad}
+                    </span>
+                    {acik && (
+                      <InputNumber
+                        min={1}
+                        size="small"
+                        value={prosesSiralar[x.id] ?? 0}
+                        onChange={(v) => setProsesSiralar((prev) => ({ ...prev, [x.id]: Number(v) || 0 }))}
+                        className="!w-16"
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </Modal>

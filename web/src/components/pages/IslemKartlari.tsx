@@ -21,6 +21,18 @@ export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps
   const [modalOpen, setModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
+  /** Yeni kayıtta kod otomatik verilsin mi (tip bazında 01'den artan). */
+  const [otomatikKod, setOtomatikKod] = useState(true)
+
+  /** Bu tipteki sayısal kodların max+1'i (2 haneli, örn. 01 → 02). */
+  const sonrakiKod = (tip: number): string => {
+    const max = data
+      .filter((d) => (d.tip ?? 1) === tip)
+      .map((d) => parseInt(d.kod, 10))
+      .filter((n) => Number.isFinite(n))
+      .reduce((m, n) => Math.max(m, n), 0)
+    return String(max + 1).padStart(2, '0')
+  }
 
   const load = async () => {
     setLoading(true)
@@ -41,24 +53,28 @@ export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps
   const openEditor = (rec: IslemKarti | null) => {
     setEditing(rec)
     if (rec) {
+      setOtomatikKod(false)
       form.setFieldsValue(rec)
     } else {
+      const tip = sabitTip ?? 1
+      setOtomatikKod(true)
       form.resetFields()
-      form.setFieldsValue({ birim: 'ADET', sira: data.length + 1, aktif: true })
+      form.setFieldsValue({ birim: 'ADET', sira: data.length + 1, aktif: true, varsayilan: false, tip, kod: sonrakiKod(tip) })
     }
     setModalOpen(true)
   }
 
   const handleSave = () => {
     form.validateFields().then(async (values) => {
-      const kod = (values.kod ?? '').trim().toUpperCase()
+      const tip = sabitTip ?? values.tip ?? 1
+      const kod = (otomatikKod && !editing ? sonrakiKod(tip) : (values.kod ?? '')).trim().toUpperCase()
       if (!kod) {
         message.warning('Kod gerekli')
         return
       }
-      const cakisan = data.find((d) => d.kod.toUpperCase() === kod && (!editing || d.id !== editing.id))
+      const cakisan = data.find((d) => d.kod.toUpperCase() === kod && (d.tip ?? 1) === tip && (!editing || d.id !== editing.id))
       if (cakisan) {
-        message.warning(`Bu kod zaten kullanılıyor: ${kod}`)
+        message.warning(`Bu kod bu tipte zaten kullanılıyor: ${kod}`)
         return
       }
       try {
@@ -76,7 +92,8 @@ export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps
             birim: (values.birim ?? '').trim() || 'ADET',
             sira: values.sira ?? data.length + 1,
             aktif: values.aktif ?? true,
-            tip: sabitTip ?? values.tip ?? 1,
+            varsayilan: values.varsayilan ?? false,
+            tip,
           })
           message.success('İşlem kartı eklendi')
         }
@@ -157,6 +174,26 @@ export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps
       ),
     },
     {
+      title: 'Vars.',
+      dataIndex: 'varsayilan',
+      width: 60,
+      align: 'center',
+      render: (v: boolean | undefined, record: IslemKarti) => (
+        <Switch
+          checked={!!v}
+          size="small"
+          onChange={async (checked) => {
+            try {
+              await islemApi.update(record.id, { varsayilan: checked })
+              await load()
+            } catch (e: any) {
+              message.error(e?.message || 'Güncelleme sırasında hata oluştu')
+            }
+          }}
+        />
+      ),
+    },
+    {
       title: '',
       width: 70,
       align: 'center',
@@ -219,9 +256,33 @@ export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps
         onOk={handleSave}
         width={400}
       >
-        <Form form={form} layout="vertical" className="mt-3">
+        <Form
+          form={form}
+          layout="vertical"
+          className="mt-3"
+          onValuesChange={(changed) => {
+            // Serbest tip seçiminde tip değişirse otomatik kodu o tipe göre yenile.
+            if (!editing && otomatikKod && changed.tip != null) {
+              form.setFieldsValue({ kod: sonrakiKod(changed.tip) })
+            }
+          }}
+        >
+          {!editing && (
+            <Form.Item label="Otomatik Kod" valuePropName="checked">
+              <Switch
+                checked={otomatikKod}
+                onChange={(v) => {
+                  setOtomatikKod(v)
+                  if (v) {
+                    const tip = sabitTip ?? form.getFieldValue('tip') ?? 1
+                    form.setFieldsValue({ kod: sonrakiKod(tip) })
+                  }
+                }}
+              />
+            </Form.Item>
+          )}
           <Form.Item name="kod" label="Kod" rules={[{ required: true, message: 'Kod gerekli' }]}>
-            <Input placeholder="Örn: KESIM" />
+            <Input placeholder="Örn: 01" disabled={!editing && otomatikKod} />
           </Form.Item>
           <Form.Item name="ad" label="Ad" rules={[{ required: true, message: 'Ad gerekli' }]}>
             <Input placeholder="Örn: Kesim" />
@@ -243,6 +304,13 @@ export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps
             <InputNumber min={1} className="!w-full" />
           </Form.Item>
           <Form.Item name="aktif" label="Aktif" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="varsayilan"
+            label="Varsayılan (202/134'te otomatik seçili gelsin)"
+            valuePropName="checked"
+          >
             <Switch />
           </Form.Item>
         </Form>

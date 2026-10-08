@@ -36,6 +36,7 @@ export class IslemService {
         sira: dto.sira ?? 0,
         aktif: dto.aktif ?? true,
         tip: dto.tip ?? 1,
+        varsayilan: dto.varsayilan ?? false,
       },
     })
   }
@@ -57,6 +58,7 @@ export class IslemService {
         ...(dto.sira !== undefined ? { sira: dto.sira } : {}),
         ...(dto.aktif !== undefined ? { aktif: dto.aktif } : {}),
         ...(dto.tip !== undefined ? { tip: dto.tip } : {}),
+        ...(dto.varsayilan !== undefined ? { varsayilan: dto.varsayilan } : {}),
       },
     })
   }

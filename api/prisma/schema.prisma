@@ -1423,6 +1423,8 @@ model Islem {
   aktif Boolean @default(true)
   // İşlem tipi: 1 = genel, 2 = boyahane prosesi (Proses Tanımları).
   tip   Int     @default(1)
+  // Varsayılan proses: 202/134'te Prosesler modalı boş satırda bunları seçili getirir.
+  varsayilan Boolean @default(false) @map("varsayilan")
 
   kalemIslemler IrsaliyeKalemIslem[]
 

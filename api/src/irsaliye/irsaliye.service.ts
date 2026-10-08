@@ -51,13 +51,18 @@ const kalemInclude = {
 }
 
 // Kalem satırına seçilen prosesleri yazar (aynı transaction içinde).
+// Silinmiş kartların id'leri atlanır (bayat seçim FK patlatmasın).
 async function islemleriYaz(tx: any, irsaliyeKalemId: number, prosesler: { islemId: number; sira?: number }[] | undefined) {
   if (!Array.isArray(prosesler) || prosesler.length === 0) return
+  const adaylar = [...new Set(prosesler.map((p) => Number(p?.islemId)).filter((n) => Number.isFinite(n) && n > 0))]
+  if (adaylar.length === 0) return
+  const mevcutKartlar = await tx.islem.findMany({ where: { id: { in: adaylar } }, select: { id: true } })
+  const gecerli = new Set((mevcutKartlar as { id: number }[]).map((r) => r.id))
   const gorulen = new Set<number>()
   let sira = 0
   for (const p of prosesler) {
     const islemId = Number(p?.islemId)
-    if (!Number.isFinite(islemId) || islemId <= 0 || gorulen.has(islemId)) continue
+    if (!gecerli.has(islemId) || gorulen.has(islemId)) continue
     gorulen.add(islemId)
     sira += 1
     await tx.irsaliyeKalemIslem.create({ data: { irsaliyeKalemId, islemId, sira: p?.sira ?? sira } })

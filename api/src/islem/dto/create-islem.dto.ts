@@ -5,4 +5,5 @@ export class CreateIslemDto {
   sira?: number
   aktif?: boolean
   tip?: number
+  varsayilan?: boolean
 }
