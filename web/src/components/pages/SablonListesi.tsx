@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Button, Table, Space, Popconfirm, message, Tag, Input } from 'antd'
+import { Card, Button, Table, Space, Popconfirm, App, Tag, Input } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { sablonApi, type Sablon } from '@/lib/sablon-api'
 
@@ -11,6 +11,7 @@ interface Props {
 }
 
 export default function SablonListesi({ onYeni, onDuzenle }: Props) {
+  const { message } = App.useApp()
   const [sablonlar, setSablonlar] = useState<Sablon[]>([])
   const [yukleniyor, setYukleniyor] = useState(true)
   const [arama, setArama] = useState('')
