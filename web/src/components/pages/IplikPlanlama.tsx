@@ -276,9 +276,12 @@ export default function IplikPlanlama({ onYeniSatinalmaSiparis, onIrsaliyeAc, on
           miktar: Number(r.gerekenMiktar) || 0,
           birim: 'kg',
           aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+          siparisKalemId: r.siparisKalemId ?? null,
         }
         if (!ham) {
           kalem.varyant1RenkId = r.varyant1RenkId ?? null
+          kalem.varyant1RenkKod = r.varyant1 || null
+          kalem.varyant1RenkAd = r.varyant1Aciklama || null
         }
         return kalem
       })

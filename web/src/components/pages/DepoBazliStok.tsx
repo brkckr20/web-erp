@@ -11,7 +11,7 @@ import { depoApi, type Depo } from '@/lib/depo-api'
 export default function DepoBazliStok() {
   const [satirlar, setSatirlar] = useState<DepoBazliStokSatir[]>([])
   const [depoList, setDepoList] = useState<Depo[]>([])
-  const [depoFiltre, setDepoFiltre] = useState<string>('')
+  const [depoFiltre, setDepoFiltre] = useState<string[]>([])
   const [arama, setArama] = useState('')
   const [loading, setLoading] = useState(false)
   const { message } = App.useApp()
@@ -33,7 +33,7 @@ export default function DepoBazliStok() {
 
   const filtrelenmis = useMemo(() => {
     let rows = satirlar.filter((r) => Math.abs(r.brutKg) > 0.0001 || Math.abs(r.kg) > 0.0001 || Math.abs(r.brutMt) > 0.0001 || Math.abs(r.mt) > 0.0001 || Math.abs(r.adet) > 0.0001)
-    if (depoFiltre) rows = rows.filter((r) => r.depoKod === depoFiltre)
+    if (depoFiltre.length > 0) rows = rows.filter((r) => depoFiltre.includes(r.depoKod))
     const q = arama.trim().toLowerCase()
     if (q) {
       rows = rows.filter(
@@ -84,11 +84,13 @@ export default function DepoBazliStok() {
         <div className="!flex !items-center !gap-1.5">
           <Select
             size="small"
+            mode="multiple"
             allowClear
+            maxTagCount="responsive"
             placeholder="Tüm Depolar"
-            value={depoFiltre || undefined}
-            onChange={(v) => setDepoFiltre(v ?? '')}
-            className="!w-48 !text-[12px]"
+            value={depoFiltre}
+            onChange={(v) => setDepoFiltre(v ?? [])}
+            className="!w-64 !text-[12px]"
             options={depoList.map((d) => ({ value: d.kod, label: `${d.kod} ${d.ad}` }))}
           />
           <Input

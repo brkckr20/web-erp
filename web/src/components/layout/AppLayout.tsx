@@ -1415,6 +1415,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       locale={trTR}
       theme={{
         token: {
+          fontFamily: 'var(--font-inter), "Segoe UI", system-ui, -apple-system, sans-serif',
           fontSize: 12,
           borderRadius: 4,
           padding: 8,

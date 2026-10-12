@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-inter), "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Uygulama geneli: Inter (next/font ile gömülü, tüm işletim sistemlerinde aynı görünür). */
+/* tabular-nums: grid'lerde miktar/tutar rakamları hizalı durur. */
+body {
+  font-family: var(--font-inter), "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
 .bayat-satir {
   background-color: #fffbeb !important;
   box-shadow: inset 3px 0 0 0 #f59e0b;

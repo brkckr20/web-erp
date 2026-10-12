@@ -234,6 +234,11 @@ export class TedarikService {
           m.id           AS malzeme_id,
           m.kod          AS malzeme_kod,
           m.ad           AS malzeme_ad,
+          kg.id          AS kumas_grup_id,
+          kg.kod         AS kumas_grup_kod,
+          g.renk_id      AS renk_id,
+          rn.kod         AS renk_kod,
+          rn.ad          AS renk_ad,
           rk.id          AS recete_kalem_id,
           sk.id          AS siparis_kalem_id,
           SUM(ISNULL(ro.miktar, 0) * ISNULL(srb.miktar, 0)) AS brut
@@ -244,25 +249,33 @@ export class TedarikService {
           AND rk.tip = ${receteTip}
           AND ISNULL(rk.tedarik_hesaplanmayacak, 0) = 0
         JOIN malzeme m               ON m.id          = rk.malzeme_id
+        -- Reçete varyantı (kumaş grup kodu) LEFT: varyantsız satır renksiz hesaba girer.
+        LEFT JOIN kumas_grup kg      ON kg.kod        = rk.variant_1
         JOIN recete_olcu ro          ON ro.kalem_id  = rk.id
         JOIN siparis_renk sr         ON sr.siparis_kalem_id = sk.id
+        -- Sipariş rengi -> kumaş grup eşleşmesi (kumaş hesabındaki zincirin aynısı).
+        LEFT JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
+          AND g.kumas_grup_id = kg.id
+        LEFT JOIN renk rn            ON rn.id         = g.renk_id
         JOIN siparis_renk_beden srb  ON srb.siparis_renk_id = sr.id
           AND srb.beden_id = ro.beden_id
         WHERE s.id = ${siparisId}
           AND (${kalemId} IS NULL OR sk.id = ${kalemId})
         GROUP BY
           m.id, m.kod, m.ad,
+          kg.id, kg.kod,
+          g.renk_id, rn.kod, rn.ad,
           rk.id, sk.id
       )
       SELECT
         d.malzeme_id          AS malzemeId,
         d.malzeme_kod         AS malzemeKod,
         d.malzeme_ad          AS malzemeAd,
-        NULL                  AS kumasGrupId,
-        NULL                  AS kumasGrupKod,
-        NULL                  AS renkId,
-        NULL                  AS renkKod,
-        NULL                  AS renkAd,
+        d.kumas_grup_id       AS kumasGrupId,
+        d.kumas_grup_kod      AS kumasGrupKod,
+        d.renk_id             AS renkId,
+        d.renk_kod            AS renkKod,
+        d.renk_ad             AS renkAd,
         d.recete_kalem_id     AS receteKalemId,
         d.siparis_kalem_id    AS siparisKalemId,
         N'KG'                AS birim,
