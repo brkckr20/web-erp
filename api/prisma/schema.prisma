@@ -1355,6 +1355,10 @@ model Sablon {
   sagBosluk        Int      @default(15) @map("sag_bosluk")
   altBilgi         Boolean  @default(true) @map("alt_bilgi")
   aktif            Boolean  @default(true)
+  // Filigran: metin + koşul ('kapali' | 'herzaman' | 'onaysiz').
+  // 'onaysiz' için sorgulardan birinin ilk satırında `onaylandi` kolonu dönmeli.
+  filigranMetin    String?  @map("filigran_metin") @db.NVarChar(50)
+  filigranKosul    String   @default("kapali") @map("filigran_kosul") @db.NVarChar(10)
   olusturmaTarihi  DateTime @default(now()) @map("olusturma_tarihi")
   guncellemeTarihi DateTime? @map("guncelleme_tarihi")
 

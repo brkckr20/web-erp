@@ -120,6 +120,8 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
   const [solBosluk, setSolBosluk] = useState(15)
   const [sagBosluk, setSagBosluk] = useState(15)
   const [altBilgi, setAltBilgi] = useState(true)
+  const [filigranMetin, setFiligranMetin] = useState('ONAYSIZ')
+  const [filigranKosul, setFiligranKosul] = useState('kapali')
   const [sorgular, setSorgular] = useState<Sorgu[]>([
     { adi: 'siparis', sql: ORNEK_SORGU },
   ])
@@ -150,6 +152,8 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
       setSolBosluk(data.solBosluk)
       setSagBosluk(data.sagBosluk)
       setAltBilgi(data.altBilgi)
+      setFiligranMetin(data.filigranMetin ?? 'ONAYSIZ')
+      setFiligranKosul(data.filigranKosul ?? 'kapali')
       setSorgular(data.sorgular.map((s) => ({ adi: s.ad, sql: s.sqlIcerik })))
     } catch {
       message.error('Şablon yüklenemedi')
@@ -181,6 +185,8 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
         solBosluk,
         sagBosluk,
         altBilgi,
+        filigranMetin: filigranKosul === 'kapali' ? null : filigranMetin.trim() || 'ONAYSIZ',
+        filigranKosul,
         sorgular: sorgular.map((s, i) => ({ ad: s.adi, sqlIcerik: s.sql, sira: i })),
       }
       if (kayitId) {
@@ -323,6 +329,36 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
                 <div className="!text-[10px] !text-[#6b7280]">Alt Bilgi (Nakosan Tekstil / Sayfa No)</div>
                 <Switch size="small" checked={altBilgi} onChange={setAltBilgi} />
               </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title="Filigran">
+            <Space orientation="vertical" className="!w-full" size="small">
+              <div>
+                <div className="!text-[10px] !text-[#6b7280] !mb-1">Gösterim</div>
+                <Select
+                  size="small"
+                  className="!w-full"
+                  value={filigranKosul}
+                  onChange={setFiligranKosul}
+                  options={[
+                    { value: 'kapali', label: 'Kapalı' },
+                    { value: 'herzaman', label: 'Her zaman' },
+                    { value: 'onaysiz', label: 'Yalnızca onaysız' },
+                  ]}
+                />
+              </div>
+              {filigranKosul !== 'kapali' && (
+                <div>
+                  <div className="!text-[10px] !text-[#6b7280] !mb-1">Metin</div>
+                  <Input size="small" value={filigranMetin} onChange={(e) => setFiligranMetin(e.target.value)} placeholder="ONAYSIZ" maxLength={50} />
+                </div>
+              )}
+              {filigranKosul === 'onaysiz' && (
+                <div className="!text-[10px] !text-[#9ca3af]">
+                  Sorgulardan birinin ilk satırı `onaylandi` kolonu dönmeli (irsaliye sorgusuna ekleyin).
+                </div>
+              )}
             </Space>
           </Card>
 

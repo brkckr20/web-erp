@@ -23,6 +23,8 @@ export interface Sablon {
   sagBosluk: number
   altBilgi: boolean
   aktif: boolean
+  filigranMetin: string | null
+  filigranKosul: string
   olusturmaTarihi: string
   guncellemeTarihi: string | null
   sorgular: SablonSorgu[]
@@ -40,6 +42,8 @@ export interface SablonOlustur {
   solBosluk?: number
   sagBosluk?: number
   altBilgi?: boolean
+  filigranMetin?: string | null
+  filigranKosul?: string
   sorgular?: { ad: string; sqlIcerik: string; sira?: number }[]
 }
 

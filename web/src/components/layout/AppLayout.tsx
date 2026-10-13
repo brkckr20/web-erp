@@ -234,8 +234,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       }
       const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
       const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
+      // Yeni ekranda da rapor şablonları bulunsun diye listedeki ekranAdi aynen taşınır.
+      const ekranAdi = (irsaliyeTipi === '201' || irsaliyeTipi === '1' || irsaliyeTipi === '202' || irsaliyeTipi === '134')
+        ? 'satinalma-siparis'
+        : undefined
       setTabs((prev) => {
-        const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true }
+        const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true, ekranAdi }
         const exists = prev.find((t) => t.key === key)
         if (!exists) return [...prev, tab]
         return prev
@@ -1353,6 +1357,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           key={isYeniSatinalma ? `yeni201-${satinalmaSiparisKey}` : undefined}
           irsaliyeTipi={irsaliyeTipi}
           fasonTipiId={fasonTipiId}
+          ekranAdi={tab.ekranAdi}
           baslangicKalemler={isYeniSatinalma ? satinalmaBaslangicKalemler : undefined}
           baslangicTalimatId={irsaliyeTipi === '134' ? baslangicTalimatId : undefined}
           onCreateIrsaliye={handleCreateIrsaliye}

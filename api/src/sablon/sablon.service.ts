@@ -37,6 +37,8 @@ export class SablonService {
     solBosluk?: number
     sagBosluk?: number
     altBilgi?: boolean
+    filigranMetin?: string
+    filigranKosul?: string
     sorgular?: { ad: string; sqlIcerik: string; sira?: number }[]
   }) {
     return this.prisma.sablon.create({
@@ -52,6 +54,8 @@ export class SablonService {
         solBosluk: data.solBosluk ?? 15,
         sagBosluk: data.sagBosluk ?? 15,
         altBilgi: data.altBilgi ?? true,
+        filigranMetin: data.filigranMetin ?? null,
+        filigranKosul: data.filigranKosul ?? 'kapali',
         sorgular: data.sorgular
           ? { create: data.sorgular.map((s) => ({ ad: s.ad, sqlIcerik: s.sqlIcerik, sira: s.sira ?? 0 })) }
           : undefined,
@@ -73,6 +77,8 @@ export class SablonService {
     sagBosluk?: number
     altBilgi?: boolean
     aktif?: boolean
+    filigranMetin?: string
+    filigranKosul?: string
     sorgular?: { id?: number; ad: string; sqlIcerik: string; sira?: number }[]
   }) {
     const mevcut = await this.prisma.sablon.findUnique({ where: { id } })
@@ -97,6 +103,8 @@ export class SablonService {
         sagBosluk: data.sagBosluk,
         altBilgi: data.altBilgi,
         aktif: data.aktif,
+        filigranMetin: data.filigranMetin,
+        filigranKosul: data.filigranKosul,
         guncellemeTarihi: new Date(),
         sorgular: data.sorgular
           ? { create: data.sorgular.map((s) => ({ ad: s.ad, sqlIcerik: s.sqlIcerik, sira: s.sira ?? 0 })) }
@@ -139,7 +147,7 @@ export class SablonService {
     const html = this.htmlBind(sablon.htmlIcerik, sorguSonuclari, await this.barkodResimleri(sorguSonuclari))
 
     return {
-      html,
+      html: this.filigranUygula(html, sablon.filigranMetin, sablon.filigranKosul, sorguSonuclari),
       sayfaEn: sablon.sayfaEn,
       sayfaBoy: sablon.sayfaBoy,
       yon: sablon.yon,
@@ -195,6 +203,31 @@ export class SablonService {
 
     await browser.close()
     return Buffer.from(pdfBuffer)
+  }
+
+  // Filigran: koşul 'herzaman' ise basılır; 'onaysiz' ise sorguların ilk satırındaki
+  // `onaylandi` kolonu false/0 iken basılır (kolon yoksa güvenli tarafta kalıp basılmaz).
+  // position:fixed her baskı sayfasında tekrar eder.
+  private filigranUygula(html: string, metin: string | null, kosul: string, sorguSonuclari: Record<string, any[]>): string {
+    if (!metin || !metin.trim() || (kosul !== 'herzaman' && kosul !== 'onaysiz')) return html
+    if (kosul === 'onaysiz' && this.belgeOnayliMi(sorguSonuclari) !== false) return html
+    const guvenli = metin.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const filigran = `<div style="position:fixed; top:38%; left:0; right:0; text-align:center; font-size:110px; font-weight:bold; color:rgba(180,0,0,0.10); transform:rotate(-25deg);">${guvenli}</div>`
+    return filigran + html
+  }
+
+  // Sorgu sonuçlarının ilk satırlarında `onaylandi` arar: true/1 → onaylı, false/0 → onaysız, yoksa null.
+  private belgeOnayliMi(sorguSonuclari: Record<string, any[]>): boolean | null {
+    for (const satirlar of Object.values(sorguSonuclari)) {
+      const ilk = (satirlar ?? [])[0]
+      if (!ilk) continue
+      const anahtar = Object.keys(ilk).find((k) => k.toLowerCase() === 'onaylandi')
+      if (anahtar == null) continue
+      const v = ilk[anahtar]
+      if (v === true || v === 1 || String(v) === '1' || String(v).toLowerCase() === 'true') return true
+      return false
+    }
+    return null
   }
 
   // Barkod resimleri: sorgu sonuçlarındaki `barkod` kolonlarından Code128 PNG (data URI) üretir.
