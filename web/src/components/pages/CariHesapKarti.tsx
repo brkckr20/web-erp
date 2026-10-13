@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Tabs, Input, Switch, Select, Checkbox, Row, Col, App, Spin } from 'antd'
+import { Tabs, Input, Switch, Select, Row, Col, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { cariHesapApi, type CariHesapFormData } from '@/lib/cari-hesap-api'
+import CariHesapAdresleri from './CariHesapAdresleri'
 
 interface CariForm {
   kod: string
@@ -339,31 +340,6 @@ export default function CariHesapKarti({ isNew, kod }: CariHesapKartiProps) {
                             </FormField>
                           </div>
                         </div>
-                        <div className="!border !border-gray-200 !rounded-sm !p-3 !mt-3">
-                          <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">İlgili Kişiler</div>
-                          <div className="!space-y-2.5">
-                            <FormField label="Personel">
-                              <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.personel} onChange={(e) => set('personel', e.target.value)} className="!text-[11px]" />
-                            </FormField>
-                            <FormField label="Satış Personeli">
-                              <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.satisPersoneli} onChange={(e) => set('satisPersoneli', e.target.value)} className="!text-[11px]" />
-                            </FormField>
-                            <FormField label="Satış Kanalı">
-                              <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.satisKanali} onChange={(e) => set('satisKanali', e.target.value)} className="!text-[11px]" />
-                            </FormField>
-                            <FormField label="Aracı Kurum">
-                              <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.araciKurum} onChange={(e) => set('araciKurum', e.target.value)} className="!text-[11px]" />
-                            </FormField>
-                          </div>
-                        </div>
-                        <div className="!border !border-gray-200 !rounded-sm !p-3 !mt-3">
-                          <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">Bayi / Faktoring</div>
-                          <div className="!flex !flex-wrap !gap-x-6 !gap-y-1">
-                            <Checkbox checked={form.potansiyel} onChange={(e) => set('potansiyel', e.target.checked)} className="!text-[11px]">Potansiyel</Checkbox>
-                            <Checkbox checked={form.bayi} onChange={(e) => set('bayi', e.target.checked)} className="!text-[11px]">Bayi</Checkbox>
-                            <Checkbox checked={form.faktoring} onChange={(e) => set('faktoring', e.target.checked)} className="!text-[11px]">Faktoring</Checkbox>
-                          </div>
-                        </div>
                       </Col>
                       <Col span={12}>
                         <div className="!border !border-gray-200 !rounded-sm !p-3">
@@ -414,6 +390,11 @@ export default function CariHesapKarti({ isNew, kod }: CariHesapKartiProps) {
                     </Row>
                   </div>
                 ),
+              },
+              {
+                key: 'adres',
+                label: 'Adres',
+                children: <CariHesapAdresleri cariId={id} />,
               },
             ]}
           />

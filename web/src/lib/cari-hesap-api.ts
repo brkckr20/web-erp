@@ -39,6 +39,29 @@ export interface CariHesap {
 
 export type CariHesapFormData = Omit<CariHesap, 'id'>
 
+export interface CariHesapAdres {
+  id: number
+  cariHesapId: number
+  kod: string
+  tip: string | null
+  aciklama: string | null
+  adres1: string | null
+  adres2: string | null
+  ulke: string | null
+  sehir: string | null
+  ilce: string | null
+  mahalle: string | null
+  ozelKod: string | null
+  telefon: string | null
+  fax: string | null
+  postaKodu: string | null
+  eposta: string | null
+  aktif: boolean
+  varsayilan: boolean
+}
+
+export type CariHesapAdresFormData = Omit<CariHesapAdres, 'id' | 'cariHesapId' | 'kod'>
+
 export const cariHesapApi = {
   list: (search?: string, page?: number, limit?: number, prefix?: string) => {
     const params: string[] = []
@@ -54,4 +77,9 @@ export const cariHesapApi = {
   create: (data: CariHesapFormData) => api.post<CariHesap>('/cari-hesap', data),
   update: (id: number, data: Partial<CariHesapFormData>) => api.put<CariHesap>(`/cari-hesap/${id}`, data),
   remove: (id: number) => api.delete<void>(`/cari-hesap/${id}`),
+
+  adresList: (cariId: number) => api.get<CariHesapAdres[]>(`/cari-hesap/${cariId}/adresler`),
+  adresEkle: (cariId: number, data: CariHesapAdresFormData) => api.post<CariHesapAdres>(`/cari-hesap/${cariId}/adresler`, data),
+  adresGuncelle: (adresId: number, data: Partial<CariHesapAdresFormData>) => api.put<CariHesapAdres>(`/cari-hesap/adresler/${adresId}`, data),
+  adresSil: (adresId: number) => api.delete<void>(`/cari-hesap/adresler/${adresId}`),
 }

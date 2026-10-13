@@ -447,6 +447,7 @@ model CariHesap {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
+  adresler        CariHesapAdres[] @relation("CariHesapAdresler")
   kkFisler          KaliteKontrol[] @relation("KKFisCariHesap")
   renkler           Renk[] @relation("RenkCariHesap")
   malzemeler        Malzeme[] @relation("MalzemeUreticiFirma")
@@ -457,6 +458,35 @@ model CariHesap {
   @@index([vergiNo])
   @@index([createdAt])
   @@map("cari_hesap")
+}
+
+model CariHesapAdres {
+  id           Int       @id @default(autoincrement())
+  cariHesapId  Int       @map("cari_hesap_id")
+  cariHesap    CariHesap @relation("CariHesapAdresler", fields: [cariHesapId], references: [id], onDelete: Cascade)
+  kod          String    @db.VarChar(10)
+  tip          String?   @db.VarChar(50)
+  aciklama     String?   @db.VarChar(500)
+  adres1       String?   @map("adres_1") @db.VarChar(500)
+  adres2       String?   @map("adres_2") @db.VarChar(500)
+  ulke         String?   @db.VarChar(100)
+  sehir        String?   @db.VarChar(100)
+  ilce         String?   @db.VarChar(100)
+  mahalle      String?   @db.VarChar(100)
+  ozelKod      String?   @map("ozel_kod") @db.VarChar(50)
+  telefon      String?   @db.VarChar(30)
+  fax          String?   @db.VarChar(30)
+  postaKodu    String?   @map("posta_kodu") @db.VarChar(20)
+  eposta       String?   @db.VarChar(150)
+  aktif        Boolean   @default(true)
+  varsayilan   Boolean   @default(false)
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@unique([cariHesapId, kod])
+  @@index([cariHesapId])
+  @@map("cari_hesap_adres")
 }
 
 model Irsaliye {

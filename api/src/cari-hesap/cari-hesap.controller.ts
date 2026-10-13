@@ -2,6 +2,8 @@ import { Controller, Get, Post, Put, Delete, Query, Param, Body, ParseIntPipe } 
 import { CariHesapService } from './cari-hesap.service'
 import { CreateCariHesapDto } from './dto/create-cari-hesap.dto'
 import { UpdateCariHesapDto } from './dto/update-cari-hesap.dto'
+import { CreateCariHesapAdresDto } from './dto/create-cari-hesap-adres.dto'
+import { UpdateCariHesapAdresDto } from './dto/update-cari-hesap-adres.dto'
 
 @Controller('cari-hesap')
 export class CariHesapController {
@@ -40,5 +42,25 @@ export class CariHesapController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.cariHesapService.remove(id)
+  }
+
+  @Get(':id/adresler')
+  adresleriGetir(@Param('id', ParseIntPipe) id: number) {
+    return this.cariHesapService.adresleriGetir(id)
+  }
+
+  @Post(':id/adresler')
+  adresEkle(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateCariHesapAdresDto) {
+    return this.cariHesapService.adresEkle(id, dto)
+  }
+
+  @Put('adresler/:adresId')
+  adresGuncelle(@Param('adresId', ParseIntPipe) adresId: number, @Body() dto: UpdateCariHesapAdresDto) {
+    return this.cariHesapService.adresGuncelle(adresId, dto)
+  }
+
+  @Delete('adresler/:adresId')
+  adresSil(@Param('adresId', ParseIntPipe) adresId: number) {
+    return this.cariHesapService.adresSil(adresId)
   }
 }

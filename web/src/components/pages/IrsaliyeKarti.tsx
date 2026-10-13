@@ -364,7 +364,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [depoKod, setDepoKod] = useState<string>(() => baslangicKalemler?.[0]?.depoKod ?? '')
   const [irsaliyeTarihi, setIrsaliyeTarihi] = useState(dayjs())
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
-  const [terminTarihi, setTerminTarihi] = useState<dayjs.Dayjs | null>(null)
+  // 201-Yeni kayıtta Termin Tarihi bugünü default alır.
+  const [terminTarihi, setTerminTarihi] = useState<dayjs.Dayjs | null>(() => (irsaliyeTipi === '201' && !propId ? dayjs() : null))
   const [belgeNo, setBelgeNo] = useState('')
   const [bagliFaturaNo, setBagliFaturaNo] = useState('')
   const [talimatId, setTalimatId] = useState<number | null>(null)
@@ -487,6 +488,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           if (i.irsaliyeTarihi) setIrsaliyeTarihi(dayjs(i.irsaliyeTarihi))
            if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
            if (i.terminTarihi) setTerminTarihi(dayjs(i.terminTarihi))
+           // Eski 201 kayıtları tarihi sevk_tarihi'ne yazıyordu; termin boşsa oradan devral.
+           else if (irsaliyeTipi === '201' && i.sevkTarihi) setTerminTarihi(dayjs(i.sevkTarihi))
           setBelgeNo(i.sevkNo ?? '')
           setBagliFaturaNo(i.faturaNo ?? '')
           const tid = (i as Irsaliye).talimatId ?? null
@@ -1497,8 +1500,12 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                     <DatePicker size="small" value={irsaliyeTarihi} onChange={(d) => d && setIrsaliyeTarihi(d)} format="DD.MM.YYYY" placeholder="Fiş tarihi" className="!w-48 !text-[12px]" />
                   </div>
                   <div className="!flex !items-center !gap-3">
-                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">{irsaliyeTipi === '201' ? 'Teslim Tarihi' : 'Sevk Tarihi'}</div>
-                    <DatePicker size="small" value={sevkTarihi} onChange={(d) => setSevkTarihi(d)} format="DD.MM.YYYY" placeholder={irsaliyeTipi === '201' ? 'Teslim tarihi' : 'Sevk tarihi'} className="!w-48 !text-[12px]" />
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">{irsaliyeTipi === '201' ? 'Termin Tarihi' : 'Sevk Tarihi'}</div>
+                    {irsaliyeTipi === '201' ? (
+                      <DatePicker size="small" value={terminTarihi} onChange={(d) => setTerminTarihi(d)} format="DD.MM.YYYY" placeholder="Termin tarihi" className="!w-48 !text-[12px]" />
+                    ) : (
+                      <DatePicker size="small" value={sevkTarihi} onChange={(d) => setSevkTarihi(d)} format="DD.MM.YYYY" placeholder="Sevk tarihi" className="!w-48 !text-[12px]" />
+                    )}
                   </div>
                   {irsaliyeTipi !== '201' && (
                     <div className="!flex !items-center !gap-3">
