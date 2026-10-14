@@ -985,11 +985,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           <div className="!flex-shrink-0 !space-y-1.5">
             <div className="!flex !gap-2">
               <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
-                <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Genel Bilgiler</div>
+                <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Genel Bilgiler</div>
                 <div className="!space-y-0.5">
                   <div className="!flex !items-center !gap-3">
-                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fatura No</div>
-                    <Input size="small" value={faturaNo} className="!w-48 !text-[12px] !font-medium !text-[#f57c00]" readOnly />
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fiş No</div>
+                    <Input size="small" value={faturaNo} className="!w-48 !text-[12px]" readOnly />
                   </div>
                   <div className="!flex !items-center !gap-3">
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fatura Tarihi</div>
@@ -1017,7 +1017,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
               </div>
 
               <div className="!flex-1 !border !border-gray-200 !rounded-sm !p-2">
-                <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Cari Hesap Bilgileri</div>
+                <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Cari Hesap Bilgileri</div>
                 <div className="!space-y-0.5">
                   <div className="!flex !items-center !gap-3">
                     <div className="!text-[12px] !text-[red] !w-24 !shrink-0">Cari Hesap</div>
@@ -1036,7 +1036,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
 
               {bagliIrsaliyeler.length > 0 && (
               <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
-                <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Entegrasyon Bilgileri</div>
+                <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Entegrasyon Bilgileri</div>
                 <div className="!space-y-0.5">
                   <div className="!flex !items-start !gap-3">
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">İrsaliye</div>
@@ -1058,7 +1058,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
 
           <div className="!border !border-gray-200 !rounded-sm !flex-1 !min-h-0 !flex !flex-col !mt-1.5">
             <div className="!flex !items-center !justify-between !px-3 !pt-2 !pb-1 !flex-shrink-0">
-              <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide">Satır Detayları</div>
+              <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Satır Detayları</div>
               <div className="!flex !items-center !gap-1">
                 <Popover
                   content={kolonChooserContent}

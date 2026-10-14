@@ -74,6 +74,8 @@ export interface IrsaliyeBaslangicKalem {
   depoKod?: string
   aciklama: string
   siparisKalemId: number | null
+  /** Parti/lot no (girişlerde girilir, aktarımda taşınır). */
+  partiNo?: string | null
   /** Kaynak irsaliye kalem id'si (202→134 aktarımında 202'nin kalem id'si). */
   kaynakKalemId?: number | null
   /** Fason kumaş bilgileri: talimattan çıkışa taşınır. */
@@ -113,15 +115,15 @@ export function prosesAdlariGetir(prosesler: KalemProses[] | undefined): string 
 }
 
 /**
- * Aynı kumaş + renkteki başlangıç kalemlerini tek satırda birleştirir (anahtar:
- * malzemeKod + varyant1RenkId + birim), miktarları toplar, kaynakları tahsis
+ * Aynı kumaş + renk + partideki başlangıç kalemlerini tek satırda birleştirir (anahtar:
+ * malzemeKod + varyant1RenkId + birim + partiNo), miktarları toplar, kaynakları tahsis
  * listesinde saklar. Tahsis salt-okunurdur; satır miktarı sonradan değişirse
  * Tahsis Detayları modalı farkı uyarı olarak gösterir.
  */
 export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]): IrsaliyeBaslangicKalem[] {
   const gruplar = new Map<string, IrsaliyeBaslangicKalem>()
   for (const k of kalemler) {
-    const anahtar = `${k.malzemeKod}||${k.varyant1RenkId ?? ''}||${k.birim}`
+    const anahtar = `${k.malzemeKod}||${k.varyant1RenkId ?? ''}||${k.birim}||${k.partiNo ?? ''}`
     const mevcut = gruplar.get(anahtar)
     if (!mevcut) {
       gruplar.set(anahtar, { ...k, tahsis: [...(k.tahsis ?? [])] })
@@ -149,6 +151,7 @@ interface KalemRow {
   malzemeKod: string
   malzemeAd: string
   barkod: string
+  partiNo: string
   brutKg: number
   kg: number
   brutMt: number
@@ -189,6 +192,7 @@ const emptyKalem = (): KalemRow => ({
   malzemeKod: '',
   malzemeAd: '',
   barkod: '',
+  partiNo: '',
   brutKg: 0,
   kg: 0,
   brutMt: 0,
@@ -377,7 +381,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, kaynakKalemId: b.kaynakKalemId ?? null, istenenGram: b.istenenGram ?? 0, ebat: b.ebat ?? '', topSayisi: b.topSayisi ?? 0, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [], prosesler: b.prosesler ?? [] }
+          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', partiNo: b.partiNo ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, kaynakKalemId: b.kaynakKalemId ?? null, istenenGram: b.istenenGram ?? 0, ebat: b.ebat ?? '', topSayisi: b.topSayisi ?? 0, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [], prosesler: b.prosesler ?? [] }
           const val = b.miktar || 0
           if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
           else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
@@ -516,6 +520,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             malzemeKod: (k as IrsaliyeKalem).malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
             malzemeAd: (k as IrsaliyeKalem).malzeme?.ad ?? '',
             barkod: (k as IrsaliyeKalem).takipNo ?? (k as IrsaliyeKalem).malzeme?.barkod ?? '',
+            partiNo: (k as IrsaliyeKalem).partiNo ?? '',
             brutKg: Number((k as IrsaliyeKalem).brutAgirlik) || 0,
             kg: Number((k as IrsaliyeKalem).netAgirlik) || 0,
             brutMt: Number((k as IrsaliyeKalem).brutMetre) || 0,
@@ -653,6 +658,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         malzemeId: malzemeList.find((m) => m.kod === k.malzemeKod)?.id ?? null,
         tip: k.tip || null,
         takipNo: k.barkod || null,
+        partiNo: k.partiNo || null,
         brutAgirlik: k.brutKg,
         netAgirlik: k.kg,
         brutMetre: k.brutMt,
@@ -683,7 +689,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           terminTarihi: terminTarihi ? terminTarihi.format('YYYY-MM-DD') : null,
           sevkNo: belgeNo || null,
           onaylandi,
-          tamamlandi,
+          // Stok oynatan tipler kayıtta tamamlandi alır (oluşturmadaki kural güncellemede de geçerli).
+          tamamlandi: ['1','2','3','4','5','8','9','11','12','120','121','122','123','124','134'].includes(irsaliyeTipi) ? true : tamamlandi,
           aciklama: aciklama || null,
           cariHesapId,
           depoId,
@@ -962,6 +969,17 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       valueFormatter: (p) => p.value || '-',
     },
     {
+      headerName: 'Parti No', field: 'partiNo', width: 110, resizable: true, cellClass: '!p-0',
+      cellRenderer: (p: { data: KalemRow; value: string; node: { rowIndex: number | null } }) => (
+        <CellTextInput
+          value={p.value ?? ''}
+          onCommit={(val) => updateKalem(p.data.key, { partiNo: val })}
+          onEnter={() => p.node.rowIndex != null && focusNextCell('partiNo', p.node.rowIndex)}
+          className="!w-full !h-full !text-[12px] kalem-input"
+        />
+      ),
+    },
+    {
       headerName: 'Brüt Kg', field: 'brutKg', width: 90, cellClass: '!p-0', type: 'rightAligned',
       cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
         <TurkishNumberInput
@@ -1207,6 +1225,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }
 
   const handleIrsaliyeOlustur = () => {
+    // 201: onaysız (Taslak) siparişten irsaliye oluşturulamaz.
+    if (irsaliyeTipi === '201' && !onaylandi) {
+      message.warning('Onaysız sipariş üzerinden irsaliye oluşturamazsınız. Önce Durumu Kesinleşti yapıp kaydedin.')
+      return
+    }
     // Belge bazında aktarım: seçimden bağımsız TÜM geçerli satırlar aktarılır.
     // (Satıra tıklanması seçim oluşturuyordu ve 134'e tek satır gidiyordu.)
     const kaynak = kalemler.filter((k) => Boolean(k.malzemeKod))
@@ -1235,6 +1258,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         cariHesapKod: cariKod || undefined,
         depoKod: depoKod || undefined,
         aciklama: k.aciklama || '',
+        partiNo: k.partiNo || null,
         siparisKalemId: k.siparisKalemId ?? null,
         // Kaynak kalem: bu satırın kendi id'si (kayıtlı fişten aktarımda). Yeni satırsa üstten gelen kaynak korunur.
         kaynakKalemId: k.kalemId ?? k.kaynakKalemId ?? null,
@@ -1268,6 +1292,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       : irsaliyeTipi === '201'
         ? [
             { key: 'irsaliye-olustur', label: 'İrsaliye Oluştur', onClick: handleIrsaliyeOlustur },
+            { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
           ]
         : irsaliyeTipi === '202'
           ? [
@@ -1310,6 +1335,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       kdv: Number(k.kdv) || 0,
       satirTutari: Number(k.satirTutari) || 0,
       aciklama: k.aciklama ?? '',
+      partiNo: k.partiNo ?? '',
       siparisKalemId: k.siparisKalemId ?? null,
       // 11 giriş kaleminin kaynağı 134'ün kalemidir (zincir: 202 → 134 → 11).
       kalemId: null,

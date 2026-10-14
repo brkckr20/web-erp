@@ -17,10 +17,3 @@ export class CreateHizmetTalepNotDto {
   gorusmeTarihi?: string
   iletisimKisi?: string
 }
-
-export class CreateHizmetTalepDosyaDto {
-  hizmetTalepId: number
-  hizmetTalepNotId?: number
-  dosyaAdi: string
-  dosyaYolu: string
-}

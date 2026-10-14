@@ -179,7 +179,7 @@ export default function FaturaListesi({ mod = 'satis', kategori = 'genel', onNew
       valueFormatter: (p) => faturaTipiMap[p.value as string] || p.value,
     },
     {
-      headerName: 'Fatura No', field: 'faturaNo', width: 90, resizable: true,
+      headerName: 'Fiş No', field: 'faturaNo', width: 90, resizable: true,
       cellClass: '!text-[#f57c00] !font-medium',
     },
     {

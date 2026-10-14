@@ -31,6 +31,8 @@ export interface HizmetTalepDosya {
   hizmetTalepNotId: number | null
   dosyaAdi: string
   dosyaYolu: string
+  mimetype: string | null
+  boyut: number | null
   olusturmaTarihi: string
 }
 
@@ -43,7 +45,13 @@ export const hizmetTalepApi = {
   addNot: (data: { hizmetTalepId: number; icerik: string; gorusmeTarihi?: string; iletisimKisi?: string }) =>
     api.post<HizmetTalepNot>('/hizmet-talep/not', data),
   removeNot: (id: number) => api.delete(`/hizmet-talep/not/${id}`),
-  addDosya: (data: { hizmetTalepId: number; hizmetTalepNotId?: number; dosyaAdi: string; dosyaYolu: string }) =>
-    api.post<HizmetTalepDosya>('/hizmet-talep/dosya', data),
+  addDosya: (hizmetTalepId: number, file: File, hizmetTalepNotId?: number) => {
+    const fd = new FormData()
+    fd.append('dosya', file)
+    fd.append('hizmetTalepId', String(hizmetTalepId))
+    if (hizmetTalepNotId != null) fd.append('hizmetTalepNotId', String(hizmetTalepNotId))
+    return api.upload<HizmetTalepDosya>('/hizmet-talep/dosya', fd)
+  },
   removeDosya: (id: number) => api.delete(`/hizmet-talep/dosya/${id}`),
+  getDosyaUrl: (id: number) => `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/hizmet-talep/dosya/${id}`,
 }

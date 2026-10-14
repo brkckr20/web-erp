@@ -38,6 +38,7 @@ export interface IrsaliyeKalem {
   malzemeId: number | null
   tip?: string | null
   takipNo?: string | null
+  partiNo?: string | null
   brutAgirlik?: number | null
   netAgirlik?: number | null
   brutMetre?: number | null
@@ -101,4 +102,6 @@ export const irsaliyeApi = {
   update: (id: number, data: Partial<IrsaliyeFormData> & { kalemler?: IrsaliyeKalem[] }) =>
     api.put<Irsaliye>(`/irsaliye/${id}`, data),
   remove: (id: number) => api.delete<void>(`/irsaliye/${id}`),
+  setOnay: (id: number, onaylandi: boolean) =>
+    api.put<Irsaliye>(`/irsaliye/${id}/onay`, { onaylandi }),
 }

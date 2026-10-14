@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -216,6 +216,20 @@ export class IrsaliyeService {
           kalemler: { include: kalemInclude },
         },
       })
+    })
+  }
+
+  async setOnay(id: number, onaylandi: boolean) {
+    const fis = await this.findOne(id)
+    if (fis.irsaliyeTipi !== '201') throw new BadRequestException('Yalnızca 201-Satın Alma Siparişi onaylanabilir')
+    return this.prisma.irsaliye.update({
+      where: { id },
+      data: {
+        onaylandi,
+        // Onay kalkınca Teslim Alındı da düşer (Taslak'a döner).
+        tamamlandi: onaylandi ? fis.tamamlandi : false,
+        guncellemeTarihi: new Date(),
+      },
     })
   }
 

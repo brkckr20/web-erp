@@ -542,6 +542,8 @@ model IrsaliyeKalem {
 
   tip               String?  @db.VarChar(20)
   takipNo           String?  @map("takip_no") @db.VarChar(100)
+  // Parti/lot no (üretim-takip; barkod olan takipNo'dan ayrı girilir).
+  partiNo           String?  @map("parti_no") @db.VarChar(100)
   brutAgirlik       Decimal? @map("brut_agirlik") @db.Decimal(18, 4)
   netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 4)
   brutMetre         Decimal? @map("brut_metre") @db.Decimal(18, 4)
@@ -670,6 +672,8 @@ model FaturaKalem {
 
   tip               String?  @db.VarChar(20)
   takipNo           String?  @map("takip_no") @db.VarChar(100)
+  // Parti/lot no (irsaliyeden snapshot ile taşınır).
+  partiNo           String?  @map("parti_no") @db.VarChar(100)
   brutAgirlik       Decimal? @map("brut_agirlik") @db.Decimal(18, 4)
   netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 4)
   brutMetre         Decimal? @map("brut_metre") @db.Decimal(18, 4)
@@ -1440,6 +1444,9 @@ model HizmetTalepDosya {
   hizmetTalepNotId    Int?     @map("hizmet_talep_not_id")
   dosyaAdi            String   @map("dosya_adi") @db.NVarChar(255)
   dosyaYolu           String   @map("dosya_yolu") @db.NVarChar(500)
+  dosya               Bytes?   @db.VarBinary(Max)
+  mimetype            String?  @db.NVarChar(100)
+  boyut               Int?
   olusturmaTarihi     DateTime @default(now()) @map("olusturma_tarihi")
 
   talep               HizmetTalep @relation(fields: [hizmetTalepId], references: [id], onDelete: NoAction, onUpdate: NoAction)

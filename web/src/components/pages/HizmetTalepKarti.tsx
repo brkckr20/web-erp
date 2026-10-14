@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Input, Select, Button, Tag, DatePicker, Upload, App } from 'antd'
-import { SaveOutlined, DeleteOutlined, PlusOutlined, PaperClipOutlined, SendOutlined } from '@ant-design/icons'
+import { Input, Select, Button, Tag, DatePicker, Upload, App, Modal } from 'antd'
+import { SaveOutlined, DeleteOutlined, PlusOutlined, PaperClipOutlined, SendOutlined, UploadOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import dayjs from 'dayjs'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableKullaniciSelect from '@/components/shared/SearchableKullaniciSelect'
-import { hizmetTalepApi, type HizmetTalep, type HizmetTalepNot } from '@/lib/hizmet-talep-api'
+import { hizmetTalepApi, type HizmetTalep, type HizmetTalepNot, type HizmetTalepDosya } from '@/lib/hizmet-talep-api'
 
 const durumOptions = [
   { value: 'Açık', label: 'Açık' },
@@ -30,6 +30,13 @@ const formatTarih = (d: string | null) => {
   const dt = new Date(d)
   if (isNaN(dt.getTime())) return '-'
   return dt.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const formatBoyut = (b: number | null) => {
+  if (b == null) return ''
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
 const durumRenk: Record<string, string> = {
@@ -135,6 +142,25 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
     }
   }
 
+  const [dosyaYukleniyor, setDosyaYukleniyor] = useState(false)
+  const [onizlemeDosya, setOnizlemeDosya] = useState<HizmetTalepDosya | null>(null)
+
+  const isResim = (d: HizmetTalepDosya) => (d.mimetype ?? '').startsWith('image/')
+
+  const handleDosyaYukle = async (file: File) => {
+    if (!id) return
+    setDosyaYukleniyor(true)
+    try {
+      await hizmetTalepApi.addDosya(id, file)
+      const t = await hizmetTalepApi.get(id)
+      setTalep(t)
+      message.success('Dosya yüklendi')
+    } catch {
+      message.error('Dosya yüklenemedi')
+    } finally {
+      setDosyaYukleniyor(false)
+    }
+  }
   const handleNotSil = async (notId: number) => {
     if (!id) return
     try {
@@ -273,27 +299,76 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
         </div>
 
         <div className="!border !border-gray-200 !rounded-sm !p-3">
-          <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-2">
-            <PaperClipOutlined className="!mr-1" /> Dosyalar
+          <div className="!flex !items-center !justify-between !mb-2">
+            <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide">
+              <PaperClipOutlined className="!mr-1" /> Dosyalar
+            </div>
+            <Upload
+              showUploadList={false}
+              disabled={!id || dosyaYukleniyor}
+              customRequest={async ({ file }) => handleDosyaYukle(file as File)}
+            >
+              <Button size="small" icon={<UploadOutlined />} loading={dosyaYukleniyor} disabled={!id} title={!id ? 'Önce talebi kaydedin' : 'Dosya yükle'}>
+                Dosya Ekle
+              </Button>
+            </Upload>
           </div>
           <div className="!space-y-1">
             {(talep?.dosyalar ?? []).length === 0 && (
-              <div className="!text-[11px] !text-gray-400">Henüz dosya eklenmemiş</div>
+              <div className="!text-[11px] !text-gray-400">{id ? 'Henüz dosya eklenmemiş' : 'Dosya eklemek için önce talebi kaydedin'}</div>
             )}
             {(talep?.dosyalar ?? []).map((d) => (
-              <div key={d.id} className="!flex !items-center !justify-between !text-[11px] !bg-gray-50 !rounded-sm !px-2 !py-1">
-                <span>{d.dosyaAdi}</span>
-                <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={async () => {
-                  if (!id) return
-                  await hizmetTalepApi.removeDosya(d.id)
-                  const t = await hizmetTalepApi.get(id)
-                  setTalep(t)
-                }} />
+              <div key={d.id} className="!flex !items-center !justify-between !gap-2 !text-[11px] !bg-gray-50 !rounded-sm !px-2 !py-1">
+                {isResim(d) ? (
+                  <div className="!flex !items-center !gap-2 !min-w-0">
+                    <img
+                      src={hizmetTalepApi.getDosyaUrl(d.id)}
+                      alt={d.dosyaAdi}
+                      onClick={() => setOnizlemeDosya(d)}
+                      className="!w-10 !h-10 !object-cover !rounded-sm !cursor-pointer !shrink-0"
+                    />
+                    <span className="!truncate" title={d.dosyaAdi}>{d.dosyaAdi}</span>
+                    {d.boyut != null && <span className="!text-gray-400 !shrink-0">({formatBoyut(d.boyut)})</span>}
+                  </div>
+                ) : (
+                  <a href={hizmetTalepApi.getDosyaUrl(d.id)} target="_blank" rel="noreferrer" className="!flex !items-center !gap-1 !text-blue-600 !min-w-0">
+                    <DownloadOutlined className="!shrink-0" /> <span className="!truncate">{d.dosyaAdi}</span>
+                    {d.boyut != null && <span className="!text-gray-400 !shrink-0">({formatBoyut(d.boyut)})</span>}
+                  </a>
+                )}
+                <div className="!flex !items-center !shrink-0">
+                  {isResim(d) && (
+                    <Button size="small" type="text" icon={<EyeOutlined />} onClick={() => setOnizlemeDosya(d)} title="Büyüt" />
+                  )}
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={async () => {
+                    if (!id) return
+                    await hizmetTalepApi.removeDosya(d.id)
+                    const t = await hizmetTalepApi.get(id)
+                    setTalep(t)
+                  }} />
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
+      <Modal
+        open={!!onizlemeDosya}
+        title={onizlemeDosya?.dosyaAdi}
+        footer={[
+          <Button key="indir">
+            <a href={onizlemeDosya ? hizmetTalepApi.getDosyaUrl(onizlemeDosya.id) : '#'} target="_blank" rel="noreferrer">İndir / Tam Boyut</a>
+          </Button>,
+          <Button key="kapat" type="primary" onClick={() => setOnizlemeDosya(null)}>Kapat</Button>,
+        ]}
+        onCancel={() => setOnizlemeDosya(null)}
+        width={1200}
+        centered
+      >
+        {onizlemeDosya && (
+          <img src={hizmetTalepApi.getDosyaUrl(onizlemeDosya.id)} alt={onizlemeDosya.dosyaAdi} className="!max-w-full !max-h-[80vh] !object-contain !mx-auto" />
+        )}
+      </Modal>
       <RaporSecimModal
         open={raporModalAcik}
         ekranAdi="hizmet-talepleri"

@@ -44,6 +44,11 @@ export class IrsaliyeController {
     return this.service.update(id, dto)
   }
 
+  @Put(':id/onay')
+  setOnay(@Param('id', ParseIntPipe) id: number, @Body('onaylandi') onaylandi: boolean) {
+    return this.service.setOnay(id, onaylandi === true)
+  }
+
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id)

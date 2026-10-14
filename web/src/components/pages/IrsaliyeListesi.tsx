@@ -2,7 +2,7 @@
 
 import { Input, Select, Button, Tag, Dropdown, App } from 'antd'
 import type { MenuProps } from 'antd'
-import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { useState, useMemo, useEffect } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
@@ -22,6 +22,8 @@ interface IrsaliyeRow {
   irsaliyeToplam: number
   eIrsaliye: string
   kayitEden: string
+  onaylandi: boolean
+  tamamlandi: boolean
 }
 
 const formatTarih = (d: string | null) => {
@@ -51,6 +53,8 @@ const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
         ? (i.irsaliyeTipi === '201' || i.irsaliyeTipi === '202' ? 'Kesinleşti' : 'Onaylandı')
         : 'Taslak',
     kayitEden: i.kayitYapan ?? '-',
+    onaylandi: !!i.onaylandi,
+    tamamlandi: !!i.tamamlandi,
   }
 }
 
@@ -173,6 +177,18 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
     load()
   }, [])
 
+  const handleOnay = async (onaylandi: boolean) => {
+    const r = data.find((d) => d.key === selectedRow)
+    if (!r || r.irsaliyeTipi !== '201') return
+    try {
+      await irsaliyeApi.setOnay(r.id, onaylandi)
+      message.success(onaylandi ? `${r.irsaliyeNo} onaylandı (Kesinleşti)` : `${r.irsaliyeNo} onayı kaldırıldı (Taslak)`)
+      load()
+    } catch (err: unknown) {
+      message.error('Onay işlemi hatası: ' + ((err as Error)?.message ?? String(err)))
+    }
+  }
+
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.({ ...r, ekranAdi }) } },
@@ -186,7 +202,26 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
             if (r) onCreateFatura?.({ faturaTipi: r.irsaliyeTipi, irsaliyeIds: [r.id], ekranAdi })
           },
         }]
-      : []),
+      : (() => {
+          const r = data.find((d) => d.key === selectedRow)
+          const is201 = !!r && r.irsaliyeTipi === '201'
+          return [
+            {
+              key: 'onayla',
+              label: 'Onayla (Kesinleşti)',
+              icon: <CheckCircleOutlined />,
+              disabled: !is201 || r!.onaylandi,
+              onClick: () => handleOnay(true),
+            },
+            {
+              key: 'onay-kaldir',
+              label: 'Onayı Kaldır (Taslak)',
+              icon: <CloseCircleOutlined />,
+              disabled: !is201 || !r!.onaylandi,
+              onClick: () => handleOnay(false),
+            },
+          ]
+        })()),
     { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
   ]

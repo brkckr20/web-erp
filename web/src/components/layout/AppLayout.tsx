@@ -22,6 +22,7 @@ import MakinaListesi from '@/components/pages/MakinaListesi'
 import MalzemeYonetimFisleriListesi from '@/components/pages/MalzemeYonetimFisleriListesi'
 import MalzemeYonetimFisleriKarti from '@/components/pages/StokHareketFisiKarti'
 import DepoBazliStok from '@/components/pages/DepoBazliStok'
+import DepoStokDetay from '@/components/pages/DepoStokDetay'
 import CariHesapKarti from '@/components/pages/CariHesapKarti'
 import CariHesapListesi from '@/components/pages/CariHesapListesi'
 import KaliteKontrolListesi from '@/components/pages/KaliteKontrolListesi'
@@ -235,9 +236,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
       const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
       // Yeni ekranda da rapor şablonları bulunsun diye listedeki ekranAdi aynen taşınır.
-      const ekranAdi = (irsaliyeTipi === '201' || irsaliyeTipi === '1' || irsaliyeTipi === '202' || irsaliyeTipi === '134')
-        ? 'satinalma-siparis'
-        : undefined
+      // Tip 1 (Mal Alım) satın alma irsaliyeleri ekranına aittir; 201/202/134 sipariş ekranında kalır.
+      const ekranAdi = irsaliyeTipi === '1'
+        ? 'satinalma-irsaliyeleri'
+        : (irsaliyeTipi === '201' || irsaliyeTipi === '202' || irsaliyeTipi === '134')
+          ? 'satinalma-siparis'
+          : undefined
       setTabs((prev) => {
         const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true, ekranAdi }
         const exists = prev.find((t) => t.key === key)
@@ -1071,6 +1075,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'depo-bazli-stok') {
       return <DepoBazliStok />
+    }
+    if (tab.key === 'depo-stok-detay') {
+      return <DepoStokDetay />
     }
     if (tab.key.startsWith('malzeme-yonetim-fisi-yeni-')) {
       const fisTipi = tab.key.replace('malzeme-yonetim-fisi-yeni-', '')

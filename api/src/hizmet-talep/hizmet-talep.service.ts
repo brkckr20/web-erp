@@ -1,11 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   CreateHizmetTalepDto,
   UpdateHizmetTalepDto,
   CreateHizmetTalepNotDto,
-  CreateHizmetTalepDosyaDto,
 } from './dto/create-hizmet-talep.dto'
+
+// Liste/detay asla `dosya` (Bytes) kolonunu seçmez: JSON yanıtına girmemeli (logo deseni).
+const DOSYA_SELECT = {
+  id: true,
+  hizmetTalepId: true,
+  hizmetTalepNotId: true,
+  dosyaAdi: true,
+  dosyaYolu: true,
+  mimetype: true,
+  boyut: true,
+  olusturmaTarihi: true,
+}
 
 @Injectable()
 export class HizmetTalepService {
@@ -14,14 +25,14 @@ export class HizmetTalepService {
   findAll() {
     return this.prisma.hizmetTalep.findMany({
       orderBy: { olusturmaTarihi: 'desc' },
-      include: { notlar: true, dosyalar: true },
+      include: { notlar: true, dosyalar: { select: DOSYA_SELECT } },
     })
   }
 
   async findOne(id: number) {
     const talep = await this.prisma.hizmetTalep.findUnique({
       where: { id },
-      include: { notlar: { orderBy: { olusturmaTarihi: 'desc' } }, dosyalar: true },
+      include: { notlar: { orderBy: { olusturmaTarihi: 'desc' } }, dosyalar: { select: DOSYA_SELECT } },
     })
     if (!talep) throw new NotFoundException('Hizmet talep bulunamadı')
     return talep
@@ -39,7 +50,7 @@ export class HizmetTalepService {
         gorusmeKisi: dto.gorusmeKisi,
         kapanisTarihi: dto.kapanisTarihi ? new Date(dto.kapanisTarihi) : undefined,
       },
-      include: { notlar: true, dosyalar: true },
+      include: { notlar: true, dosyalar: { select: DOSYA_SELECT } },
     })
   }
 
@@ -58,7 +69,7 @@ export class HizmetTalepService {
         kapanisTarihi: dto.kapanisTarihi ? new Date(dto.kapanisTarihi) : undefined,
         guncellemeTarihi: new Date(),
       },
-      include: { notlar: true, dosyalar: true },
+      include: { notlar: true, dosyalar: { select: DOSYA_SELECT } },
     })
   }
 
@@ -86,15 +97,30 @@ export class HizmetTalepService {
     return this.prisma.hizmetTalepNot.delete({ where: { id } })
   }
 
-  async addDosya(dto: CreateHizmetTalepDosyaDto) {
+  async uploadDosya(file: Express.Multer.File, hizmetTalepId: number, hizmetTalepNotId?: number) {
+    if (!file) throw new BadRequestException('Dosya yüklenmedi')
+    await this.findOne(hizmetTalepId)
     return this.prisma.hizmetTalepDosya.create({
       data: {
-        hizmetTalepId: dto.hizmetTalepId,
-        hizmetTalepNotId: dto.hizmetTalepNotId ?? null,
-        dosyaAdi: dto.dosyaAdi,
-        dosyaYolu: dto.dosyaYolu,
+        hizmetTalepId,
+        hizmetTalepNotId: hizmetTalepNotId ?? null,
+        dosyaAdi: file.originalname,
+        dosyaYolu: file.originalname,
+        dosya: file.buffer,
+        mimetype: file.mimetype,
+        boyut: file.size,
       },
+      select: DOSYA_SELECT,
     })
+  }
+
+  async getDosya(id: number) {
+    const row = await this.prisma.hizmetTalepDosya.findUnique({
+      where: { id },
+      select: { dosya: true, dosyaAdi: true, mimetype: true },
+    })
+    if (!row || !row.dosya) throw new NotFoundException('Dosya bulunamadı')
+    return row
   }
 
   async removeDosya(id: number) {

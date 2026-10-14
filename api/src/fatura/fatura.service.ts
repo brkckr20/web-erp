@@ -102,8 +102,10 @@ export class FaturaService {
   }
 
   // İrsaliye kalemlerinden snapshot satır üretir (miktar tarafı kaynaktan).
+  // FaturaKalem'de olmayan irsaliye-özel alanlar (sipariş bağı, kaynak izi,
+  // fire, kumaş bilgileri) ayıklanır; sipariş izi irsaliyeKalemId üzerinden JOIN'lenir.
   private snapshotKalem(kaynak: any, fiyatOverride?: any) {
-    const { id: _id, irsaliyeId: _irsaliyeId, irsaliye: _irsaliye, malzeme: _malzeme, varyant1Renk: _v1, varyant2Renk: _v2, boyahaneRenk: _br, faturaKalemleri: _fk, createdAt: _c, updatedAt: _u, fire: _fire, ...miktar } = kaynak
+    const { id: _id, irsaliyeId: _irsaliyeId, irsaliye: _irsaliye, malzeme: _malzeme, varyant1Renk: _v1, varyant2Renk: _v2, boyahaneRenk: _br, faturaKalemleri: _fk, createdAt: _c, updatedAt: _u, fire: _fire, siparisKalemId: _sk, kaynakKalemId: _kk, istenenGram: _ig, ebat: _eb, topSayisi: _ts, ...miktar } = kaynak
     return {
       ...miktar,
       irsaliyeKalemId: kaynak.id,

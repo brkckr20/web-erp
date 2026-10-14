@@ -218,6 +218,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
 
   const contextMenuItems: MenuProps['items'] = [
     { key: 'satinalma-talimat', label: 'Satın Alma Siparişi Oluştur', icon: <ShoppingCartOutlined /> },
+    { key: 'satinalma-talimat-birlesik', label: 'Satın Alma Siparişi Oluştur (Birleştirilmiş)', icon: <ShoppingCartOutlined /> },
     { key: 'ham-satinalma-talimat', label: 'Ham Satın Alma Siparişi Oluştur', icon: <ShoppingCartOutlined /> },
     { key: 'mal-alim-irsaliye', label: 'Mal Alım İrsaliyesi Oluştur', icon: <InboxOutlined /> },
     {
@@ -266,21 +267,30 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
     )
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    if (key === 'satinalma-talimat' || key === 'ham-satinalma-talimat') {
+    if (key === 'satinalma-talimat' || key === 'ham-satinalma-talimat' || key === 'satinalma-talimat-birlesik') {
       const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
       if (!secili || secili.length === 0) {
         message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
         return
       }
       const ham = key === 'ham-satinalma-talimat'
-      const kalemler: IrsaliyeBaslangicKalem[] = secili.map((r) => {
+      let kalemler: IrsaliyeBaslangicKalem[] = secili.map((r) => {
+        const miktar = Number(r.gerekenMiktar) || 0
         const kalem: IrsaliyeBaslangicKalem = {
           malzemeKod: r.malzemeKod,
           malzemeAd: r.malzemeAd,
-          miktar: Number(r.gerekenMiktar) || 0,
+          miktar,
           birim: r.birim || 'mt',
           aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
           siparisKalemId: r.siparisKalemId ?? null,
+          tahsis: [
+            {
+              siparisKalemId: r.siparisKalemId ?? null,
+              siparisNo: r.siparisNo ?? '',
+              modelKod: r.modelKod ?? '',
+              miktar,
+            },
+          ],
         }
         if (!ham) {
           kalem.varyant1RenkId = r.varyant1RenkId ?? null
@@ -289,6 +299,8 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         }
         return kalem
       })
+      // Birleştirilmiş seçenek: aynı kumaş+renk tek satırda toplanır (tahsis detayı korunur).
+      if (key === 'satinalma-talimat-birlesik') kalemler = baslangicKalemleriBirlestir(kalemler)
       const olustur = () => onYeniSatinalmaSiparis?.(kalemler)
       const bayatSayisi = secili.filter((r) => r.guncelMi === false).length
       if (bayatSayisi > 0) {

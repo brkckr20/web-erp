@@ -61,6 +61,7 @@ export const modules: Module[] = [
         title: 'Raporlar',
         items: [
           { key: 'depo-bazli-stok', label: 'Depo Bazlı Stok' },
+          { key: 'depo-stok-detay', label: 'Depo Stok Detayı' },
         ],
       },
     ],
