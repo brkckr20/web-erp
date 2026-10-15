@@ -174,35 +174,45 @@ export class SablonService {
       </html>
     `
 
-    const browser = await puppeteer.launch({ headless: true })
-    const page = await browser.newPage()
-    await page.setContent(tamHtml, { waitUntil: 'load' })
+    const browser = await puppeteer.launch({
+      headless: true,
+      // Windows sunucuda sandbox/tek-çekirdek takılmalarına karşı.
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      timeout: 30000,
+    })
+    try {
+      const page = await browser.newPage()
+      await page.setContent(tamHtml, { waitUntil: 'load', timeout: 30000 })
 
-    const footerTpl = `
+      const footerTpl = `
       <div style="width:100%; font-size:8px; color:#444; box-sizing:border-box; padding:0 ${sonuc.solBosluk}mm;">
         <span style="float:left;">Nakosan Tekstil</span>
         <span style="float:right;">Sayfa: <span class="pageNumber"></span> / <span class="totalPages"></span></span>
       </div>
-    `
+      `
 
-    const pdfBuffer = await page.pdf({
-      width: `${sonuc.sayfaEn}mm`,
-      height: `${sonuc.sayfaBoy}mm`,
-      landscape: sonuc.yon === 'yatay',
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: '<div></div>',
-      footerTemplate: sablon.altBilgi ? footerTpl : '<div></div>',
-      margin: {
-        top: `${sonuc.ustBosluk}mm`,
-        bottom: `${sonuc.altBosluk}mm`,
-        left: `${sonuc.solBosluk}mm`,
-        right: `${sonuc.sagBosluk}mm`,
-      },
-    })
+      const pdfBuffer = await page.pdf({
+        width: `${sonuc.sayfaEn}mm`,
+        height: `${sonuc.sayfaBoy}mm`,
+        landscape: sonuc.yon === 'yatay',
+        printBackground: true,
+        displayHeaderFooter: true,
+        headerTemplate: '<div></div>',
+        footerTemplate: sablon.altBilgi ? footerTpl : '<div></div>',
+        timeout: 60000,
+        margin: {
+          top: `${sonuc.ustBosluk}mm`,
+          bottom: `${sonuc.altBosluk}mm`,
+          left: `${sonuc.solBosluk}mm`,
+          right: `${sonuc.sagBosluk}mm`,
+        },
+      })
 
-    await browser.close()
-    return Buffer.from(pdfBuffer)
+      return Buffer.from(pdfBuffer)
+    } finally {
+      // Hata durumunda da kapat: açık kalan Chrome'lar birikip makineyi kilitler.
+      await browser.close().catch(() => undefined)
+    }
   }
 
   // Filigran: koşul 'herzaman' ise basılır; 'onaysiz' ise sorguların ilk satırındaki

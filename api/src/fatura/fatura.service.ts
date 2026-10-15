@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
+import { stokTipiTamamlandi } from '../irsaliye/irsaliye.service'
 import { CreateFaturaDto } from './dto/create-fatura.dto'
 import { UpdateFaturaDto } from './dto/create-fatura.dto'
 
@@ -201,6 +202,8 @@ export class FaturaService {
             depoId: fatura.depoId,
             fasonTipiId: fatura.fasonTipiId,
             kayitYapan: fatura.kayitYapan,
+            // Direkt faturadan doğan stok fişi de tamamlanmış sayılır.
+            tamamlandi: stokTipiTamamlandi(fatura.faturaTipi),
             kalemler: { create: otoKalemler as any },
           } as any,
         })

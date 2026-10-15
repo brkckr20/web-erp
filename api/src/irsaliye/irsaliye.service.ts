@@ -10,6 +10,18 @@ function padIrsaliyeNo(n: number): string {
   return n.toString().padStart(8, '0')
 }
 
+// Stoku oynatan tipler: fiş oluştuğu anda tamamlanmış sayılır (Depo Bazlı Stok
+// yalnızca tamamlandi=1 sayar). Manuel kart bunu frontend'de basar; otomatik
+// yollar (201/202'den irsaliye, fatura otomatik irsaliyesi) buradan beslenir.
+export const STOK_TAMAMLANDI_TIPLERI = [
+  '1', '2', '3', '4', '5', '8', '9', '11', '12',
+  '120', '121', '122', '123', '124', '134',
+]
+
+export function stokTipiTamamlandi(irsaliyeTipi: any): boolean {
+  return STOK_TAMAMLANDI_TIPLERI.includes(String(irsaliyeTipi ?? ''))
+}
+
 // Fason fire'ı kalemin ölçü birimine göre brüt − net'ten hesaplanır (Decimal(18,4)).
 // İstemciden gelen fire değeri yok sayılır; fire her kayıtta yeniden yazılır.
 // kg tarafı brut_agirlik − net_agirlik, mt tarafı brut_metre − net_metre.
@@ -139,6 +151,8 @@ export class IrsaliyeService {
 
   async create(dto: CreateIrsaliyeDto) {
     const data: any = { ...dto }
+    // Otomatik oluşan stok fişleri taslak kalmasın ( örn. 201'den Mal Alım ).
+    if (data.tamamlandi !== true && stokTipiTamamlandi(data.irsaliyeTipi)) data.tamamlandi = true
     if (dto.irsaliyeTarihi) data.irsaliyeTarihi = new Date(dto.irsaliyeTarihi)
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
     if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
