@@ -294,8 +294,19 @@ export class TedarikService {
     return { satirlar: rows, toplamNet }
   }
 
+  // Kumaş planlaması + serbest stok karşılaması.
+  // Her ihtiyaç satırına iki stok toplamı eklenir (brüt üzerinden — fason brütle çalışır,
+  // satın alınan kumaşta brüt≈net kabul edilir):
+  // - renkliStok: aynı malzeme + aynı renk (varyant1_renk_id = ti.renk_id, ID ile eşleşir).
+  //   İhtiyaç renksizse (ham isteniyorsa) renksiz stok buraya düşer.
+  // - hamStok: aynı malzeme + renksiz (varyant1 NULL) = boyanabilir ham; yalnızca renkli
+  //   ihtiyaçta dolar (ham ihtiyaca ham yazmak çift sayım olurdu).
+  // Serbest = siparis_kalem_id boş + tahsis kaydı yok (başkasına rezerve düşmez).
+  // Giriş/çıkış listeleri depoStokDetay ile aynıdır; yalnızca tamamlandi=1 sayılır.
   async planlamaKumas() {
-    const rows = await this.prisma.$queryRaw<
+    const GIRIS = `('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101')`
+    const CIKIS = `('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140')`
+    const rows = await this.prisma.$queryRawUnsafe<
       {
         siparisNo: string
         siparisId: number | null
@@ -306,6 +317,7 @@ export class TedarikService {
         musteriAd: string | null
         malzemeKod: string
         malzemeAd: string
+        malzemeId: number | null
         islem: string | null
         varyant1: string
         varyant1Aciklama: string
@@ -314,8 +326,14 @@ export class TedarikService {
         gerekenMiktar: unknown
         bayat: unknown
         birim: string
+        renkliStokKg: unknown
+        renkliStokMt: unknown
+        renkliStokAdet: unknown
+        hamStokKg: unknown
+        hamStokMt: unknown
+        hamStokAdet: unknown
       }[]
-    >`
+    >(`
       SELECT
         s.siparis_no        AS siparisNo,
         MIN(s.id)           AS siparisId,
@@ -326,6 +344,7 @@ export class TedarikService {
         ch.ad               AS musteriAd,
         ti.malzeme_kod      AS malzemeKod,
         ti.malzeme_ad       AS malzemeAd,
+        ti.malzeme_id       AS malzemeId,
         rk.islem            AS islem,
         ti.renk_kod         AS varyant1,
         ti.renk_ad          AS varyant1Aciklama,
@@ -333,40 +352,107 @@ export class TedarikService {
         SUM(ti.brut_miktar) AS brutMiktar,
         SUM(ti.net_miktar)  AS gerekenMiktar,
         MIN(CASE WHEN ti.durum = N'guncel-degil' THEN 1 ELSE 0 END) AS bayat,
-        MIN(ti.birim)       AS birim
+        MIN(ti.birim)       AS birim,
+        ISNULL(rs.kg, 0)   AS renkliStokKg,
+        ISNULL(rs.mt, 0)   AS renkliStokMt,
+        ISNULL(rs.adet, 0) AS renkliStokAdet,
+        ISNULL(hs.kg, 0)   AS hamStokKg,
+        ISNULL(hs.mt, 0)   AS hamStokMt,
+        ISNULL(hs.adet, 0) AS hamStokAdet
       FROM tedarik_ihtiyac ti
       JOIN siparis s          ON s.id = ti.siparis_id
       LEFT JOIN cari_hesap ch ON ch.id = s.cari_hesap_id
       JOIN siparis_kalem sk   ON sk.id = ti.siparis_kalem_id
       LEFT JOIN malzeme mm    ON mm.id = sk.malzeme_id
       LEFT JOIN recete_kalem rk ON rk.id = ti.recete_kalem_id
+      OUTER APPLY (
+        SELECT
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_agirlik, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_agirlik, 0)
+                   ELSE 0 END) AS kg,
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_metre, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_metre, 0)
+                   ELSE 0 END) AS mt,
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.adet, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.adet, 0)
+                   ELSE 0 END) AS adet
+        FROM irsaliye_kalem ik2
+        JOIN irsaliye i2 ON i2.id = ik2.irsaliye_id
+        JOIN malzeme m2  ON m2.id = ik2.malzeme_id
+        LEFT JOIN renk r2 ON r2.id = ik2.varyant1_renk_id
+        WHERE i2.tamamlandi = 1
+          AND (m2.id = ti.malzeme_id OR (ti.malzeme_id IS NULL AND m2.kod = ti.malzeme_kod))
+          AND (r2.kod = ti.renk_kod OR (ti.renk_kod IS NULL AND ik2.varyant1_renk_id IS NULL))
+      ) rs
+      OUTER APPLY (
+        SELECT
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_agirlik, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_agirlik, 0)
+                   ELSE 0 END) AS kg,
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_metre, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_metre, 0)
+                   ELSE 0 END) AS mt,
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.adet, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.adet, 0)
+                   ELSE 0 END) AS adet
+        FROM irsaliye_kalem ik2
+        JOIN irsaliye i2 ON i2.id = ik2.irsaliye_id
+        JOIN malzeme m2  ON m2.id = ik2.malzeme_id
+        WHERE i2.tamamlandi = 1
+          AND (m2.id = ti.malzeme_id OR (ti.malzeme_id IS NULL AND m2.kod = ti.malzeme_kod))
+          AND ti.renk_id IS NOT NULL
+          AND ik2.varyant1_renk_id IS NULL
+      ) hs
       WHERE ti.tip = N'kumas'
       GROUP BY
         s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad,
-        ti.malzeme_kod, ti.malzeme_ad, rk.islem,
-        ti.renk_id, ti.renk_kod, ti.renk_ad
+        ti.malzeme_kod,         ti.malzeme_ad,
+        ti.malzeme_id,
+        rk.islem,
+        ti.renk_id, ti.renk_kod, ti.renk_ad,
+        rs.kg, rs.mt, rs.adet, hs.kg, hs.mt, hs.adet
       ORDER BY s.siparis_no, mm.kod, ti.malzeme_kod, ti.renk_kod
-    `
+    `)
 
-    return rows.map((r) => ({
-      siparisNo: r.siparisNo,
-      siparisId: r.siparisId ?? null,
-      siparisKalemId: r.siparisKalemId ?? null,
-      modelKod: r.modelKod,
-      modelAd: r.modelAd,
-      siparisMiktar: Number(r.siparisMiktar) || 0,
-      musteriAd: r.musteriAd,
-      malzemeKod: r.malzemeKod,
-      malzemeAd: r.malzemeAd,
-      islem: r.islem,
-      varyant1: r.varyant1,
-      varyant1Aciklama: r.varyant1Aciklama,
-      varyant1RenkId: r.varyant1RenkId,
-      brutMiktar: Number(r.brutMiktar) || 0,
-      gerekenMiktar: Number(r.gerekenMiktar) || 0,
-      guncelMi: Number(r.bayat ?? 0) === 0,
-      birim: r.birim,
-    }))
+    const yuvarla = (v: number) => Math.round(v * 1e4) / 1e4
+    return rows.map((r) => {
+      const birim = (r.birim || '').toLowerCase()
+      const birimeGore = (kg: unknown, mt: unknown, adet: unknown) =>
+        birim.includes('kg')
+          ? Number(kg) || 0
+          : birim.includes('adet')
+            ? Number(adet) || 0
+            : Number(mt) || 0
+      const renkliStok = yuvarla(birimeGore(r.renkliStokKg, r.renkliStokMt, r.renkliStokAdet))
+      const hamStok = yuvarla(birimeGore(r.hamStokKg, r.hamStokMt, r.hamStokAdet))
+      const gereken = yuvarla(Number(r.gerekenMiktar) || 0)
+      const acikMiktar = yuvarla(Math.max(0, gereken - renkliStok - hamStok))
+      const oneri: 'STOK' | 'HAM_BOYA' | 'TEMIN' =
+        renkliStok >= gereken ? 'STOK' : renkliStok + hamStok >= gereken ? 'HAM_BOYA' : 'TEMIN'
+      return {
+        siparisNo: r.siparisNo,
+        siparisId: r.siparisId ?? null,
+        siparisKalemId: r.siparisKalemId ?? null,
+        modelKod: r.modelKod,
+        modelAd: r.modelAd,
+        siparisMiktar: Number(r.siparisMiktar) || 0,
+        musteriAd: r.musteriAd,
+        malzemeKod: r.malzemeKod,
+        malzemeAd: r.malzemeAd,
+        islem: r.islem,
+        varyant1: r.varyant1,
+        varyant1Aciklama: r.varyant1Aciklama,
+        varyant1RenkId: r.varyant1RenkId,
+        brutMiktar: Number(r.brutMiktar) || 0,
+        gerekenMiktar: gereken,
+        guncelMi: Number(r.bayat ?? 0) === 0,
+        birim: r.birim,
+        renkliStok,
+        hamStok,
+        acikMiktar,
+        oneri,
+      }
+    })
   }
 
   async planlamaIplik() {
@@ -381,6 +467,7 @@ export class TedarikService {
         musteriAd: string | null
         malzemeKod: string
         malzemeAd: string
+        malzemeId: number | null
         islem: string | null
         varyant1: string
         varyant1Aciklama: string
@@ -400,6 +487,7 @@ export class TedarikService {
         ch.ad               AS musteriAd,
         ti.malzeme_kod      AS malzemeKod,
         ti.malzeme_ad       AS malzemeAd,
+        ti.malzeme_id       AS malzemeId,
         rk.islem            AS islem,
         ti.renk_kod         AS varyant1,
         ti.renk_ad          AS varyant1Aciklama,
@@ -416,7 +504,9 @@ export class TedarikService {
       WHERE ti.tip = N'iplik'
       GROUP BY
         s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad,
-        ti.malzeme_kod, ti.malzeme_ad, rk.islem,
+        ti.malzeme_kod,         ti.malzeme_ad,
+        ti.malzeme_id,
+        rk.islem,
         ti.renk_id, ti.renk_kod, ti.renk_ad
       ORDER BY s.siparis_no, mm.kod, ti.malzeme_kod, ti.renk_kod
     `
@@ -534,6 +624,89 @@ export class TedarikService {
       cariAd: r.cariAd,
       aciklama: r.aciklama,
     }))
+  }
+
+  // Planlama satırının depo kırılımlı serbest stoku: aynı malzeme için her depoda
+  // renkli (tam eşleşme) + ham (renksiz) miktar. renkId null ise ihtiyaç hamdır:
+  // renksiz stok "renkli" kolona düşer, ham kolon boş gelir.
+  async karsilamaDepo(malzemeKod: string, renkKod?: string, malzemeId?: number) {
+    // renkId yerine renk_kod eşleştirilir: iki taraf farklı Renk kaydı (id) kullanabilir,
+    // kod üzerinden eşleşme tek doğru kaynak olur (RULES.md: tek kaynak Renk tablosu).
+    const rows = await this.prisma.$queryRaw<
+      {
+        depoKod: string
+        depoAd: string
+        renkliKg: unknown
+        renkliMt: unknown
+        renkliAdet: unknown
+        hamKg: unknown
+        hamMt: unknown
+        hamAdet: unknown
+      }[]
+    >`
+      SELECT
+        d.kod AS depoKod,
+        d.ad  AS depoAd,
+        SUM(CASE WHEN (r.kod = ${renkKod ?? null}
+                       OR (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL))
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_agirlik, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_agirlik, 0)
+                           ELSE 0 END
+                 ELSE 0 END) AS renkliKg,
+        SUM(CASE WHEN (r.kod = ${renkKod ?? null}
+                       OR (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL))
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_metre, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_metre, 0)
+                           ELSE 0 END
+                 ELSE 0 END) AS renkliMt,
+        SUM(CASE WHEN (r.kod = ${renkKod ?? null}
+                       OR (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL))
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.adet, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.adet, 0)
+                           ELSE 0 END
+                 ELSE 0 END) AS renkliAdet,
+        SUM(CASE WHEN ${renkKod ?? null} IS NOT NULL AND ik.varyant1_renk_id IS NULL
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_agirlik, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_agirlik, 0)
+                           ELSE 0 END
+                 ELSE 0 END) AS hamKg,
+        SUM(CASE WHEN ${renkKod ?? null} IS NOT NULL AND ik.varyant1_renk_id IS NULL
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_metre, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_metre, 0)
+                           ELSE 0 END
+                 ELSE 0 END) AS hamMt,
+        SUM(CASE WHEN ${renkKod ?? null} IS NOT NULL AND ik.varyant1_renk_id IS NULL
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.adet, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.adet, 0)
+                           ELSE 0 END
+                 ELSE 0 END) AS hamAdet
+      FROM irsaliye_kalem ik
+      JOIN irsaliye i ON i.id = ik.irsaliye_id
+      JOIN malzeme m  ON m.id = ik.malzeme_id
+      LEFT JOIN renk r ON r.id = ik.varyant1_renk_id
+      LEFT JOIN depo d ON d.id = i.depo_id
+      WHERE i.tamamlandi = 1
+        AND (m.id = ${malzemeId ?? null} OR (${malzemeId ?? null} IS NULL AND m.kod = ${malzemeKod}))
+        AND (r.kod = ${renkKod ?? null} OR (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL))
+        AND d.kod IS NOT NULL
+      GROUP BY d.kod, d.ad
+      ORDER BY d.kod
+    `
+
+    return rows
+      .map((r) => ({
+        depoKod: r.depoKod,
+        depoAd: r.depoAd,
+        renkliKg: Number(r.renkliKg) || 0,
+        renkliMt: Number(r.renkliMt) || 0,
+        renkliAdet: Number(r.renkliAdet) || 0,
+        hamKg: Number(r.hamKg) || 0,
+        hamMt: Number(r.hamMt) || 0,
+        hamAdet: Number(r.hamAdet) || 0,
+      }))
+      .filter(
+        (r) => r.renkliKg !== 0 || r.renkliMt !== 0 || r.renkliAdet !== 0 || r.hamKg !== 0 || r.hamMt !== 0 || r.hamAdet !== 0,
+      )
   }
 
   async findBySiparis(siparisId: number, tip?: string, siparisKalemId?: number) {

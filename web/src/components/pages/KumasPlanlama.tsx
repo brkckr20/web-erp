@@ -13,11 +13,12 @@ import {
   ProfileOutlined,
   BgColorsOutlined,
   WarningOutlined,
+  BankOutlined,
 } from '@ant-design/icons'
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
 import DataGrid, { DataGridHandle } from '@/components/shared/DataGrid'
-import { tedarikApi, type KumasPlanlamaSatir, type KumasHareketSatiri } from '@/lib/tedarik-api'
+import { tedarikApi, type KumasPlanlamaSatir, type KumasHareketSatiri, type KarsilamaDepoSatir } from '@/lib/tedarik-api'
 import { fasonTipiApi, parseKategoriler, type FasonTipi } from '@/lib/fason-tipi-api'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
 import { baslangicKalemleriBirlestir } from '@/components/pages/IrsaliyeKarti'
@@ -47,6 +48,9 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   const [hareketSatir, setHareketSatir] = useState<KumasPlanlamaSatir | null>(null)
   const [hareketler, setHareketler] = useState<KumasHareketSatiri[]>([])
   const [hareketLoading, setHareketLoading] = useState(false)
+  const [karsilamaSatir, setKarsilamaSatir] = useState<KumasPlanlamaSatir | null>(null)
+  const [karsilamaDepo, setKarsilamaDepo] = useState<KarsilamaDepoSatir[]>([])
+  const [karsilamaLoading, setKarsilamaLoading] = useState(false)
   const [guncelleniyor, setGuncelleniyor] = useState(false)
 
   const hareketAc = useCallback((r: KumasPlanlamaSatir) => {
@@ -61,6 +65,33 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       )
       .finally(() => setHareketLoading(false))
   }, [message])
+
+  // Satırın serbest stok karşılaması: hangi depoda ne kadar renkli/ham var.
+  const karsilamaAc = useCallback((r: KumasPlanlamaSatir) => {
+    setKarsilamaSatir(r)
+    setKarsilamaDepo([])
+    setKarsilamaLoading(true)
+    tedarikApi
+      .karsilamaDepo(r.malzemeKod, r.varyant1, r.malzemeId)
+      .then(setKarsilamaDepo)
+      .catch((err: unknown) =>
+        message.error('Depo stokları yüklenemedi: ' + (err instanceof Error ? err.message : String(err))),
+      )
+      .finally(() => setKarsilamaLoading(false))
+  }, [message])
+
+  const karsilamaColumns = useMemo<ColumnsType<KarsilamaDepoSatir>>(() => {
+    const birim = (karsilamaSatir?.birim || '').toLowerCase()
+    const renkliAlan = birim.includes('kg') ? 'renkliKg' : birim.includes('adet') ? 'renkliAdet' : 'renkliMt'
+    const hamAlan = birim.includes('kg') ? 'hamKg' : birim.includes('adet') ? 'hamAdet' : 'hamMt'
+    const fmt = (v: number) =>
+      Number(v).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+    return [
+      { title: 'Depo', dataIndex: 'depoAd', ellipsis: true, render: (_: unknown, r) => `${r.depoKod} - ${r.depoAd}` },
+      { title: 'Renkli Stok', dataIndex: renkliAlan, width: 140, align: 'right', render: (v: number) => fmt(v) },
+      { title: 'Ham Stok', dataIndex: hamAlan, width: 140, align: 'right', render: (v: number) => fmt(v) },
+    ]
+  }, [karsilamaSatir])
 
   const hareketColumns = useMemo<ColumnsType<KumasHareketSatiri>>(() => [
     {
@@ -213,6 +244,49 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       valueFormatter: (p) =>
         Number(p.value).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
     },
+    {
+      headerName: 'Renkli Stok',
+      field: 'renkliStok',
+      width: 110,
+      type: 'rightAligned',
+      resizable: true,
+      valueFormatter: (p) =>
+        Number(p.value).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+    },
+    {
+      headerName: 'Ham Stok',
+      field: 'hamStok',
+      width: 110,
+      type: 'rightAligned',
+      resizable: true,
+      valueFormatter: (p) =>
+        Number(p.value).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+    },
+    {
+      headerName: 'Açık',
+      field: 'acikMiktar',
+      width: 110,
+      type: 'rightAligned',
+      resizable: true,
+      valueFormatter: (p) =>
+        Number(p.value).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+    },
+    {
+      headerName: 'Öneri',
+      width: 150,
+      resizable: true,
+      valueGetter: (p) =>
+        p.data?.oneri === 'STOK'
+          ? 'Stoktan Karşıla'
+          : p.data?.oneri === 'HAM_BOYA'
+            ? 'Hamı Boyaya Gönder'
+            : 'Temin Gerekli',
+      cellStyle: (p) => {
+        if (p.data?.oneri === 'STOK') return { backgroundColor: '#dcfce7', color: '#166534', fontWeight: 600 }
+        if (p.data?.oneri === 'HAM_BOYA') return { backgroundColor: '#ffedd5', color: '#9a3412', fontWeight: 600 }
+        return { backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 600 }
+      },
+    },
   ], [])
   const sorguMetni = arama.trim() ? ` - "${arama.trim()}"` : ''
 
@@ -230,6 +304,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         .map((f) => ({ key: `fason:${f.id}`, label: f.ad })),
     },
     { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
+    { key: 'depo-stok', label: 'Depo Stok Kırılımı (Renkli/Ham)', icon: <BankOutlined /> },
     { type: 'divider' },
     { key: 'hareket-detaylari', label: 'Hareket Detayları', icon: <ProfileOutlined /> },
     { key: 'renkler', label: 'Renkler', icon: <BgColorsOutlined /> },
@@ -324,6 +399,15 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       message.info('Üretime Çıkış İrsaliyesi yakında')
       return
     }
+    if (key === 'depo-stok') {
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin')
+        return
+      }
+      karsilamaAc(secili[0])
+      return
+    }
     if (key === 'hareket-detaylari') {
       const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
       if (!secili || secili.length === 0) {
@@ -414,6 +498,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
                 domLayout="normal"
                 storageKey="kumas-planlama"
                 exportFileName="kumas-planlama"
+                wrapperClassName="kumas-planlama-grid"
                 enableRowSelection
                 getRowClass={(p) => (p.data?.guncelMi === false ? 'bayat-satir' : '')}
                 onCellContextMenu={(e: CellContextMenuEvent<KumasPlanlamaSatir>) => {
@@ -455,6 +540,35 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
           rowKey={(r) => r.kalemId}
           pagination={{ pageSize: 25, size: 'small', showSizeChanger: false }}
           locale={{ emptyText: 'Hareket bulunamadı' }}
+        />
+      </Modal>
+      <Modal
+        open={!!karsilamaSatir}
+        onCancel={() => setKarsilamaSatir(null)}
+        footer={null}
+        width={640}
+        title={
+          karsilamaSatir
+            ? `Depo Stok Kırılımı - ${karsilamaSatir.malzemeKod} / ${karsilamaSatir.varyant1Aciklama || 'Ham'}`
+            : 'Depo Stok Kırılımı'
+        }
+      >
+        {karsilamaSatir && (
+          <div className="!mb-2 !text-[12px] !text-[#4b5563]">
+            Gereken: <b>{Number(karsilamaSatir.gerekenMiktar).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {karsilamaSatir.birim}</b>
+            {' '}· Renkli: <b>{Number(karsilamaSatir.renkliStok).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</b>
+            {' '}· Ham: <b>{Number(karsilamaSatir.hamStok).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</b>
+            {' '}· Açık: <b>{Number(karsilamaSatir.acikMiktar).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</b>
+          </div>
+        )}
+        <Table<KarsilamaDepoSatir>
+          size="small"
+          columns={karsilamaColumns}
+          dataSource={karsilamaDepo}
+          loading={karsilamaLoading}
+          rowKey={(r) => r.depoKod}
+          pagination={false}
+          locale={{ emptyText: 'Serbest stok bulunamadı — temin gerekli (satın alma / dokuma / fason)' }}
         />
       </Modal>
     </>

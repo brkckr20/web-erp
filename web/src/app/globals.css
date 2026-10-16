@@ -26,6 +26,14 @@ body {
   background-color: #f6f8fa !important;
 }
 
+.kumas-planlama-grid .ag-cell {
+  font-size: 12px !important;
+}
+.kumas-planlama-grid .ag-header-cell {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
 @media print {
   body * {
     visibility: hidden;

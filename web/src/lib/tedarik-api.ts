@@ -50,6 +50,8 @@ export interface TedarikIhtiyac {
   guncellemeTarihi: string | null
 }
 
+export type KarsilamaOneri = 'STOK' | 'HAM_BOYA' | 'TEMIN'
+
 export interface KumasPlanlamaSatir {
   siparisNo: string
   /** Fason talimatı (202) kalemini siparişe bağlamak için. */
@@ -61,6 +63,7 @@ export interface KumasPlanlamaSatir {
   musteriAd: string | null
   malzemeKod: string
   malzemeAd: string
+  malzemeId?: number | null
   islem: string | null
   varyant1: string
   varyant1Aciklama: string
@@ -69,6 +72,14 @@ export interface KumasPlanlamaSatir {
   gerekenMiktar: number
   birim: string
   guncelMi: boolean
+  /** Serbest stok karşılaması (satır birimiyle): aynı malzeme+renk. */
+  renkliStok: number
+  /** Serbest ham stok (aynı malzeme, renksiz) — boyanabilir. */
+  hamStok: number
+  /** gereken - renkli - ham (0 altı 0). */
+  acikMiktar: number
+  /** STOK=stoktan karşıla, HAM_BOYA=hamı boyaya gönder, TEMIN=satın al/dokuma/fason gerekli. */
+  oneri: KarsilamaOneri
 }
 
 export interface TedarikOzet {
@@ -107,6 +118,17 @@ export interface KumasHareketSatiri {
   aciklama: string | null
 }
 
+export interface KarsilamaDepoSatir {
+  depoKod: string
+  depoAd: string
+  renkliKg: number
+  renkliMt: number
+  renkliAdet: number
+  hamKg: number
+  hamMt: number
+  hamAdet: number
+}
+
 export const tedarikApi = {
   hesapla: (siparisId: number, kalemId?: number | null, tip?: 'kumas' | 'iplik' | 'aksesuar') =>
     api.post<HesaplaSonuc>(
@@ -136,5 +158,9 @@ export const tedarikApi = {
   planlamaIplikHareketler: (siparisNo: string, malzemeKod: string) =>
     api.get<KumasHareketSatiri[]>(
       `/tedarik/planlama/iplik/hareketler?siparisNo=${encodeURIComponent(siparisNo)}&malzemeKod=${encodeURIComponent(malzemeKod)}`,
+    ),
+  karsilamaDepo: (malzemeKod: string, renkKod?: string | null, malzemeId?: number | null) =>
+    api.get<KarsilamaDepoSatir[]>(
+      `/tedarik/planlama/kumas/depo-stok?malzemeKod=${encodeURIComponent(malzemeKod)}${renkKod ? `&renkKod=${encodeURIComponent(renkKod)}` : ''}${malzemeId ? `&malzemeId=${malzemeId}` : ''}`,
     ),
 }

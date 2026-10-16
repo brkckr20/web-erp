@@ -65,6 +65,11 @@ export class TedarikController {
     return this.service.planlamaKumasHareketler(siparisNo, malzemeKod)
   }
 
+  @Get('planlama/kumas/depo-stok')
+  karsilamaDepo(@Query('malzemeKod') malzemeKod: string, @Query('renkKod') renkKod?: string, @Query('malzemeId') malzemeId?: string) {
+    return this.service.karsilamaDepo(malzemeKod, renkKod, malzemeId ? Number(malzemeId) : undefined)
+  }
+
   @Get('planlama/iplik/hareketler')
   planlamaIplikHareketler(
     @Query('siparisNo') siparisNo: string,
