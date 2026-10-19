@@ -317,28 +317,30 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   // 134'e aktarılırken düşer -> çıkış ham/varyantsız, 11 girişinde boyahane kartı seçilir.
   const satirlariKalemeCevir = (satirlar: KumasPlanlamaSatir[]): IrsaliyeBaslangicKalem[] =>
     baslangicKalemleriBirlestir(
-      satirlar.map((r) => {
-        const miktar = Number(r.gerekenMiktar) || 0
-        return {
-          malzemeKod: r.malzemeKod,
-          malzemeAd: r.malzemeAd,
-          miktar,
-          birim: r.birim || 'mt',
-          aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
-          siparisKalemId: r.siparisKalemId ?? null,
-          varyant1RenkId: r.varyant1RenkId ?? null,
-          varyant1RenkKod: r.varyant1 || null,
-          varyant1RenkAd: r.varyant1Aciklama || null,
-          tahsis: [
-            {
-              siparisKalemId: r.siparisKalemId ?? null,
-              siparisNo: r.siparisNo ?? '',
-              modelKod: r.modelKod ?? '',
-              miktar,
-            },
-          ],
-        }
-      }),
+      satirlar
+        .filter((r) => Number(r.acikMiktar) > 0)
+        .map((r) => {
+          const miktar = Number(r.acikMiktar) || 0
+          return {
+            malzemeKod: r.malzemeKod,
+            malzemeAd: r.malzemeAd,
+            miktar,
+            birim: r.birim || 'mt',
+            aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+            siparisKalemId: r.siparisKalemId ?? null,
+            varyant1RenkId: r.varyant1RenkId ?? null,
+            varyant1RenkKod: r.varyant1 || null,
+            varyant1RenkAd: r.varyant1Aciklama || null,
+            tahsis: [
+              {
+                siparisKalemId: r.siparisKalemId ?? null,
+                siparisNo: r.siparisNo ?? '',
+                modelKod: r.modelKod ?? '',
+                miktar,
+              },
+            ],
+          }
+        }),
     )
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
