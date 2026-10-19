@@ -367,11 +367,11 @@ export class TedarikService {
       LEFT JOIN recete_kalem rk ON rk.id = ti.recete_kalem_id
       OUTER APPLY (
         SELECT
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_agirlik, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_agirlik, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
                    ELSE 0 END) AS kg,
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_metre, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_metre, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_metre, ik2.net_metre, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_metre, ik2.net_metre, 0)
                    ELSE 0 END) AS mt,
           SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.adet, 0)
                    WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.adet, 0)
@@ -386,11 +386,11 @@ export class TedarikService {
       ) rs
       OUTER APPLY (
         SELECT
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_agirlik, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_agirlik, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
                    ELSE 0 END) AS kg,
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.brut_metre, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.brut_metre, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_metre, ik2.net_metre, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_metre, ik2.net_metre, 0)
                    ELSE 0 END) AS mt,
           SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.adet, 0)
                    WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.adet, 0)
