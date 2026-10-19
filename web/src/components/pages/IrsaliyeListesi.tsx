@@ -100,9 +100,11 @@ const irsaliyeTipiMap: Record<string, string> = { ...satisIrsaliyeTipiMap, ...sa
 const satisTipleri = Object.keys(satisIrsaliyeTipiMap)
 const satinalmaTipleri = Object.keys(satinalmaIrsaliyeTipiMap)
 const satinalmaSiparisTipleri = Object.keys(satinalmaSiparisTipiMap)
+// Fason hareket fişleri: yalnızca 202-Fason Talimatı (201-Satın Alma Siparişini çıkarır).
+const fasonHareketTipleri = ['202']
 
 interface IrsaliyeListesiProps {
-  mod?: 'satis' | 'satinalma' | 'satinalma-siparis'
+  mod?: 'satis' | 'satinalma' | 'satinalma-siparis' | 'fason-hareket'
   onNew?: (irsaliyeTipi: string, fasonTipiId?: number | null) => void
   onSelect?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string; ekranAdi?: string }) => void
   onCreateFatura?: (info: { faturaTipi: string; irsaliyeIds: number[]; ekranAdi?: string }) => void
@@ -114,16 +116,17 @@ const fasonFisTipleri = {
   satis: ['12', '125', '134'],
   satinalma: ['6', '11', '133'],
   'satinalma-siparis': ['202'],
+  'fason-hareket': ['202'],
 }
 
 export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCreateFatura }: IrsaliyeListesiProps) {
-  const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : satisTipleri
+  const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : mod === 'fason-hareket' ? fasonHareketTipleri : satisTipleri
   const irsaliyeTipiOptions = gorselTipler.map((value) => ({ value, label: irsaliyeTipiMap[value] }))
-  const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : 'Satış İrsaliyeleri'
-  const ekranAdi = mod === 'satinalma' ? 'satinalma-irsaliyeleri' : mod === 'satinalma-siparis' ? 'satinalma-siparis' : 'satis-irsaliyeleri'
+  const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : mod === 'fason-hareket' ? 'Fason Hareket Fişleri' : 'Satış İrsaliyeleri'
+  const ekranAdi = mod === 'satinalma' ? 'satinalma-irsaliyeleri' : mod === 'satinalma-siparis' ? 'satinalma-siparis' : mod === 'fason-hareket' ? 'fason-hareket' : 'satis-irsaliyeleri'
   const [data, setData] = useState<IrsaliyeRow[]>([])
   const [loading, setLoading] = useState(false)
-  const [yeniIrsaliyeTipi, setYeniIrsaliyeTipi] = useState(mod === 'satinalma' ? '1' : mod === 'satinalma-siparis' ? '201' : '120')
+  const [yeniIrsaliyeTipi, setYeniIrsaliyeTipi] = useState(mod === 'satinalma' ? '1' : mod === 'satinalma-siparis' ? '201' : mod === 'fason-hareket' ? '202' : '120')
   const [yeniFasonTipiId, setYeniFasonTipiId] = useState<number | null>(null)
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
@@ -165,7 +168,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
 
   const load = () => {
     setLoading(true)
-    const tipler = new Set(mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : satisTipleri)
+    const tipler = new Set(mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : mod === 'fason-hareket' ? fasonHareketTipleri : satisTipleri)
     irsaliyeApi
       .list()
       .then((res) => setData(res.filter((i) => tipler.has(String(i.irsaliyeTipi))).map(mapIrsaliye)))

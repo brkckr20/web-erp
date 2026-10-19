@@ -1352,7 +1352,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     // Fason Hareket Fişleri -> Fason Talimatı (202) listesi, alt tip Fason Tipleri'nden seçilir.
     if (tab.key === 'fason-hareket') {
-      return <IrsaliyeListesi mod="satinalma-siparis" onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />
+      return <IrsaliyeListesi mod="fason-hareket" onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} />
     }
     if (tab.key.startsWith('satis-irsaliye-yeni-')) {
       const match = tab.key.match(/^satis-irsaliye-yeni-(\d+)(?:-ft(\d+))?$/)
