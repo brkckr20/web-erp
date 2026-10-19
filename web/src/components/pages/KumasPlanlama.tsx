@@ -315,33 +315,44 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   // kaynaklar tahsis listesinde saklanır (202 satırında sağ tık -> Tahsis Detayları).
   // varyant1 = sipariş kumaş rengi, 202-Fason Talimatı'nda görünür (planlama bilgisi);
   // 134'e aktarılırken düşer -> çıkış ham/varyantsız, 11 girişinde boyahane kartı seçilir.
-  const satirlariKalemeCevir = (satirlar: KumasPlanlamaSatir[]): IrsaliyeBaslangicKalem[] =>
-    baslangicKalemleriBirlestir(
-      satirlar
-        .filter((r) => Number(r.acikMiktar) > 0)
-        .map((r) => {
-          const miktar = Number(r.acikMiktar) || 0
-          return {
-            malzemeKod: r.malzemeKod,
-            malzemeAd: r.malzemeAd,
-            miktar,
-            birim: r.birim || 'mt',
-            aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+  const satirlariKalemeCevir = (satirlar: KumasPlanlamaSatir[]): IrsaliyeBaslangicKalem[] => {
+    const kalemler = satirlar.map((r) => {
+      const renkliStok = Number(r.renkliStok) || 0
+      const hamStok = Number(r.hamStok) || 0
+      const gereken = Number(r.gerekenMiktar) || 0
+      // Fason'a gönderilecek miktar: ham stoktan boyanacak kısım.
+      // HAM_BOYA: ham stoktan (gereken - renkli) kadar, yani ham stok gap'i kapatır.
+      // TEMIN: mevcut ham stok tamamı (gerisi satın alma / temin ile tamamlanır).
+      // STOK: fason gerekmez (0).
+      let miktar = 0
+      if (r.oneri === 'HAM_BOYA') {
+        miktar = Math.min(hamStok, Math.max(0, gereken - renkliStok))
+      } else if (r.oneri === 'TEMIN') {
+        miktar = hamStok
+      }
+      if (miktar <= 0) return null
+      return {
+        malzemeKod: r.malzemeKod,
+        malzemeAd: r.malzemeAd,
+        miktar,
+        birim: r.birim || 'mt',
+        aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+        siparisKalemId: r.siparisKalemId ?? null,
+        varyant1RenkId: r.varyant1RenkId ?? null,
+        varyant1RenkKod: r.varyant1 || null,
+        varyant1RenkAd: r.varyant1Aciklama || null,
+        tahsis: [
+          {
             siparisKalemId: r.siparisKalemId ?? null,
-            varyant1RenkId: r.varyant1RenkId ?? null,
-            varyant1RenkKod: r.varyant1 || null,
-            varyant1RenkAd: r.varyant1Aciklama || null,
-            tahsis: [
-              {
-                siparisKalemId: r.siparisKalemId ?? null,
-                siparisNo: r.siparisNo ?? '',
-                modelKod: r.modelKod ?? '',
-                miktar,
-              },
-            ],
-          }
-        }),
-    )
+            siparisNo: r.siparisNo ?? '',
+            modelKod: r.modelKod ?? '',
+            miktar,
+          },
+        ],
+      }
+    })
+    return baslangicKalemleriBirlestir(kalemler.filter((k) => k !== null) as IrsaliyeBaslangicKalem[])
+  }
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'satinalma-talimat' || key === 'ham-satinalma-talimat' || key === 'satinalma-talimat-birlesik') {
