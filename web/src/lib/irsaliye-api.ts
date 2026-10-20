@@ -49,6 +49,11 @@ export interface IrsaliyeKalem {
   birimFiyat: number | null
   doviz: string | null
   kdv: number | null
+  /** Fiyat KDV dahil mi girildi? (iskonto matraha göre uygulanır) */
+  kdvDahil?: boolean | null
+  /** Satır iskontosu: oran (%) ve/veya tutar (₺). */
+  iskontoOrani?: number | null
+  iskontoTutari?: number | null
   satirTutari: number | null
   aciklama: string | null
   uuid: string | null

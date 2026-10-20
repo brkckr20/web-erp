@@ -58,3 +58,115 @@ body {
     display: none !important;
   }
 }
+
+/* ===== AG Grid hücre input/select stilleri — borderless, focus'ta belirgin ===== */
+/* Ant Design Input / Select hücre içinde (kalemler grid) — Ant CSS'ini ezmek için .ag-root-wrapper kapsayıcısı eklendi */
+.ag-root-wrapper .ag-cell .kalem-input,
+.ag-root-wrapper .ag-cell .kalem-select,
+.ag-root-wrapper .ag-cell .ant-select-single .ant-select-selector {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 2px 6px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  width: 100% !important;
+}
+
+/* Sayı inputları sağa hizalı */
+.ag-root-wrapper .ag-cell .kalem-input[type="text"] {
+  text-align: right;
+}
+
+/* Focus: mavi çerçeve + beyaz zemin */
+.ag-root-wrapper .ag-cell .kalem-input:focus,
+.ag-root-wrapper .ag-cell .kalem-input-focused,
+.ag-root-wrapper .ag-cell .ant-select-focused .ant-select-selector,
+.ag-root-wrapper .ag-cell .ant-select:has(.ant-select-focused) .ant-select-selector {
+  border: 1px solid #1677ff !important;
+  border-radius: 2px !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.15) !important;
+}
+
+/* Disabled/kilitli hücreler: input yerine metin gibi görünür */
+.ag-root-wrapper .ag-cell .kalem-input:disabled,
+.ag-root-wrapper .ag-cell .kalem-select:disabled,
+.ag-root-wrapper .ag-cell .ant-select-disabled .ant-select-selector {
+  color: #999 !important;
+  cursor: not-allowed !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Hover satırında hafif vurgulama */
+.ag-root-wrapper .ag-row:hover .kalem-input,
+.ag-root-wrapper .ag-row:hover .kalem-select,
+.ag-root-wrapper .ag-row:hover .ant-select-selector {
+  background: #fafafa !important;
+}
+
+/* Seçili satır */
+.ag-root-wrapper .ag-row-selected .kalem-input,
+.ag-root-wrapper .ag-row-selected .kalem-select,
+.ag-root-wrapper .ag-row-selected .ant-select-selector {
+  background: #e6f4ff !important;
+}
+
+/* Select dropdown arrow konumu */
+.ag-root-wrapper .ag-cell .ant-select-single .ant-select-selector .ant-select-arrow {
+  margin-right: 4px !important;
+}
+
+/* ===== Grid hüre çizgilerini KORU (input CSS'i etki etmesin) ===== */
+.ag-root-wrapper .ag-cell {
+  border-right: 1px solid #e0e0e0 !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+  font-size: 10.5px !important;
+  line-height: 1.15 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.ag-root-wrapper .ag-header-cell {
+  border-right: 1px solid #e0e0e0 !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.15 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Header filter (searchable kolonlardaki büyüteç/input) */
+.ag-root-wrapper .ag-header-cell .ag-input-wrapper,
+.ag-root-wrapper .ag-header-cell .ag-header-filter {
+  font-size: 10.5px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.ag-root-wrapper .ag-header-cell .ag-header-filter input,
+.ag-root-wrapper .ag-header-cell .ag-input-wrapper input {
+  font-size: 10.5px !important;
+  padding: 1px 6px !important;
+  height: 22px !important;
+  border: 1px solid #d9d9d9 !important;
+  border-radius: 2px !important;
+}
+.ag-root-wrapper .ag-header-cell .ag-header-filter input:focus,
+.ag-root-wrapper .ag-header-cell .ag-input-wrapper input:focus {
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.15) !important;
+}
+/* Büyüteç ikonu */
+.ag-root-wrapper .ag-header-cell .ag-filter-icon {
+  font-size: 10.5px !important;
+  color: #999 !important;
+}
+
+/* Input/Select yazı boyutu (kalemler grid) */
+.ag-root-wrapper .ag-cell .kalem-input,
+.ag-root-wrapper .ag-cell .kalem-select,
+.ag-root-wrapper .ag-cell .ant-select-single .ant-select-selector {
+  font-size: 11px !important;
+}

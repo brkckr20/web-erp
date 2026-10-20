@@ -113,6 +113,9 @@ export class FaturaService {
       birimFiyat: fiyatOverride?.birimFiyat ?? kaynak.birimFiyat,
       doviz: fiyatOverride?.doviz ?? kaynak.doviz,
       kdv: fiyatOverride?.kdv ?? kaynak.kdv,
+      kdvDahil: fiyatOverride?.kdvDahil ?? kaynak.kdvDahil,
+      iskontoOrani: fiyatOverride?.iskontoOrani ?? kaynak.iskontoOrani,
+      iskontoTutari: fiyatOverride?.iskontoTutari ?? kaynak.iskontoTutari,
       satirTutari: fiyatOverride?.satirTutari ?? kaynak.satirTutari,
       uuid: randomUUID(),
     }

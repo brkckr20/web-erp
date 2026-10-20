@@ -61,6 +61,7 @@ export interface Malzeme {
   ormeTipi: string | null
   kumasUretimTipi: string | null
   hesapBirimi: string | null
+  kdvDahil: boolean | null
   barkod: string | null
   iplikNoId: number | null
   iplikCinsiId: number | null

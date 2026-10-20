@@ -57,6 +57,7 @@ export class UpdateMalzemeDto {
   ormeTipi?: string
   kumasUretimTipi?: string
   hesapBirimi?: string
+  kdvDahil?: boolean
   iplikNoId?: number
   iplikCinsiId?: number
   organik?: boolean

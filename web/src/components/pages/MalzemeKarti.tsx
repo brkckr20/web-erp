@@ -59,6 +59,7 @@ const emptyData: MalzemeFormData = {
   ormeTipi: '',
   kumasUretimTipi: '',
   hesapBirimi: '',
+  kdvDahil: null,
   barkod: '',
 }
 
@@ -178,6 +179,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
         ormeTipi: data.ormeTipi ?? '',
         kumasUretimTipi: data.kumasUretimTipi ?? '',
         hesapBirimi: data.hesapBirimi ?? '',
+        kdvDahil: data.kdvDahil ?? null,
         barkod: data.barkod ?? '',
       })
       setDosyalar([])
@@ -439,6 +441,12 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
                         <div className="!border !border-gray-200 !rounded-sm !p-3 !mt-3">
                           <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">KDV Oranları</div>
                           <div className="!space-y-2.5">
+                            <FormField label="Fiyat KDV Dahil/Hariç">
+                              <Select size="small" value={form.kdvDahil == null ? undefined : (form.kdvDahil ? 'dahil' : 'haric')} onChange={(v) => set('kdvDahil', v == null ? null : v === 'dahil')} className="!w-full !text-[11px]" allowClear options={[
+                                { value: 'haric', label: 'Hariç' },
+                                { value: 'dahil', label: 'Dahil' },
+                              ]} />
+                            </FormField>
                             <FormField label="Genel">
                               <Select size="small" value={form.kdvGenel} onChange={(v) => set('kdvGenel', v)} className="!w-full !text-[11px]" options={kdvOptions} allowClear />
                             </FormField>

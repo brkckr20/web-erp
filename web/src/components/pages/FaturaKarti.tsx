@@ -78,6 +78,11 @@ interface KalemRow {
   birimFiyat: number
   doviz: string
   kdv: number
+  /** Fiyat KDV dahil mi girildi? İskonto matraha göre uygulanır. */
+  kdvDahil: boolean
+  /** Satır iskontosu: oran (%) ve/veya tutar (₺). Biri girilince diğeri hesaplanır. */
+  iskontoOrani: number
+  iskontoTutari: number
   satirTutari: number
   aciklama: string
   varyant1RenkId: number | null
@@ -105,6 +110,9 @@ const emptyKalem = (tip: KalemRow['tip'] = 'Malzeme'): KalemRow => ({
   birimFiyat: 0,
   doviz: 'TL',
   kdv: 0,
+  kdvDahil: false,
+  iskontoOrani: 0,
+  iskontoTutari: 0,
   satirTutari: 0,
   aciklama: '',
   varyant1RenkId: null,
@@ -261,6 +269,9 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
             birimFiyat: Number(k.birimFiyat) || 0,
             doviz: k.doviz || 'TL',
             kdv: Number(k.kdv) || 0,
+            kdvDahil: k.kdvDahil ?? false,
+            iskontoOrani: Number(k.iskontoOrani) || 0,
+            iskontoTutari: Number(k.iskontoTutari) || 0,
             satirTutari: Number(k.satirTutari) || 0,
             aciklama: k.aciklama ?? '',
             varyant1RenkId: k.varyant1RenkId ?? k.varyant1Renk?.id ?? null,
@@ -311,13 +322,40 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     }
   }
 
+  // Satır hesabı: iskonto matrahtan (KDV'den önce) düşülür.
+  // kdvDahil=false → fiyat matrah; iskonto matrahtan. kdvDahil=true → fiyat KDV dahil;
+  // iskonto KDV dahil tutardan düşülür, sonra KDV ayrıştırılır.
+  const satirHesapla = (k: KalemRow) => {
+    const miktar = hesapMiktariGetir(k)
+    const kdvOran = k.kdv || 0
+    if (k.kdvDahil) {
+      const brutDahil = miktar * (k.birimFiyat || 0)
+      const iskonto = k.iskontoTutari || 0
+      const netDahil = Math.max(brutDahil - iskonto, 0)
+      const matrah = netDahil / (1 + kdvOran / 100)
+      return { matrah, kdv: netDahil - matrah, satirTutari: netDahil }
+    }
+    const brutMatrah = miktar * (k.birimFiyat || 0)
+    const iskonto = k.iskontoTutari || 0
+    const matrah = Math.max(brutMatrah - iskonto, 0)
+    const kdv = matrah * kdvOran / 100
+    return { matrah, kdv, satirTutari: matrah + kdv }
+  }
+
   const updateKalem = (key: string, patch: Partial<KalemRow>) => {
     setKalemler((prev) =>
       prev.map((k) => {
         if (k.key !== key) return k
         const next = { ...k, ...patch }
-        const matrah = hesapMiktariGetir(next) * (next.birimFiyat || 0)
-        next.satirTutari = matrah + matrah * (next.kdv || 0) / 100
+        // İskonto oranı girilip tutar girilmediyse orandan tutarı türet.
+        if ('iskontoOrani' in patch && !('iskontoTutari' in patch)) {
+          const brutMatrah = hesapMiktariGetir(next) * (next.birimFiyat || 0)
+          next.iskontoTutari = (next.iskontoOrani || 0) > 0 ? brutMatrah * (next.iskontoOrani || 0) / 100 : 0
+        } else if ('iskontoTutari' in patch && !('iskontoOrani' in patch)) {
+          const brutMatrah = hesapMiktariGetir(next) * (next.birimFiyat || 0)
+          next.iskontoOrani = brutMatrah > 0 ? (next.iskontoTutari || 0) / brutMatrah * 100 : 0
+        }
+        next.satirTutari = satirHesapla(next).satirTutari
         return next
       }),
     )
@@ -401,6 +439,9 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           birimFiyat: Number(k.birimFiyat) || 0,
           doviz: k.doviz || 'TL',
           kdv: Number(k.kdv) || 0,
+          kdvDahil: k.kdvDahil ?? false,
+          iskontoOrani: Number(k.iskontoOrani) || 0,
+          iskontoTutari: Number(k.iskontoTutari) || 0,
           satirTutari: Number(k.satirTutari) || 0,
           aciklama: k.aciklama ?? '',
           varyant1RenkId: k.varyant1RenkId ?? k.varyant1Renk?.id ?? null,
@@ -481,6 +522,9 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
         birimFiyat: k.birimFiyat,
         doviz: k.doviz || 'TL',
         kdv: k.kdv || null,
+        kdvDahil: k.kdvDahil,
+        iskontoOrani: k.iskontoOrani || null,
+        iskontoTutari: k.iskontoTutari || null,
         satirTutari: k.satirTutari,
         aciklama: k.aciklama || null,
         varyant1RenkId: k.varyant1RenkId,
@@ -612,7 +656,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
             const kdv = parseFloat(rawKdv) || 0
             const hesapBirimi = (rec as Malzeme)?.hesapBirimi ?? p.data.hesapBirimi
             const barkod = (rec as Malzeme)?.barkod ?? ''
-            updateKalem(p.data.key, { malzemeKod: kod, malzemeAd: (rec as Malzeme)?.ad ?? '', barkod, kdv, hesapBirimi })
+            const kdvDahil = (rec as Malzeme)?.kdvDahil ?? p.data.kdvDahil
+            updateKalem(p.data.key, { malzemeKod: kod, malzemeAd: (rec as Malzeme)?.ad ?? '', barkod, kdv, hesapBirimi, kdvDahil })
             if (kod && p.node.rowIndex != null) focusNextCell('malzemeKod', p.node.rowIndex)
           }}
         />
@@ -775,6 +820,45 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
             { value: 'USD', label: 'USD' },
             { value: 'EUR', label: 'EUR' },
           ]}
+        />
+      ),
+    },
+    {
+      headerName: 'KDV D/H', field: 'kdvDahil', width: 90, cellClass: '!p-0',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <Select
+          size="small"
+          value={p.data.kdvDahil ? 'dahil' : 'haric'}
+          onChange={(val) => updateKalem(p.data.key, { kdvDahil: val === 'dahil' })}
+          variant="borderless"
+          className="!w-full !h-full !text-[12px] kalem-select"
+          popupMatchSelectWidth={false}
+          options={[
+            { value: 'haric', label: 'Hariç' },
+            { value: 'dahil', label: 'Dahil' },
+          ]}
+        />
+      ),
+    },
+    {
+      headerName: 'İskonto %', field: 'iskontoOrani', width: 90, cellClass: '!p-0', type: 'rightAligned',
+      cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
+        <TurkishNumberInput
+          value={p.value}
+          onChange={(val) => updateKalem(p.data.key, { iskontoOrani: val })}
+          onEnter={() => p.node.rowIndex != null && focusNextCell('iskontoOrani', p.node.rowIndex)}
+          className="!w-full !h-full !text-[12px] kalem-input"
+        />
+      ),
+    },
+    {
+      headerName: 'İskonto', field: 'iskontoTutari', width: 100, cellClass: '!p-0', type: 'rightAligned',
+      cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
+        <TurkishNumberInput
+          value={p.value}
+          onChange={(val) => updateKalem(p.data.key, { iskontoTutari: val })}
+          onEnter={() => p.node.rowIndex != null && focusNextCell('iskontoTutari', p.node.rowIndex)}
+          className="!w-full !h-full !text-[12px] kalem-input"
         />
       ),
     },
@@ -954,7 +1038,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   )
 
   const toplam = kalemler.reduce((acc, k) => acc + (k.satirTutari || 0), 0)
-  const toplamMatrah = kalemler.reduce((acc, k) => acc + hesapMiktariGetir(k) * (k.birimFiyat || 0), 0)
+  const toplamMatrah = kalemler.reduce((acc, k) => acc + satirHesapla(k).matrah, 0)
   const toplamKdv = toplam - toplamMatrah
   const kalemSayisi = kalemler.length
 

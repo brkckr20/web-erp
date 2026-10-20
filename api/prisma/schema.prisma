@@ -270,6 +270,8 @@ model Malzeme {
   kumasUretimTipi   String?  @map("kumas_uretim_tipi") @db.VarChar(50)
 
   hesapBirimi       String?  @map("hesap_birimi") @db.VarChar(50)
+  // Fiyat/KDV varsayılanı: KDV dahil mi girilir? Fatura satırına malzeme seçilince otomatik taşınır.
+  kdvDahil          Boolean? @map("kdv_dahil")
 
   iplikNoId         Int?     @map("iplik_no_id")
   iplikNoRef        OzellikKodlama? @relation("IplikNo", fields: [iplikNoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -554,6 +556,11 @@ model IrsaliyeKalem {
   birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 4)
   doviz             String?  @db.VarChar(10)
   kdv               Decimal? @db.Decimal(18, 2)
+  // Fiyat KDV dahil mi girildi? (iskonto matraha göre uygulanır)
+  kdvDahil          Boolean? @map("kdv_dahil")
+  // Satır iskontosu: oran (%) ve/veya tutar (₺). Kullanıcı birini girer.
+  iskontoOrani      Decimal? @map("iskonto_orani") @db.Decimal(18, 4)
+  iskontoTutari     Decimal? @map("iskonto_tutari") @db.Decimal(18, 2)
   satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 2)
   aciklama          String?  @db.VarChar(1000)
   uuid              String?  @db.VarChar(100)
@@ -684,6 +691,11 @@ model FaturaKalem {
   birimFiyat        Decimal? @map("birim_fiyat") @db.Decimal(18, 4)
   doviz             String?  @db.VarChar(10)
   kdv               Decimal? @db.Decimal(18, 2)
+  // Fiyat KDV dahil mi girildi? (iskonto matraha göre uygulanır)
+  kdvDahil          Boolean? @map("kdv_dahil")
+  // Satır iskontosu: oran (%) ve/veya tutar (₺). Kullanıcı birini girer.
+  iskontoOrani      Decimal? @map("iskonto_orani") @db.Decimal(18, 4)
+  iskontoTutari     Decimal? @map("iskonto_tutari") @db.Decimal(18, 2)
   satirTutari       Decimal? @map("satir_tutari") @db.Decimal(18, 2)
   aciklama          String?  @db.VarChar(1000)
   uuid              String?  @db.VarChar(100)

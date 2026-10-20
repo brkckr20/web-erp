@@ -16,6 +16,9 @@ export class CreateFaturaKalemDto {
   birimFiyat?: number
   doviz?: string
   kdv?: number
+  kdvDahil?: boolean
+  iskontoOrani?: number
+  iskontoTutari?: number
   satirTutari?: number
   aciklama?: string
   uuid?: string

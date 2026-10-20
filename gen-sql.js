@@ -1,0 +1,14 @@
+const fs = require('fs');
+const src = fs.readFileSync('api/src/tedarik/tedarik.service.ts', 'utf8');
+const i = src.indexOf('async planlamaKumas()');
+const q0 = src.indexOf('SELECT', i);
+const backtickIdx = src.indexOf('`', q0);
+let q = src.slice(q0, backtickIdx);
+const g = "('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101')";
+const c = "('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140')";
+q = q.split('${GIRIS}').join(g).split('${CIKIS}').join(c);
+const gb = q.indexOf('GROUP BY');
+const ob = q.indexOf('ORDER BY');
+q = q.slice(0, gb) + 'GROUP BY s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad, ti.malzeme_kod, ti.malzeme_ad, ti.malzeme_id, rk.islem, ti.renk_id, ti.renk_kod, ti.renk_ad, rs.kg, rs.mt, rs.adet, hs.kg, hs.mt, hs.adet';
+fs.writeFileSync('karsilama-test.sql', 'SELECT TOP 10 * FROM (\n' + q + '\n) t;');
+console.log('ok', q.length);
