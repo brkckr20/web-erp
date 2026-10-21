@@ -61,17 +61,30 @@ body {
 
 /* ===== AG Grid hücre input/select stilleri — borderless, focus'ta belirgin ===== */
 /* Ant Design Input / Select hücre içinde (kalemler grid) — Ant CSS'ini ezmek için .ag-root-wrapper kapsayıcısı eklendi */
+/* Sarmalayıcı (.kalem-select) hücrenin tamamında, kontrol doğal boyutta (24px) */
+.ag-root-wrapper .ag-cell .kalem-select {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  height: var(--ant-control-height-sm, 24px) !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+/* Asıl kontrol (input / select selector) — metin 4px içeride */
 .ag-root-wrapper .ag-cell .kalem-input,
-.ag-root-wrapper .ag-cell .kalem-select,
 .ag-root-wrapper .ag-cell .ant-select-single .ant-select-selector {
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  padding: 2px 6px !important;
-  height: 100% !important;
+  padding: 0 4px !important;
+  height: var(--ant-control-height-sm, 24px) !important;
   min-height: 0 !important;
   width: 100% !important;
+  margin: 0 !important;
 }
 
 /* Sayı inputları sağa hizalı */
@@ -120,11 +133,41 @@ body {
 }
 
 /* ===== Grid hüre çizgilerini KORU (input CSS'i etki etmesin) ===== */
+/* AG Grid v36: value hücrelerine inline "display:flex; align-items:center" verir
+   (ör. col-id="cariHesap" → DIKOS GMBH ortalanmış). Renderer hücrelerinde ise
+   içerik doğrudan .ag-cell içine gömülür (wrapper yok) ve .ag-cell inline-block
+   kaldığı için içerik hücrenin TEPESİNE yapışır. Aynı davranışı burada da
+   uygularız: hücre flex + align-items:center → kontrol dikeyde ortalanır. */
 .ag-root-wrapper .ag-cell {
   border-right: 1px solid #e0e0e0 !important;
   border-bottom: 1px solid #e0e0e0 !important;
   font-size: 10.5px !important;
   line-height: 1.15 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+/* ===== Hücre içi kontroller hücrenin (0,0) köşesine tam otursun ===== */
+/* Kontrol (input/select) içeren hücrelerde hücre iç boşluğu sıfırlanır */
+.ag-root-wrapper .ag-cell:has(.kalem-input),
+.ag-root-wrapper .ag-cell:has(.ant-select) {
+  padding: 0 !important;
+}
+/* Ant Select zinciri: genişlik hücreyi doldursun, yükseklik antd'nin doğal boyutunda kalsın */
+.ag-root-wrapper .ag-cell .ant-select,
+.ag-root-wrapper .ag-cell .ant-select-single {
+  min-height: 0 !important;
+  width: 100% !important;
+}
+.ag-root-wrapper .ag-cell .ant-select-single .ant-select-selector {
+  min-height: 0 !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+}
+/* Select içindeki metin kutusu hücreye yapışsın, ok ikonu sağda kalsın */
+.ag-root-wrapper .ag-cell .ant-select-selection-item {
   display: flex !important;
   align-items: center !important;
 }

@@ -411,7 +411,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
         headerName: '', field: 'key', width: 40, minWidth: 40, maxWidth: 40,
         resizable: false, sortable: false, filter: false, cellClass: '!p-0',
         cellRenderer: (p: { data: ModelRow }) => (
-          <div className="!flex !items-center !justify-center !h-full">
+          <div className="!flex !items-center !justify-center !h-full !w-full">
             <Popconfirm
               title="Satırı sil"
               description="Bu satırı silmek istediğinize emin misiniz?"
@@ -585,7 +585,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
         headerName: '', field: 'key', width: 40, minWidth: 40, maxWidth: 40,
         resizable: false, sortable: false, filter: false, cellClass: '!p-0',
         cellRenderer: (p: { data: RenkBedenRow }) => (
-          <div className="!flex !items-center !justify-center !h-full">
+          <div className="!flex !items-center !justify-center !h-full !w-full">
             <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => removeRenkBedenRow(p.data.key)} />
           </div>
         ),

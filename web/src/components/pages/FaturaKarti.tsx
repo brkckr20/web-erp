@@ -603,7 +603,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
       headerName: '', field: 'key', width: 40, minWidth: 40, maxWidth: 40,
       resizable: false, sortable: false, filter: false, cellClass: '!p-0',
       cellRenderer: (p: { data: KalemRow }) => (
-        <div className="!flex !items-center !justify-center !h-full">
+        <div className="!flex !items-center !justify-center !h-full !w-full">
           <Popconfirm
             title="Satırı sil"
             description="Bu satırı silmek istediğinize emin misiniz?"
