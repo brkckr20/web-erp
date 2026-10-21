@@ -20,6 +20,7 @@ import HataModal from '@/components/shared/HataModal'
 import EtiketOnizleme from '@/components/shared/EtiketOnizleme'
 import IsEmriSecimiModal from '@/components/shared/IsEmriSecimiModal'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
+import { incrementBarkod } from '@/lib/barkod'
 import { useAuth } from '@/context/AuthContext'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -54,6 +55,8 @@ interface KKFormProps {
 interface KalemRow {
   key: string
   barkod: string
+  /** Bu top hangi irsaliye kaleminden (11-Fasondan Giriş) geldi? */
+  irsaliyeKalemId: number | null
   malzemeId: number | null
   malzemeKod: string
   malzemeAd: string
@@ -72,6 +75,7 @@ interface KalemRow {
 const emptyKalem = (): KalemRow => ({
   key: Math.random().toString(36).slice(2),
   barkod: '',
+  irsaliyeKalemId: null,
   malzemeId: null,
   malzemeKod: '',
   malzemeAd: '',
@@ -85,14 +89,6 @@ const emptyKalem = (): KalemRow => ({
   isEmriKg: 0,
   hatalar: [],
 })
-
-const incrementBarkod = (barkod: string): string => {
-  const m = barkod.match(/(\d+)$/)
-  if (!m) return barkod
-  const num = m[1]
-  const next = String(Number(num) + 1).padStart(num.length, '0')
-  return barkod.slice(0, m.index) + next
-}
 
 const formatTR = (v: number) => {
   if (v === 0) return ''
@@ -198,6 +194,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
             setKalemler(f.kalemler.map((k: any) => ({
               key: Math.random().toString(36).slice(2),
               barkod: k.barkod ?? '',
+              irsaliyeKalemId: k.irsaliyeKalemId ?? null,
               malzemeId: k.malzemeId ?? null,
               malzemeKod: k.malzeme?.kod ?? '',
               malzemeAd: k.malzeme?.ad ?? '',
@@ -251,6 +248,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
       newRow.isEmriNo = fromRow.isEmriNo
       newRow.isEmriId = fromRow.isEmriId
       newRow.isEmriKg = fromRow.isEmriKg
+      // Satır kopyalandığında kaynak 11 kalemi bağı korunur (1 irsaliye kalemi → N top).
+      newRow.irsaliyeKalemId = fromRow.irsaliyeKalemId
     }
     if (depoKod) {
       try {
@@ -344,6 +343,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
         .filter((k) => k.malzemeKod)
         .map((k) => ({
           barkod: k.barkod || null,
+          // Kaynak 11 kalemi bağı (kalite bekleyen listesinden aktarımda gelir).
+          irsaliyeKalemId: k.irsaliyeKalemId ?? null,
           malzemeId: k.malzemeId || undefined,
           netAgirlik: k.kg || undefined,
           netMetre: k.mt || undefined,

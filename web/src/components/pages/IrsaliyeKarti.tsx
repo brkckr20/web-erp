@@ -21,6 +21,7 @@ import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
 import { depoApi } from '@/lib/depo-api'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
+import { kalemMiktari } from '@/lib/miktar'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { useAuth } from '@/context/AuthContext'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
@@ -147,6 +148,8 @@ export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]):
 
 interface KalemRow {
   key: string
+  /** Kalem satırının kalıcı kimliği (DB uuid). Kayıtta korunur → FK bağları bozulmaz. */
+  uuid: string | null
   tip: string
   malzemeKod: string
   malzemeAd: string
@@ -185,6 +188,8 @@ interface KalemRow {
   varyant1RenkKod: string
   varyant1RenkAd: string
   fire: number | null
+  /** Kalite kontrol gerekmez mi? (11-Fasondan Giriş). true ise kalem "Kalite Bekleyen" listesine girmez. */
+  kaliteYapilmayacak: boolean
   /** Birleşmiş satırın sipariş/model dağılımı (salt-okunur tahsis detayı). */
   tahsis: KalemTahsis[]
   /** Satıra seçilen prosesler (sıralı). */
@@ -193,6 +198,7 @@ interface KalemRow {
 
 const emptyKalem = (): KalemRow => ({
   key: Math.random().toString(36).slice(2),
+  uuid: null,
   tip: 'Malzeme',
   malzemeKod: '',
   malzemeAd: '',
@@ -220,6 +226,7 @@ const emptyKalem = (): KalemRow => ({
   varyant1RenkKod: '',
   varyant1RenkAd: '',
   fire: null,
+  kaliteYapilmayacak: false,
   tahsis: [],
   kalemId: null,
   kaynakKalemId: null,
@@ -251,6 +258,17 @@ const irsaliyeTipiMap: Record<string, string> = {
 // Fason fişleri: miktarlar brüt/net ayrı girilir (fasoncu brüt üzerinden çalışır).
 // 202-Fason Talimatı da miktarlı bir belgedir, aynı kolonları kullanır.
 const fasonFisTipleri = ['6', '11', '12', '125', '133', '134', '202']
+
+// "Fason Gidenler (134)" listesindeki satır: 134 kalemi + kalan miktar.
+type FasonGidenSatir = IrsaliyeKalem & {
+  fisNo: string
+  belgeNo: string
+  tarih: string | null
+  cariAd: string
+  fasonTipiAd: string
+  /** Kalan = 134.brüt − Σ(bu kaleme bağlı 11'lerin brütü) */
+  kalan: number
+}
 const uretimKolonlari = ['tip', 'barkod', 'brutKg', 'kg', 'brutMt', 'mt', 'adet', 'hesapBirimi', 'istenenGram', 'ebat', 'topSayisi', 'prosesler']
 const satinalmaSiparisKolonlari = ['tip', 'barkod', 'istenenGram', 'ebat', 'topSayisi', 'prosesler']
 const defaultHiddenColsFor = (irsaliyeTipi: string): Set<string> => {
@@ -524,6 +542,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           const kalemList = (i as Irsaliye).kalemler ?? []
           const rows: KalemRow[] = kalemList.map((k) => ({
             key: Math.random().toString(36).slice(2),
+            uuid: (k as IrsaliyeKalem).uuid ?? null,
             tip: (k as IrsaliyeKalem).tip ?? 'Malzeme',
             malzemeKod: (k as IrsaliyeKalem).malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
             malzemeAd: (k as IrsaliyeKalem).malzeme?.ad ?? '',
@@ -556,6 +575,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             varyant1RenkKod: (k as IrsaliyeKalem).varyant1Renk?.kod ?? '',
             varyant1RenkAd: (k as IrsaliyeKalem).varyant1Renk?.ad ?? '',
             fire: (k as IrsaliyeKalem).fire != null ? Number((k as IrsaliyeKalem).fire) : null,
+            kaliteYapilmayacak: !!(k as IrsaliyeKalem).kaliteYapilmayacak,
             tahsis: ((k as IrsaliyeKalem).tahsisler ?? []).map((t) => ({
               siparisKalemId: t.siparisKalemId ?? null,
               siparisNo: t.siparisNo ?? '',
@@ -693,6 +713,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       const cariHesapId = cariHesapRecord?.id ?? null
       const depoId = depoRecord?.id ?? null
       const kalemPayload = gecerliKalemler.map((k) => ({
+        // uuid kalem satırının kalıcı kimliğidir; kayıtta korunur (sunucu eşleştirir).
+        uuid: k.uuid ?? null,
         malzemeId: malzemeList.find((m) => m.kod === k.malzemeKod)?.id ?? null,
         tip: k.tip || null,
         takipNo: k.barkod || null,
@@ -719,6 +741,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         topSayisi: k.topSayisi || null,
         boyahaneRenkId: k.boyahaneRenkId,
         varyant1RenkId: k.varyant1RenkId,
+        kaliteYapilmayacak: k.kaliteYapilmayacak,
         prosesler: (k.prosesler ?? []).map((p) => ({ islemId: p.islemId, sira: p.sira })),
         tahsisler: k.tahsis,
       })) as IrsaliyeKalem[]
@@ -1003,6 +1026,21 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             // Satıra seçilen prosesler, sıra numarasına göre (sağ tık → Prosesler... ile düzenlenir).
             headerName: 'Prosesler', field: 'prosesler', width: 180,
             valueFormatter: (p) => prosesAdlariGetir(p.value as KalemProses[]) || '-',
+          } as ColDef<KalemRow>,
+        ]
+      : []),
+    // 11-Fasondan Giriş: kaleme "kalite kontrol gerekmez" işareti. İşaretli kalemler
+    // Kalite Kontrol Girişleri'ndeki "Kalite Bekleyen" listesine girmez.
+    ...(irsaliyeTipi === '11'
+      ? [
+          {
+            headerName: 'Kalite Yapılmayacak', field: 'kaliteYapilmayacak', width: 160, cellClass: '!p-0',
+            cellRenderer: (p: { data: KalemRow }) => (
+              <Checkbox
+                checked={!!p.data.kaliteYapilmayacak}
+                onChange={(e) => updateKalem(p.data.key, { kaliteYapilmayacak: e.target.checked })}
+              />
+            ),
           } as ColDef<KalemRow>,
         ]
       : []),
@@ -1396,7 +1434,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const contextMenuItems: MenuProps['items'] =
     irsaliyeTipi === '11'
       ? [
-          { key: 'fason-gidenler', label: 'Fason Gidenler (134)...', onClick: () => openFasonGidenler() },
+          { key: 'fason-gidenler', label: 'Fason Gidenler', onClick: () => openFasonGidenler() },
           ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
         ]
       : irsaliyeTipi === '201'
@@ -1427,19 +1465,27 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       message.warning('İçe aktarılacak kalem seçiniz')
       return
     }
-    const yeniKalemler: KalemRow[] = secili.map((k: IrsaliyeKalem) => ({
+    const yeniKalemler: KalemRow[] = secili.map((k: FasonGidenSatir) => ({
       key: Math.random().toString(36).slice(2),
+      uuid: null,
+      kaliteYapilmayacak: false,
       tip: k.tip ?? 'Malzeme',
       malzemeKod: k.malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
       malzemeAd: k.malzeme?.ad ?? '',
-      barkod: k.id != null ? String(k.id) : (k.takipNo ?? ''),
-      // Fason girişinde brüt miktar TAŞINIR (ne kadar gitti), net ve fire BOŞ kalır:
-      // operatör gerçekte dönen miktarı girer, fire = brüt − net sunucuda hesaplanır.
-      brutKg: Number(k.brutAgirlik) || 0,
+      // Barkod GERÇEK barkodu taşır (malzemenin barkodu, yoksa 134'ün takip no'su).
+      // Kaynak 134 kalemi FK'si (kaynakKalemId) ile izlenir — barkod alanına teknik
+      // olarak kalem id yazılmaz.
+      barkod: k.malzeme?.barkod ?? k.takipNo ?? '',
+      // Fason girişinde brüt TAŞINIR ve KALAN miktar kadar taşınır (ne kadar gitti),
+      // net ve fire BOŞ kalır: operatör gerçekte dönen brüt/net miktarını girer.
+      // (Kalan = 134.brüt − Σ11.brüt; 134'ün brüt'ünün tamamı değil, kalan kadar.)
+      brutKg:
+        k.olcuBirimi === 'brutKg' || k.olcuBirimi === 'kg' ? Number(k.kalan) || 0 : 0,
       kg: 0,
-      brutMt: Number(k.brutMetre) || 0,
+      brutMt:
+        k.olcuBirimi === 'brutMt' || k.olcuBirimi === 'mt' ? Number(k.kalan) || 0 : 0,
       mt: 0,
-      adet: Number(k.adet) || 0,
+      adet: k.olcuBirimi === 'adet' ? Number(k.kalan) || 0 : 0,
       hesapBirimi: k.olcuBirimi || 'kg',
       birimFiyat: Number(k.birimFiyat) || 0,
       doviz: k.doviz || 'TL',
@@ -1502,6 +1548,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       const adet = k.olcuBirimi === 'adet' ? kalan : 0
       return {
         key: Math.random().toString(36).slice(2),
+        uuid: null,
+        kaliteYapilmayacak: false,
         tip: k.tip ?? 'Malzeme',
         malzemeKod: k.malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
         malzemeAd: k.malzeme?.ad ?? '',
@@ -1555,64 +1603,97 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     setAcikTalimatlariOpen(false)
   }
 
-  const fasonGidenlerFiltreli = fasonGidenlerData.filter(
-    (d) =>
-      !fasonGidenArama ||
-      `${d.irsaliyeNo} ${d.cariHesap?.ad ?? ''} ${d.cariHesap?.kod ?? ''} ${d.sevkNo ?? ''}`
-        .toLocaleLowerCase('tr-TR')
-        .includes(fasonGidenArama.toLocaleLowerCase('tr-TR')),
+  // "Fason Gidenler" listesi: 11'te seçilen cariye (fasoncu/boyahane) stok çıkışı
+  // yapılmış 134'ler. Cari seçilmemişse tüm 134'ler listelenir (modal'da uyarı çıkar).
+  const fasonGidenlerFiltreli = useMemo(
+    () => (cariKod ? fasonGidenlerData.filter((d) => d.cariHesap?.kod === cariKod) : fasonGidenlerData),
+    [fasonGidenlerData, cariKod],
   )
 
   const fasonGidenSatirlar = useMemo(() => {
-    const gorilenMiktar = new Map<string, number>()
+    // 134 kalem id → o kalemden gelen 11'lerin BRÜT miktarı toplamı.
+    // Eşleştirme kaynağı: 11 kaleminin kaynakKalemId'si (134 kalem FK'si).
+    // Eski kod takipNo (serbest metin) ile eşleştiriyordu → hiçbir miktar düşülmüyordu.
+    const gorulenMiktar = new Map<string, number>()
 
-    const miktarHesapla = (olcuBirimi: string | null | undefined, brutKg: number, kg: number, brutMt: number, mt: number, adet: number): number => {
-      switch (olcuBirimi) {
-        case 'brutKg': return brutKg
-        case 'kg': return kg
-        case 'brutMt': return brutMt
-        case 'mt': return mt
-        case 'adet': return adet
-        default: return 0
+    // Ölçü birimine göre kalemdeki miktar (brüt doluysa brüt, boşsa net) — ortak yardımcı.
+    // NOT: Fason akışında operatör miktarı çoğu zaman NET alanına yazıyor (brüt boş
+    // kalıyor) — mevcut kayıtlar böyle. Sabit "brüt" okumak miktarı 0 yapıp satırları gizliyordu.
+
+    // 134 kalem id'leri — takipNo fallback'ının güvenli kullanımı için (barkod artık
+    // gerçek barkodu taşıyor; eski kayıtlarda takipNo = 134 kalem id idi).
+    const kaynakKalemIds = new Set<string>()
+    for (const i of fasonGidenlerData) {
+      for (const k of i.kalemler ?? []) {
+        if (k.id != null) kaynakKalemIds.add(String(k.id))
       }
     }
+    const kaynakIdBul = (kalem: IrsaliyeKalem): number | null => {
+      if (kalem.kaynakKalemId != null) return kalem.kaynakKalemId
+      if (kalem.takipNo && kaynakKalemIds.has(kalem.takipNo)) return Number(kalem.takipNo)
+      return null
+    }
 
+    // Kaydedilmiş diğer 11 (Fasondan Giriş) fişleri — birden fazla geliş birikir.
+    // Eşleştirme: kaynakKalemId (FK) varsa o, yoksa takipNo (eski kayıtlarda 134 kalem id'si).
     for (const giris of fasonGidenGirislerData) {
       for (const k of giris.kalemler ?? []) {
-        if (!k.takipNo) continue
-        const m = miktarHesapla(k.olcuBirimi, Number(k.brutAgirlik) || 0, Number(k.netAgirlik) || 0, Number(k.brutMetre) || 0, Number(k.netMetre) || 0, Number(k.adet) || 0)
-        gorilenMiktar.set(k.takipNo, (gorilenMiktar.get(k.takipNo) ?? 0) + m)
+        const kaynakId = kaynakIdBul(k)
+        if (kaynakId == null || !Number.isFinite(kaynakId)) continue
+        const m = kalemMiktari(
+          k.olcuBirimi,
+          Number(k.brutAgirlik) || 0,
+          Number(k.netAgirlik) || 0,
+          Number(k.brutMetre) || 0,
+          Number(k.netMetre) || 0,
+          Number(k.adet) || 0,
+        )
+        const key = String(kaynakId)
+        gorulenMiktar.set(key, (gorulenMiktar.get(key) ?? 0) + m)
       }
     }
 
+    // Bu fişteki (kaydedilmemiş) 11 kalemleri — kaynak 134 kalemi kaynakKalemId ile
+    // taşınır (eski kayıtlarda barkod alanında 134 kalem id'si idi).
     for (const k of kalemler) {
-      if (!k.barkod) continue
-      const m = miktarHesapla(k.hesapBirimi, k.brutKg, k.kg, k.brutMt, k.mt, k.adet)
-      gorilenMiktar.set(k.barkod, (gorilenMiktar.get(k.barkod) ?? 0) + m)
+      let kaynakId = k.kaynakKalemId ?? null
+      if (kaynakId == null && k.barkod && kaynakKalemIds.has(k.barkod)) kaynakId = Number(k.barkod)
+      if (kaynakId == null || !Number.isFinite(kaynakId)) continue
+      const m = kalemMiktari(
+        k.hesapBirimi,
+        k.brutKg || 0,
+        k.kg || 0,
+        k.brutMt || 0,
+        k.mt || 0,
+        k.adet || 0,
+      )
+      const key = String(kaynakId)
+      gorulenMiktar.set(key, (gorulenMiktar.get(key) ?? 0) + m)
     }
 
-    const kaynakMiktar = (k: IrsaliyeKalem): number => {
-      switch (k.olcuBirimi) {
-        case 'brutKg': return Number(k.brutAgirlik) || 0
-        case 'kg': return Number(k.netAgirlik) || 0
-        case 'brutMt': return Number(k.brutMetre) || 0
-        case 'mt': return Number(k.netMetre) || 0
-        case 'adet': return Number(k.adet) || 0
-        default: return 0
-      }
-    }
-    const rows: (IrsaliyeKalem & {
-      fisNo: string
-      belgeNo: string
-      tarih: string | null
-      cariAd: string
-      fasonTipiAd: string
-      kalan: number
-    })[] = []
+    const kaynakMiktar = (k: IrsaliyeKalem): number =>
+      kalemMiktari(
+        k.olcuBirimi,
+        Number(k.brutAgirlik) || 0,
+        Number(k.netAgirlik) || 0,
+        Number(k.brutMetre) || 0,
+        Number(k.netMetre) || 0,
+        Number(k.adet) || 0,
+      )
+
+    const rows: FasonGidenSatir[] = []
+    const arama = fasonGidenArama.trim().toLocaleLowerCase('tr-TR')
     for (const i of fasonGidenlerFiltreli) {
+      // Fiş düzeyi eşleşme: fiş no, belge no, cari, fason alt tipi
+      const fisMetni = `${i.irsaliyeNo} ${i.sevkNo ?? ''} ${i.cariHesap?.ad ?? ''} ${i.cariHesap?.kod ?? ''} ${i.fasonTipi?.ad ?? ''}`
+      const fisEslesme = !arama || fisMetni.toLocaleLowerCase('tr-TR').includes(arama)
       for (const k of i.kalemler ?? []) {
+        // Kalem düzeyi eşleşme: malzeme, varyant, boyahane rengi, takip no, açıklama
+        const kalemMetni = `${k.malzeme?.kod ?? ''} ${k.malzeme?.ad ?? ''} ${k.varyant1Renk?.kod ?? ''} ${k.varyant1Renk?.ad ?? ''} ${k.boyahaneRenk?.kod ?? ''} ${k.boyahaneRenk?.ad ?? ''} ${k.takipNo ?? ''} ${k.aciklama ?? ''}`
+        const kalemEslesme = !arama || kalemMetni.toLocaleLowerCase('tr-TR').includes(arama)
+        if (!fisEslesme && !kalemEslesme) continue
         const idStr = k.id != null ? String(k.id) : null
-        const kalan = kaynakMiktar(k) - (idStr ? (gorilenMiktar.get(idStr) ?? 0) : 0)
+        const kalan = kaynakMiktar(k) - (idStr ? (gorulenMiktar.get(idStr) ?? 0) : 0)
         if (idStr && kalan <= 0) continue
         rows.push({
           ...(k as IrsaliyeKalem),
@@ -1626,7 +1707,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       }
     }
     return rows
-  }, [fasonGidenlerFiltreli, fasonGidenGirislerData, kalemler])
+  }, [fasonGidenlerData, fasonGidenlerFiltreli, fasonGidenGirislerData, kalemler, fasonGidenArama])
 
   // Açık 202 talimatlarının kalemleri (134 formunda içe aktarma listesi).
   const acikTalimatlariFiltreli = acikTalimatlariData.filter(
@@ -1708,7 +1789,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     [],
   )
 
-  const fasonGidenSatirKolonlar = useMemo<ColDef<any>[]>(
+  const fasonGidenSatirKolonlar = useMemo<ColDef<FasonGidenSatir>[]>(
     () => [
       { headerName: 'Çıkış Fiş No', field: 'fisNo', width: 110, cellClass: '!text-[#f57c00] !font-medium' },
       { headerName: 'Belge No', field: 'belgeNo', width: 100, valueFormatter: (p) => p.value || '-' },
@@ -1718,6 +1799,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       { headerName: 'Tip', field: 'tip', width: 80, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Malzeme Kodu', field: 'malzeme.kod', width: 110, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Malzeme Adı', field: 'malzeme.ad', flex: 1, minWidth: 140, valueFormatter: (p) => p.value || '-' },
+      { headerName: 'Varyant 1', field: 'varyant1Renk.kod', width: 100, valueFormatter: (p) => p.value || '-' },
+      { headerName: 'Boyahane Renk Kodu', field: 'boyahaneRenk.kod', width: 130, valueFormatter: (p) => p.value || '-' },
+      { headerName: 'Boyahane Renk Adı', field: 'boyahaneRenk.ad', width: 150, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Takip No', field: 'takipNo', width: 110, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Brüt Kg', field: 'brutAgirlik', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
       { headerName: 'Kg', field: 'netAgirlik', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
@@ -1973,7 +2057,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         open={fasonGidenlerOpen}
         onCancel={() => setFasonGidenlerOpen(false)}
         width="95vw"
-        title={<span className="!text-[13px] !font-semibold">Fason Gidenler (134-Fasona Çıkış) — kalemleri içe aktar</span>}
+        title={<span className="!text-[13px] !font-semibold">Fason Gidenler — kalemleri içe aktar</span>}
         footer={[
           <Button key="vazgec" onClick={() => setFasonGidenlerOpen(false)} className="!text-[12px]">
             Vazgeç
@@ -1990,9 +2074,27 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       >
         <Spin spinning={fasonGidenlerYukleniyor}>
           <div className="!flex !flex-col !gap-2">
+            <div
+              className={`!text-[11px] !px-2 !py-1 !rounded-sm !border ${
+                cariKod
+                  ? '!border-[#d9d9d9] !bg-[#fafafa] !text-[#333]'
+                  : '!border-[#ffd591] !bg-[#fff7e6] !text-[#ad4e00]'
+              }`}
+            >
+              {cariKod ? (
+                <>
+                  Cari: <span className="!font-semibold">{cariKod}</span>
+                  {depoKod ? <> · Depo: <span className="!font-semibold">{depoKod}</span></> : null} — bu cariye
+                  stok çıkışı yapılmış 134-Fasona Çıkış fişleri
+                </>
+              ) : (
+                'Cari hesap seçilmedi — listede TÜM 134-Fasona Çıkış fişleri görünüyor. Sadece bu cariye ait '
+                + 'fişleri görmek için cari hesabı seç.'
+              )}
+            </div>
             <Input
               size="small"
-              placeholder="Çıkış fiş no, belge no veya cari ara..."
+              placeholder="Fiş no, cari, malzeme veya boyahane rengi ara..."
               allowClear
               value={fasonGidenArama}
               onChange={(e) => setFasonGidenArama(e.target.value)}
