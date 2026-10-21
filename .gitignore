@@ -29,3 +29,10 @@ build/
 Thumbs.db
 *.log
 nul
+
+# === Geçici test/scratch dosyaları (repoda tutulmaz) ===
+gen-sql.js
+hata*.png
+karsilama-test*.sql
+test-*.sql
+*.local.sql
