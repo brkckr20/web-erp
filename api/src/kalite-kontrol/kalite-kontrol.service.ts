@@ -53,7 +53,14 @@ export class KaliteKontrolService {
   findAll() {
     return this.prisma.kaliteKontrol.findMany({
       orderBy: { fisNo: 'desc' },
-      include: { cariHesap: true, depo: true },
+      include: {
+        cariHesap: true,
+        depo: true,
+        // Kalite bekleyen listesi için: hangi irsaliye kalemleri (11) KK'ya girmiş?
+        kalemler: {
+          select: { id: true, barkod: true, irsaliyeKalemId: true, malzemeId: true, netAgirlik: true, netMetre: true, adet: true },
+        },
+      },
     })
   }
 

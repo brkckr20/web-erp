@@ -26,6 +26,8 @@ export class CreateIrsaliyeKalemDto {
   ebat?: string | null
   topSayisi?: number | null
   varyant1RenkId?: number
+  /** Kalite kontrol gerekmez mi? (11-Fasondan Giriş). true ise kalem kalite bekleyen listesine girmez. */
+  kaliteYapilmayacak?: boolean
   boyahaneRenkId?: number | null
   varyant2RenkId?: number
   tahsisler?: CreateIrsaliyeKalemTahsisDto[]

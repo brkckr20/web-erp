@@ -574,6 +574,9 @@ model IrsaliyeKalem {
   istenenGram       Decimal? @map("istenen_gram") @db.Decimal(18, 4)
   ebat              String?  @db.VarChar(100)
   topSayisi         Int?     @map("top_sayisi")
+  // Kalite kontrol gerekmez mi? (11-Fasondan Giriş kalemi). true ise kalem
+  // "Kalite Bekleyen" listesine girmez; top barkodu KK ekranında üretilir.
+  kaliteYapilmayacak Boolean @default(false) @map("kalite_yapilmayacak")
 
   varyant1RenkId    Int?     @map("varyant1_renk_id")
   varyant2RenkId    Int?     @map("varyant2_renk_id")
@@ -586,6 +589,9 @@ model IrsaliyeKalem {
   varyant2Renk      Renk?    @relation("IrsaliyeKalemVaryant2Renk", fields: [varyant2RenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   boyahaneRenk      Renk?    @relation("IrsaliyeKalemBoyahaneRenk", fields: [boyahaneRenkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   faturaKalemleri   FaturaKalem[] @relation("FaturaKalemIrsaliyeKalem")
+  // Bu kalem hangi KK (kalite kontrol) kalemlerine bağlandı? 1 irsaliye kalemi → N KK kalemi
+  // (100 mt = 3 top → 3 KK kalemi). Kalem silinirse KK bağı kopar (geçmiş korunur).
+  kaliteKontrolKalemleri KaliteKontrolKalem[] @relation("KKKalemIrsaliyeKalem")
   // Birleşmiş 202 talimat satırının sipariş/model dağılımı (salt-okunur tahsis detayı).
   tahsisler         IrsaliyeKalemTahsis[] @relation("KalemTahsisleri")
   // Kalem satırına seçilen boyahane prosesleri (İşlem kartları, sıra yok).
@@ -830,11 +836,15 @@ model IsEmriKalem {
 model KaliteKontrolKalem {
   id                Int      @id @default(autoincrement())
   fisId             Int      @map("fis_id")
-  fis               KaliteKontrol @relation("KKFisKalemleri", fields: [fisId], references: [id])
+  fis               KaliteKontrol @relation("KKFisKalemleri", fields: [fisId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   barkod            String?  @db.VarChar(100)
+  // Bu top hangi irsaliye kaleminden geldi? (11-Fasondan Giriş). 1 irsaliye kalemi
+  // → N KK kalemi (bir top = bir barkod). NULL ise fiş doğrudan girilmiştir.
+  irsaliyeKalemId   Int?     @map("irsaliye_kalem_id")
+  irsaliyeKalem     IrsaliyeKalem? @relation("KKKalemIrsaliyeKalem", fields: [irsaliyeKalemId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   malzemeId         Int?     @map("malzeme_id")
-  malzeme           Malzeme? @relation("KKKalemMalzeme", fields: [malzemeId], references: [id])
+  malzeme           Malzeme? @relation("KKKalemMalzeme", fields: [malzemeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 4)
   netMetre          Decimal? @map("net_metre") @db.Decimal(18, 4)
   adet              Int?

@@ -67,6 +67,8 @@ export interface IrsaliyeKalem {
   topSayisi?: number | null
   /** Fason fire'ı: sunucu hesaplar (brüt − net), readonly. */
   fire?: number | null
+  /** Kalite kontrol gerekmez mi? (11-Fasondan Giriş). true ise kalem "Kalite Bekleyen" listesine girmez. */
+  kaliteYapilmayacak?: boolean | null
   /**
    * Boyahane hedef rengi (Boyahane Renk Kartı, Renk.tip=2). varyant1 = sipariş/müşteri
    * rengi, varyant2 = baskı deseni (kartı yok, sonraki aşama) olarak ayrılmıştır.

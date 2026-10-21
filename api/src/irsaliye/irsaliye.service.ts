@@ -211,14 +211,59 @@ export class IrsaliyeService {
     return this.prisma.$transaction(async (tx) => {
       await tx.irsaliye.update({ where: { id }, data })
       if (Array.isArray(kalemler)) {
-        await tx.irsaliyeKalem.deleteMany({ where: { irsaliyeId: id } })
+        // Kalemler YERİNDE güncellenir (id korunur). Eski davranış (delete + yeniden
+        // create) kalem id'lerini her kayıtta değiştiriyordu → fatura_kalem ve
+        // kalite_kontrol_kalem gibi FK'lar bozuluyordu. Eşleştirme uuid üzerinden.
+        const eskiler = await tx.irsaliyeKalem.findMany({
+          where: { irsaliyeId: id },
+          select: { id: true, uuid: true },
+        })
+        const eskiByUuid = new Map<string, { id: number; uuid: string | null }>()
+        for (const e of eskiler) if (e.uuid) eskiByUuid.set(e.uuid, e)
+
+        const korunanKalemIds: number[] = []
         for (const k of kalemler) {
+          const uuid = (k as any).uuid ?? null
+          const eski = uuid ? eskiByUuid.get(uuid) : null
           const kalemData = kalemDataHazirla(k)
-          const kalem = await tx.irsaliyeKalem.create({
-            data: { ...kalemData, irsaliyeId: id, uuid: kalemData.uuid ?? randomUUID() } as any,
+          if (eski) {
+            await tx.irsaliyeKalem.update({
+              where: { id: eski.id },
+              data: { ...kalemData, irsaliyeId: id, uuid: eski.uuid } as any,
+            })
+            await tx.irsaliyeKalemTahsis.deleteMany({ where: { irsaliyeKalemId: eski.id } })
+            await tx.irsaliyeKalemIslem.deleteMany({ where: { irsaliyeKalemId: eski.id } })
+            await tahsisleriYaz(tx, eski.id, (k as any).tahsisler)
+            await islemleriYaz(tx, eski.id, (k as any).prosesler)
+            korunanKalemIds.push(eski.id)
+          } else {
+            const kalem = await tx.irsaliyeKalem.create({
+              data: { ...kalemData, irsaliyeId: id, uuid: kalemData.uuid ?? randomUUID() } as any,
+            })
+            await tahsisleriYaz(tx, kalem.id, (k as any).tahsisler)
+            await islemleriYaz(tx, kalem.id, (k as any).prosesler)
+            korunanKalemIds.push(kalem.id)
+          }
+        }
+
+        // Payload'da olmayan kalemler silinir. Silinen kalem KK'ya bağlıysa engellenir.
+        const silinecekler = eskiler.filter((e) => !korunanKalemIds.includes(e.id))
+        if (silinecekler.length > 0) {
+          const silinecekIdler = silinecekler.map((e) => e.id)
+          const bagliKK = await tx.kaliteKontrolKalem.findMany({
+            where: { irsaliyeKalemId: { in: silinecekIdler } },
+            select: { id: true, barkod: true, fis: { select: { fisNo: true } } },
           })
-          await tahsisleriYaz(tx, kalem.id, (k as any).tahsisler)
-          await islemleriYaz(tx, kalem.id, (k as any).prosesler)
+          if (bagliKK.length > 0) {
+            const fisNolar = [...new Set(bagliKK.map((b) => b.fis.fisNo))].join(', ')
+            throw new BadRequestException(
+              `Bu kalemler kalite kontrol girişlerine bağlı (KK Fiş No: ${fisNolar}). ` +
+                'Önce kalite kontrol kaydını silin.',
+            )
+          }
+          await tx.irsaliyeKalemTahsis.deleteMany({ where: { irsaliyeKalemId: { in: silinecekIdler } } })
+          await tx.irsaliyeKalemIslem.deleteMany({ where: { irsaliyeKalemId: { in: silinecekIdler } } })
+          await tx.irsaliyeKalem.deleteMany({ where: { id: { in: silinecekIdler } } })
         }
       }
       return tx.irsaliye.findUnique({
@@ -250,6 +295,18 @@ export class IrsaliyeService {
   async remove(id: number) {
     await this.findOne(id)
     return this.prisma.$transaction(async (tx) => {
+      // Kalite kontrol girişine bağlı kalemler varsa silme engellenir (uyarı).
+      const bagliKK = await tx.kaliteKontrolKalem.findMany({
+        where: { irsaliyeKalem: { irsaliyeId: id } },
+        select: { id: true, barkod: true, fis: { select: { fisNo: true } } },
+      })
+      if (bagliKK.length > 0) {
+        const fisNolar = [...new Set(bagliKK.map((b) => b.fis.fisNo))].join(', ')
+        throw new BadRequestException(
+          `Bu fiş kalite kontrol girişlerine bağlı (KK Fiş No: ${fisNolar}). ` +
+            'Önce kalite kontrol kaydını silin.',
+        )
+      }
       await tx.irsaliyeKalem.deleteMany({ where: { irsaliyeId: id } })
       return tx.irsaliye.delete({ where: { id } })
     })

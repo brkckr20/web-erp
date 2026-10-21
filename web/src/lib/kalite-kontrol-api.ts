@@ -2,6 +2,17 @@
 
 import { api } from './api'
 
+export interface KaliteKontrolKalem {
+  id: number
+  barkod: string | null
+  /** Bu top hangi irsaliye kaleminden (11-Fasondan Giriş) geldi? */
+  irsaliyeKalemId: number | null
+  malzemeId: number | null
+  netAgirlik: number | null
+  netMetre: number | null
+  adet: number | null
+}
+
 export interface KaliteKontrol {
   id: number
   fisNo: string
@@ -12,9 +23,41 @@ export interface KaliteKontrol {
   kayitTarihi: string | null
   cariHesapId: number | null
   cariHesap?: { id: number; kod: string; ad: string } | null
+  depoId: number | null
+  depo?: { id: number; kod: string; ad: string } | null
+  /** Kalite bekleyen listesi için: hangi 11 kalemleri KK'ya girmiş? */
+  kalemler?: KaliteKontrolKalem[]
 }
 
-export type KaliteKontrolFormData = Omit<KaliteKontrol, 'id'>
+export interface KaliteKontrolKalemFormData {
+  barkod?: string | null
+  /** Bu top hangi irsaliye kaleminden (11-Fasondan Giriş) geldi? */
+  irsaliyeKalemId?: number | null
+  malzemeId?: number
+  netAgirlik?: number
+  netMetre?: number
+  adet?: number
+  hataMiktar?: number
+  aciklama?: string | null
+  isEmriNo?: string | null
+  isEmriKg?: number
+  hatalar?: { hataKodu: string; hataAdi: string; miktar?: number | null; aciklama?: string | null }[]
+}
+
+export interface KaliteKontrolFormData {
+  fisNo: string
+  fisTarihi?: string | null
+  aciklama?: string | null
+  belgeAdi?: string | null
+  kayitYapan?: string | null
+  kayitTarihi?: string | null
+  guncelleyen?: string | null
+  guncellemeTarihi?: string | null
+  cariHesapId?: number | null
+  depoId?: number | null
+  isEmriId?: number | null
+  kalemler?: KaliteKontrolKalemFormData[]
+}
 
 export interface KaliteKontrolHata {
   id: number
