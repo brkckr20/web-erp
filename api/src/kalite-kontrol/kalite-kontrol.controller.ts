@@ -21,6 +21,11 @@ export class KaliteKontrolController {
     return this.service.nextBarkod(depoKod)
   }
 
+  @Get('irsaliye-kalem/:irsaliyeKalemId')
+  irsaliyeKalemDetay(@Param('irsaliyeKalemId', ParseIntPipe) irsaliyeKalemId: number) {
+    return this.service.irsaliyeKalemDetay(irsaliyeKalemId)
+  }
+
   @Get()
   findAll() {
     return this.service.findAll()

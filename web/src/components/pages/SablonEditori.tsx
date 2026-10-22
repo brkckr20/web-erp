@@ -23,6 +23,7 @@ const EKRAN_ADLARI = [
   { value: 'depo-tanimlari', label: 'Depo Tanımları' },
   { value: 'makina-kartlari', label: 'Makina Kartları' },
   { value: 'kalite-kontrol-giris', label: 'Kalite Kontrol Girişleri' },
+  { value: 'etiket', label: 'Etiket (Top Barkodu)' },
   { value: 'stok-hareket-fisleri', label: 'Malzeme Yönetim Fişleri' },
   { value: 'stok-ozeti', label: 'Stok Özeti' },
   { value: 'hareket-gecmisi', label: 'Hareket Geçmişi' },
@@ -120,6 +121,7 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
   const [solBosluk, setSolBosluk] = useState(15)
   const [sagBosluk, setSagBosluk] = useState(15)
   const [altBilgi, setAltBilgi] = useState(true)
+  const [barkodOneki, setBarkodOneki] = useState('')
   const [filigranMetin, setFiligranMetin] = useState('ONAYSIZ')
   const [filigranKosul, setFiligranKosul] = useState('kapali')
   const [sorgular, setSorgular] = useState<Sorgu[]>([
@@ -152,6 +154,7 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
       setSolBosluk(data.solBosluk)
       setSagBosluk(data.sagBosluk)
       setAltBilgi(data.altBilgi)
+      setBarkodOneki(data.barkodOneki ?? '')
       setFiligranMetin(data.filigranMetin ?? 'ONAYSIZ')
       setFiligranKosul(data.filigranKosul ?? 'kapali')
       setSorgular(data.sorgular.map((s) => ({ adi: s.ad, sql: s.sqlIcerik })))
@@ -185,6 +188,7 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
         solBosluk,
         sagBosluk,
         altBilgi,
+        barkodOneki: barkodOneki.trim() || null,
         filigranMetin: filigranKosul === 'kapali' ? null : filigranMetin.trim() || 'ONAYSIZ',
         filigranKosul,
         sorgular: sorgular.map((s, i) => ({ ad: s.adi, sqlIcerik: s.sql, sira: i })),
@@ -262,6 +266,15 @@ export default function SablonEditori({ geriDon, sablonId }: Props) {
                     (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
                   options={EKRAN_ADLARI}
+                />
+              </div>
+              <div>
+                <div className="!text-[10px] !text-[#6b7280] !mb-1">Barkod Öneki (etiket)</div>
+                <Input
+                  size="small"
+                  value={barkodOneki}
+                  onChange={(e) => setBarkodOneki(e.target.value)}
+                  placeholder="Örn: YM (boş = genel etiket)"
                 />
               </div>
             </Space>

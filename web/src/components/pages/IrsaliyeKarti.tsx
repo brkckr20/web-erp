@@ -16,6 +16,7 @@ import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem, type IrsaliyeFormData } from '@/lib/irsaliye-api'
 import { islemApi, type Islem } from '@/lib/islem-api'
 import { faturaApi } from '@/lib/fatura-api'
+import { kaliteKontrolApi, type KaliteKontrolKalemDetay } from '@/lib/kalite-kontrol-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
@@ -427,6 +428,55 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [prosesListesi, setProsesListesi] = useState<Islem[]>([])
   const [prosesSecili, setProsesSecili] = useState<number[]>([])
   const [prosesSiralar, setProsesSiralar] = useState<Record<number, number>>({})
+
+  // "Barkod Detayları": 11 kalemine bağlı KK topları (salt-okunur).
+  const [barkodDetayOpen, setBarkodDetayOpen] = useState(false)
+  const [barkodDetayLoading, setBarkodDetayLoading] = useState(false)
+  const [barkodDetayRows, setBarkodDetayRows] = useState<KaliteKontrolKalemDetay[]>([])
+  const [barkodDetayKalem, setBarkodDetayKalem] = useState<KalemRow | null>(null)
+
+  const openBarkodDetay = () => {
+    const hedef = sagTikSatir ?? gridApiRef.current?.getSelectedRows()?.[0] ?? null
+    if (!hedef) {
+      message.warning('Önce bir satıra sağ tıklayın')
+      return
+    }
+    if (hedef.kalemId == null) {
+      message.warning('Barkod detayları için fişi önce kaydedin')
+      return
+    }
+    setBarkodDetayKalem(hedef)
+    setBarkodDetayOpen(true)
+    setBarkodDetayLoading(true)
+    kaliteKontrolApi
+      .irsaliyeKalemDetay(hedef.kalemId)
+      .then((rows) => setBarkodDetayRows(rows ?? []))
+      .catch((err) => {
+        setBarkodDetayRows([])
+        message.error('Barkod detayları alınamadı: ' + (err?.message || err))
+      })
+      .finally(() => setBarkodDetayLoading(false))
+  }
+
+  const barkodDetayKolonlar: ColDef<KaliteKontrolKalemDetay>[] = [
+    { headerName: 'Barkod', field: 'barkod', width: 130, valueFormatter: (p) => p.value || '-' },
+    { headerName: 'Top No', field: 'topNo', width: 80, type: 'rightAligned', valueFormatter: (p) => (p.value ? String(p.value) : '-') },
+    { headerName: 'KK Fiş No', field: 'fisNo', width: 100, cellClass: '!text-[#f57c00] !font-medium' },
+    { headerName: 'Tarih', field: 'fisTarihi', width: 100, valueFormatter: (p) => formatTarih(p.value) },
+    { headerName: 'Kullanıcı', field: 'kayitYapan', width: 120, valueFormatter: (p) => p.value || '-' },
+    { headerName: 'Kg', field: 'netAgirlik', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
+    { headerName: 'Mt', field: 'netMetre', width: 90, type: 'rightAligned', valueFormatter: (p) => formatTR(Number(p.value) || 0) },
+    { headerName: 'Adet', field: 'adet', width: 80, type: 'rightAligned', valueFormatter: (p) => (p.value ? String(p.value) : '') },
+    {
+      headerName: 'Hatalar', flex: 1, minWidth: 220,
+      valueFormatter: (p) => {
+        const hatalar = p.data?.hatalar ?? []
+        if (hatalar.length === 0) return '—'
+        return hatalar.map((h) => `${h.hataAdi} ${h.miktar ?? 1}`).join(', ')
+      },
+      tooltipValueGetter: (p) => (p.data?.hatalar ?? []).map((h) => `${h.hataAdi} ${h.miktar ?? 1}`).join(', ') || '—',
+    },
+  ]
 
   const openProsesler = () => {
     const hedef = sagTikSatir ?? gridApiRef.current?.getSelectedRows()?.[0] ?? null
@@ -1434,6 +1484,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const contextMenuItems: MenuProps['items'] =
     irsaliyeTipi === '11'
       ? [
+          { key: 'barkod-detay', label: 'Barkod Detayları', onClick: openBarkodDetay },
           { key: 'fason-gidenler', label: 'Fason Gidenler', onClick: () => openFasonGidenler() },
           ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
         ]
@@ -2289,6 +2340,44 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             </div>
           )}
         </div>
+      </Modal>
+
+      <Modal
+        open={barkodDetayOpen}
+        onCancel={() => setBarkodDetayOpen(false)}
+        width="90vw"
+        title={
+          <span className="!text-[13px] !font-semibold">
+            Barkod Detayları — {barkodDetayKalem?.malzemeKod || '-'}
+            {barkodDetayKalem?.malzemeAd ? ` · ${barkodDetayKalem.malzemeAd}` : ''}
+          </span>
+        }
+        footer={[
+          <Button key="kapat" onClick={() => setBarkodDetayOpen(false)} className="!text-[12px]">
+            Kapat
+          </Button>,
+        ]}
+      >
+        <Spin spinning={barkodDetayLoading}>
+          {barkodDetayRows.length === 0 ? (
+            <div className="!py-8 !text-center !text-[12px] !text-[#9ca3af]">
+              {barkodDetayLoading ? '' : 'Henüz kalite kontrol girişi yapılmamış'}
+            </div>
+          ) : (
+            <div style={{ height: 420, width: '100%' }}>
+              <AgGridReact
+                rowData={barkodDetayRows}
+                columnDefs={barkodDetayKolonlar}
+                theme={antTheme}
+                headerHeight={32}
+                rowHeight={30}
+                localeText={agGridLocaleTR}
+                defaultColDef={{ resizable: true, sortable: true }}
+                getRowId={(p) => String(p.data.id)}
+              />
+            </div>
+          )}
+        </Spin>
       </Modal>
     </Spin>
   )

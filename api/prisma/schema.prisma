@@ -842,7 +842,10 @@ model KaliteKontrolKalem {
   // Bu top hangi irsaliye kaleminden geldi? (11-Fasondan Giriş). 1 irsaliye kalemi
   // → N KK kalemi (bir top = bir barkod). NULL ise fiş doğrudan girilmiştir.
   irsaliyeKalemId   Int?     @map("irsaliye_kalem_id")
-  irsaliyeKalem     IrsaliyeKalem? @relation("KKKalemIrsaliyeKalem", fields: [irsaliyeKalemId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  irsaliyeKalem     IrsaliyeKalem? @relation("KKKalemIrsaliyeKalem", fields: [irsaliyeKalemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // Partiye bağlı kaçıncı top? Grup = irsaliye (fiş no) + partiNo + boyahane rengi + malzeme.
+  // İlk kayıtta sunucu atar; silinen top numarayı geri vermez (basılı etiketle uyum için).
+  topNo             Int?     @map("top_no")
   malzemeId         Int?     @map("malzeme_id")
   malzeme           Malzeme? @relation("KKKalemMalzeme", fields: [malzemeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   netAgirlik        Decimal? @map("net_agirlik") @db.Decimal(18, 4)
@@ -1381,6 +1384,8 @@ model Sablon {
   sagBosluk        Int      @default(15) @map("sag_bosluk")
   altBilgi         Boolean  @default(true) @map("alt_bilgi")
   aktif            Boolean  @default(true)
+  // Etiket şablonunu barkod ön ekine bağlar (ör. YM / HM). NULL = genel şablon.
+  barkodOneki      String?  @map("barkod_oneki") @db.NVarChar(20)
   // Filigran: metin + koşul ('kapali' | 'herzaman' | 'onaysiz').
   // 'onaysiz' için sorgulardan birinin ilk satırında `onaylandi` kolonu dönmeli.
   filigranMetin    String?  @map("filigran_metin") @db.NVarChar(50)

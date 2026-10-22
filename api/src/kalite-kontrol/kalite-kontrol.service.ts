@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { IrsaliyeService } from '../irsaliye/irsaliye.service'
 import { CreateKaliteKontrolDto, UpdateKaliteKontrolDto } from './dto/create-kalite-kontrol.dto'
@@ -58,10 +59,44 @@ export class KaliteKontrolService {
         depo: true,
         // Kalite bekleyen listesi için: hangi irsaliye kalemleri (11) KK'ya girmiş?
         kalemler: {
-          select: { id: true, barkod: true, irsaliyeKalemId: true, malzemeId: true, netAgirlik: true, netMetre: true, adet: true },
+          select: { id: true, barkod: true, topNo: true, irsaliyeKalemId: true, malzemeId: true, netAgirlik: true, netMetre: true, adet: true },
         },
       },
     })
+  }
+
+  /**
+   * 11 (Fasondan Giriş) kalemine bağlı kalite kontrol kalemleri ("Barkod Detayları").
+   * Bir irsaliye kalemi → N top (barkod) → N KK kalemi; hata bilgileri özetlenir.
+   */
+  async irsaliyeKalemDetay(irsaliyeKalemId: number) {
+    const kalemler = await this.prisma.kaliteKontrolKalem.findMany({
+      where: { irsaliyeKalemId },
+      orderBy: { id: 'asc' },
+      include: {
+        malzeme: { select: { kod: true, ad: true } },
+        hatalar: { select: { hataKodu: true, hataAdi: true, miktar: true } },
+        fis: {
+          select: { id: true, fisNo: true, fisTarihi: true, kayitYapan: true, kayitTarihi: true },
+        },
+      },
+    })
+    return kalemler.map((k) => ({
+      id: k.id,
+      barkod: k.barkod,
+      topNo: k.topNo,
+      fisId: k.fisId,
+      fisNo: k.fis.fisNo,
+      fisTarihi: k.fis.fisTarihi,
+      kayitYapan: k.fis.kayitYapan,
+      kayitTarihi: k.fis.kayitTarihi,
+      malzemeKod: k.malzeme?.kod ?? null,
+      malzemeAd: k.malzeme?.ad ?? null,
+      netAgirlik: k.netAgirlik,
+      netMetre: k.netMetre,
+      adet: k.adet,
+      hatalar: k.hatalar,
+    }))
   }
 
   async findOne(id: number) {
@@ -72,13 +107,49 @@ export class KaliteKontrolService {
         depo: true,
         isEmri: true,
         irsaliye: true,
-        kalemler: { include: { malzeme: true, hatalar: true } },
+        kalemler: {
+          include: {
+            malzeme: true,
+            hatalar: true,
+            // Satırın geldiği 11 (Fasondan Giriş) fişi — grid'de "11 Fiş No" için.
+            irsaliyeKalem: { select: { irsaliye: { select: { irsaliyeNo: true } } } },
+          },
+        },
       },
     })
     if (!fis) throw new NotFoundException('Fiş bulunamadı')
     const result: any = { ...fis }
     result.siparisNo = fis.isEmri?.siparisNo ?? null
     return result
+  }
+
+  /**
+   * Partiye bağlı kaçıncı top? Grup = irsaliye (fiş no) + partiNo + boyahane rengi + malzeme.
+   * Silinen top numarayı geri vermez (basılmış etiketle uyum için).
+   */
+  private async nextTopNo(
+    tx: Prisma.TransactionClient,
+    irsaliyeKalemId: number,
+  ): Promise<number | null> {
+    const kaynak = await tx.irsaliyeKalem.findUnique({
+      where: { id: irsaliyeKalemId },
+      select: { irsaliyeId: true, partiNo: true, boyahaneRenkId: true, malzemeId: true },
+    })
+    if (!kaynak) return null
+    const son = await tx.kaliteKontrolKalem.findFirst({
+      where: {
+        topNo: { not: null },
+        irsaliyeKalem: {
+          irsaliyeId: kaynak.irsaliyeId,
+          partiNo: kaynak.partiNo,
+          boyahaneRenkId: kaynak.boyahaneRenkId,
+          malzemeId: kaynak.malzemeId,
+        },
+      },
+      orderBy: { topNo: 'desc' },
+      select: { topNo: true },
+    })
+    return (son?.topNo ?? 0) + 1
   }
 
   async create(dto: CreateKaliteKontrolDto) {
@@ -92,17 +163,28 @@ export class KaliteKontrolService {
     return this.prisma.$transaction(async (tx) => {
       const fis = await tx.kaliteKontrol.create({ data })
       if (Array.isArray(kalemler) && kalemler.length > 0) {
+        const topNoBekleyen: { id: number; irsaliyeKalemId: number }[] = []
         for (const k of kalemler) {
           const { hatalar: hataArr, id: _id, malzeme, fis: _fis, ...kalemData } = k as any
           const kalem = await tx.kaliteKontrolKalem.create({
             data: { ...kalemData, fisId: fis.id } as any,
           })
+          if (kalemData.topNo == null && kalemData.irsaliyeKalemId != null) {
+            topNoBekleyen.push({ id: kalem.id, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+          }
           if (Array.isArray(hataArr) && hataArr.length > 0) {
             for (const h of hataArr) {
               await tx.kaliteKontrolHata.create({
                 data: { ...h, kalemId: kalem.id },
               })
             }
+          }
+        }
+        // Tüm satırlar oluştuktan SONRA ata (aynı istekte gelen mevcut numaralarla çakışmasın).
+        for (const b of topNoBekleyen) {
+          const topNo = await this.nextTopNo(tx, b.irsaliyeKalemId)
+          if (topNo != null) {
+            await tx.kaliteKontrolKalem.update({ where: { id: b.id }, data: { topNo } })
           }
         }
       }
@@ -138,17 +220,27 @@ export class KaliteKontrolService {
           })
         }
         await tx.kaliteKontrolKalem.deleteMany({ where: { fisId: id } })
+        const topNoBekleyen: { id: number; irsaliyeKalemId: number }[] = []
         for (const k of kalemler) {
           const { hatalar: hataArr, id: _id, malzeme, fis: _fis, ...kalemData } = k as any
           const kalem = await tx.kaliteKontrolKalem.create({
             data: { ...kalemData, fisId: id } as any,
           })
+          if (kalemData.topNo == null && kalemData.irsaliyeKalemId != null) {
+            topNoBekleyen.push({ id: kalem.id, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+          }
           if (Array.isArray(hataArr) && hataArr.length > 0) {
             for (const h of hataArr) {
               await tx.kaliteKontrolHata.create({
                 data: { ...h, kalemId: kalem.id },
               })
             }
+          }
+        }
+        for (const b of topNoBekleyen) {
+          const topNo = await this.nextTopNo(tx, b.irsaliyeKalemId)
+          if (topNo != null) {
+            await tx.kaliteKontrolKalem.update({ where: { id: b.id }, data: { topNo } })
           }
         }
       }

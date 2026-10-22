@@ -23,6 +23,8 @@ export interface Sablon {
   sagBosluk: number
   altBilgi: boolean
   aktif: boolean
+  /** Etiket şablonunu barkod ön ekine bağlar (ör. YM / HM). null = genel. */
+  barkodOneki: string | null
   filigranMetin: string | null
   filigranKosul: string
   olusturmaTarihi: string
@@ -37,6 +39,7 @@ export interface SablonOlustur {
   sayfaEn?: number
   sayfaBoy?: number
   yon?: string
+  barkodOneki?: string | null
   ustBosluk?: number
   altBosluk?: number
   solBosluk?: number

@@ -2,6 +2,8 @@ export class CreateKaliteKontrolKalemDto {
   barkod?: string
   /** Bu top hangi irsaliye kaleminden (11-Fasondan Giriş) geldi? 1 irsaliye kalemi → N KK kalemi. */
   irsaliyeKalemId?: number | null
+  /** Partiye bağlı kaçıncı top? Boşsa sunucu atar (fiş + parti + boyahane rengi + malzeme grubu). */
+  topNo?: number | null
   malzemeId?: number
   netAgirlik?: number
   netMetre?: number

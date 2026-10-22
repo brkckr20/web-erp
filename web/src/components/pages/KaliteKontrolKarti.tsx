@@ -1,15 +1,14 @@
 'use client'
 
-import { Tabs, Input, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Dropdown, Modal } from 'antd'
+import { Input, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Dropdown, Modal } from 'antd'
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { toSVG } from '@bwip-js/browser'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
-import type { ColDef, GridApi, CellFocusedEvent, SelectionChangedEvent } from 'ag-grid-community'
+import type { ColDef, GridApi, CellFocusedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
 import { PlusOutlined, DeleteOutlined, InboxOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
-import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableIsEmriSelect from '@/components/shared/SearchableIsEmriSelect'
@@ -24,6 +23,7 @@ import IsEmriSecimiModal from '@/components/shared/IsEmriSecimiModal'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import DataGrid from '@/components/shared/DataGrid'
 import { incrementBarkod } from '@/lib/barkod'
+import { sablonApi, type Sablon } from '@/lib/sablon-api'
 import { useAuth } from '@/context/AuthContext'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -57,7 +57,13 @@ interface KKFormProps {
 
 interface KalemRow {
   key: string
+  /** KK kaleminin DB id'si (şablon SQL'i için). Kaydedilmeden önce null. */
+  kalemId: number | null
   barkod: string
+  /** Partiye bağlı kaçıncı top? Sunucu atar (salt-okunur). */
+  topNo: number | null
+  /** Satırın geldiği 11 fiş no (salt-okunur). */
+  irsaliyeNo: string
   /** Bu top hangi irsaliye kaleminden (11-Fasondan Giriş) geldi? */
   irsaliyeKalemId: number | null
   malzemeId: number | null
@@ -95,7 +101,10 @@ interface BekleyenRow {
 
 const emptyKalem = (): KalemRow => ({
   key: Math.random().toString(36).slice(2),
+  kalemId: null,
   barkod: '',
+  topNo: null,
+  irsaliyeNo: '',
   irsaliyeKalemId: null,
   malzemeId: null,
   malzemeKod: '',
@@ -165,7 +174,6 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
   const [isEmriId, setIsEmriId] = useState<number | null>(null)
   const [isEmriMalzemeKodlari, setIsEmriMalzemeKodlari] = useState<string[]>([])
   const [siparisNo, setSiparisNo] = useState<string>('')
-  const [cariKod, setCariKod] = useState<string>('')
   const [cariHesapId, setCariHesapId] = useState<number | null>(null)
   const [depoKod, setDepoKod] = useState<string>('')
   const [depoId, setDepoId] = useState<number | null>(null)
@@ -197,7 +205,6 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           setStokFisId(f.stokFisId ?? null)
           if (f.fisTarihi) setFisTarihi(dayjs(f.fisTarihi))
           setAciklama(f.aciklama ?? '')
-          setCariKod(f.cariHesap?.kod ?? '')
           setCariHesapId(f.cariHesapId ?? null)
           setDepoKod(f.depo?.kod ?? '')
           setDepoId(f.depoId ?? null)
@@ -219,7 +226,10 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           if (f.kalemler && f.kalemler.length > 0) {
             setKalemler(f.kalemler.map((k: any) => ({
               key: Math.random().toString(36).slice(2),
+              kalemId: k.id ?? null,
               barkod: k.barkod ?? '',
+              topNo: k.topNo ?? null,
+              irsaliyeNo: k.irsaliyeKalem?.irsaliye?.irsaliyeNo ?? '',
               irsaliyeKalemId: k.irsaliyeKalemId ?? null,
               malzemeId: k.malzemeId ?? null,
               malzemeKod: k.malzeme?.kod ?? '',
@@ -247,7 +257,6 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
     } else {
       setId(null)
       setStokFisId(null)
-      setCariKod('')
       setCariHesapId(null)
       setDepoKod('')
       setDepoId(null)
@@ -482,13 +491,14 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
     setKalemler((prev) => prev.map((k) => (k.key !== key ? k : { ...k, hatalar })))
   }
 
-  const handleKaydet = async () => {
+  const handleKaydet = async (): Promise<number | null> => {
     setSaving(true)
     try {
       const kalemPayload = kalemler
         .filter((k) => k.malzemeKod)
         .map((k) => ({
           barkod: k.barkod || null,
+          topNo: k.topNo ?? null,
           // Kaynak 11 kalemi bağı (kalite bekleyen listesinden aktarımda gelir).
           irsaliyeKalemId: k.irsaliyeKalemId ?? null,
           malzemeId: k.malzemeId || undefined,
@@ -518,19 +528,87 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
         kalemler: kalemPayload,
       }
 
+      let kaydedilenId = id
       if (id) {
         await kaliteKontrolApi.update(id, data as any)
         message.success('Güncellendi')
       } else {
         const created = await kaliteKontrolApi.create(data as any)
         setId(created.id)
+        kaydedilenId = created.id
         message.success('Kaydedildi')
       }
+      // Sunucu yeni top satırlarına topNo atar → grid'i yeniden yüklemeden senkronla.
+      const guncel = await kaliteKontrolApi.get(kaydedilenId as number).catch(() => null)
+      if (guncel?.kalemler) {
+        setKalemler((prev) =>
+          prev.map((k) => {
+            const es = guncel.kalemler?.find((g) => g.barkod && g.barkod === k.barkod)
+            if (!es) return k
+            if (es.topNo === k.topNo && es.id === k.kalemId) return k
+            return { ...k, kalemId: es.id ?? k.kalemId, topNo: es.topNo ?? null }
+          }),
+        )
+      }
+      return kaydedilenId as number
     } catch (err: any) {
       message.error('Hata: ' + (err?.message || err))
+      return null
     } finally {
       setSaving(false)
     }
+  }
+
+  /**
+   * Barkod yazdırma onayı (F10 / sağ tık). Fiş kaydedilmemişse önce kaydeder,
+   * ardından o satırın top barkod etiketini yazdırır.
+   */
+  const openPrintOnay = (row: KalemRow | null | undefined) => {
+    if (!row || !row.malzemeKod) {
+      message.warning('Önce bir satır seçin')
+      return
+    }
+    if (!row.barkod) {
+      message.warning('Bu satırda barkod yok — önce depo seçip satırı kaydedin')
+      return
+    }
+    const kaydedilecek = id == null
+    modal.confirm({
+      title: 'Barkod Yazdır',
+      content: (
+        <div className="!text-[12px] !flex !flex-col !gap-1">
+          <div>
+            Barkod: <span className="!font-semibold !tabular-nums">{row.barkod}</span>
+          </div>
+          <div>
+            Malzeme: {row.malzemeKod} {row.malzemeAd}
+          </div>
+          {kaydedilecek && (
+            <div className="!mt-1 !text-[#f57c00]">
+              Fiş henüz kaydedilmedi — yazdırmadan önce kaydedilecek.
+            </div>
+          )}
+        </div>
+      ),
+      okText: kaydedilecek ? 'Kaydet ve Barkod Yazdır' : 'Barkod Yazdır',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        let hedef = row
+        if (id == null) {
+          const savedId = await handleKaydet()
+          if (savedId == null) return
+          // Sunucu yeni satırlara topNo atar → güncel satırı bul (barkod tekil).
+          const guncel = await kaliteKontrolApi.get(savedId).catch(() => null)
+          const eslesen = guncel?.kalemler?.find((k) => k.barkod === row.barkod)
+          if (eslesen) {
+            hedef = { ...row, topNo: eslesen.topNo ?? row.topNo }
+          }
+        }
+        const sablon = await etiketSablonGetir(hedef.barkod)
+        if (!sablon) message.info('Etiket şablonu bulunamadı — varsayılan etiket basılıyor')
+        await directPrint(hedef, sablon)
+      },
+    })
   }
 
   const handleSil = () => {
@@ -550,8 +628,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           message.success('Fiş silindi')
           setFisNo('')
           setIsEmriKod('')
-          setCariKod('')
-          setDepoKod('')
+              setDepoKod('')
           setFisTarihi(dayjs())
           setAciklama('')
           setKalemler([])
@@ -598,7 +675,97 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
 
   const fmt = (v: number) => v ? new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) : ''
 
-  const directPrint = (row: KalemRow) => {
+  // Etiket tasarımı: Şablonlar ekranındaki "Etiket" (ekranAdi='etiket') aktif şablon.
+  // Yoksa koddaki varsayılan etikete düşer.
+  const [etiketSablon, setEtiketSablon] = useState<Sablon | null>(null)
+
+  /**
+   * Aktif "Etiket" şablonunu her basımda yeniden çeker (tasarım kaydedildikten sonra
+   * fişi kapatıp açmaya gerek kalmasın). Aktif yoksa null → varsayılan etiket.
+   */
+  const etiketSablonGetir = useCallback(async (barkod?: string | null): Promise<Sablon | null> => {
+    try {
+      const liste = (await sablonApi.list('etiket')).filter((s) => s.aktif)
+      if (liste.length === 0) return null
+      // 1) Barkod ön ekine göre en uzun eşleşme (ör. YM / HM ayrı tasarım)
+      let secili: Sablon | undefined
+      if (barkod) {
+        secili = liste
+          .filter((s) => s.barkodOneki && barkod.toUpperCase().startsWith(s.barkodOneki.trim().toUpperCase()))
+          .sort((a, b) => (b.barkodOneki?.length ?? 0) - (a.barkodOneki?.length ?? 0))[0]
+      }
+      // 2) Genel (öneki boş) şablon
+      if (!secili) secili = liste.filter((s) => !s.barkodOneki).sort((a, b) => b.id - a.id)[0]
+      // 3) Hiçbiri yoksa en yeni aktif
+      if (!secili) secili = liste.sort((a, b) => b.id - a.id)[0]
+      const tam = secili ? await sablonApi.get(secili.id) : null
+      if (!tam?.htmlIcerik) return null
+      setEtiketSablon(tam)
+      return tam
+    } catch {
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    etiketSablonGetir()
+  }, [etiketSablonGetir])
+
+  const htmlKacis = (v: unknown) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+
+  /** Satır verisini şablon yer tutucularına ({{\s*anahtar\s*}}) bağlar. */
+  const etiketHtml = (row: KalemRow, sablon: Sablon | null) => {
+    let barkodSvg = ''
+    if (row.barkod) {
+      try {
+        barkodSvg = toSVG({
+          bcid: 'code128', text: row.barkod,
+          scale: 3, height: 12,
+          includetext: true, textxalign: 'center', textsize: 9,
+        })
+      } catch {}
+    }
+    const hataOzet = row.hatalar.length > 0
+      ? row.hatalar.map((h) => `${h.hataAdi} ${h.miktar ?? 1}`).join(', ')
+      : ''
+
+    if (!sablon?.htmlIcerik) return null
+
+    const degerler: Record<string, string> = {
+      barkod: htmlKacis(row.barkod),
+      barkod_img: barkodSvg,
+      top_no: row.topNo != null ? String(row.topNo) : '',
+      fis_no: htmlKacis(row.irsaliyeNo),
+      kk_fis_no: htmlKacis(fisNo),
+      malzeme_kod: htmlKacis(row.malzemeKod),
+      malzeme_ad: htmlKacis(row.malzemeAd),
+      kg: htmlKacis(fmt(row.kg)),
+      mt: htmlKacis(fmt(row.mt)),
+      adet: row.adet ? htmlKacis(row.adet) : '',
+      hatalar: row.hatalar
+        .map((h) => `▸ ${htmlKacis(h.hataKodu)} ${htmlKacis(h.hataAdi)}${h.miktar ? ` x${h.miktar}` : ''}`)
+        .join('<br>'),
+      hata_ozet: htmlKacis(hataOzet),
+      aciklama: htmlKacis(row.aciklama),
+      depo: htmlKacis(depoKod),
+      tarih: fisTarihi.format('DD.MM.YYYY'),
+      kullanici: htmlKacis(kayitYapan),
+      is_emri: htmlKacis(isEmriKod),
+      siparis: htmlKacis(siparisNo),
+    }
+
+    return sablon.htmlIcerik.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (tam, anahtar: string) => {
+      const k = anahtar.startsWith('kk.') ? anahtar.slice(3) : anahtar
+      return degerler[k] ?? tam
+    })
+  }
+
+  const directPrint = async (row: KalemRow, sablonArg?: Sablon | null) => {
     let barkodSvg = ''
     if (row.barkod) {
       try {
@@ -616,6 +783,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
       <div style="font-weight:bold;font-size:13px">KK FİŞ: ${fisNo}</div>
       <div>İş Emri: ${isEmriKod || '-'}</div>
       <div>Sipariş : ${siparisNo || '-'}</div>
+      <div>Top No  : ${row.topNo ?? '-'}</div>
       <div>Tarih  : ${fisTarihi.format('DD.MM.YYYY')}</div>
       <hr style="width:100%;border:none;border-top:1px solid #999;margin:4px 0">
       <div style="font-weight:bold">Malzeme: ${row.malzemeKod}</div>
@@ -629,9 +797,61 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
     </div>`
     const w = window.open('', '_blank')
     if (!w) return
-    w.document.write(`<html><head><title>Etiket</title><style>@page{margin:0;size:100mm 150mm}body{margin:0}</style></head><body>${html}</body></html>`)
+
+    // Yazdırmayı açan pencereden DEĞİL, açılan pencerenin kendisinden tetikle:
+    // window.print() senkron olduğu için açan sekmeyi kilitliyordu (iptalde donma).
+    // afterprint: yazdır veya iptal sonrası pencere kendini kapatır.
+    const yazdirScript = `<script>
+      window.addEventListener('load', function () { setTimeout(function () { window.focus(); window.print() }, 300) });
+      window.addEventListener('afterprint', function () { setTimeout(function () { window.close() }, 150) });
+    </script>`
+
+    // Şablonlar ekranındaki "Etiket" tasarımı varsa onu bas.
+    const sablon = sablonArg ?? etiketSablon
+    // Şablon sorgusu varsa SQL'den gerçek veriyle doldur ({{barkod.siparis_no}} vb.);
+    // yoksa/başarısızsa satırdaki alanlarla ({{barkod}}, {{kg}}...) doldur.
+    let sablonHtml: string | null = null
+    if (sablon) {
+      if (sablon.sorgular && sablon.sorgular.length > 0 && row.kalemId != null) {
+        try {
+          const sonuc = await sablonApi.onerizle(sablon.id, { id: row.kalemId })
+          if (sonuc?.html) sablonHtml = sonuc.html
+        } catch {
+          /* SQL hatası → satır alanlarına düş */
+        }
+      }
+      if (!sablonHtml) sablonHtml = etiketHtml(row, sablon)
+    }
+    if (sablonHtml) {
+      let en = sablon?.sayfaEn ?? 90
+      let boy = sablon?.sayfaBoy ?? 130
+      // Yatay şablonda ölçüleri çevir (etiket yönü).
+      if (sablon?.yon === 'yatay' && en < boy) {
+        const t = en
+        en = boy
+        boy = t
+      }
+      const ust = sablon?.ustBosluk ?? 0
+      const alt = sablon?.altBosluk ?? 0
+      const sol = sablon?.solBosluk ?? 0
+      const sag = sablon?.sagBosluk ?? 0
+      w.document.write(`<html><head><title>Etiket</title><style>
+        @page{margin:0;size:${en}mm ${boy}mm}
+        html,body{margin:0;padding:0;width:${en}mm;height:${boy}mm;overflow:hidden;
+                  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+        body{box-sizing:border-box;padding:${ust}mm ${sag}mm ${alt}mm ${sol}mm;
+             font-family:Arial,Helvetica,sans-serif;color:#000}
+        body *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        body>*{max-width:100%}
+        table{max-width:100%;border-collapse:collapse}
+        img,svg{max-width:100%;height:auto}
+      </style></head><body>${sablonHtml}${yazdirScript}</body></html>`)
+      w.document.close()
+      return
+    }
+
+    w.document.write(`<html><head><title>Etiket</title><style>@page{margin:0;size:100mm 150mm}body{margin:0}</style></head><body>${html}${yazdirScript}</body></html>`)
     w.document.close()
-    setTimeout(() => { w.print(); w.close() }, 500)
   }
 
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
@@ -639,6 +859,17 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
+      // F10, hücre düzenlenirken de çalışmalı (kg girip hemen yazdırma akışı).
+      if (e.key === 'F10') {
+        e.preventDefault()
+        const idx = focusedRowIndexRef.current
+        if (idx != null && idx >= 0 && idx < kalemler.length) {
+          openPrintOnay(kalemler[idx])
+        } else {
+          message.warning('Önce bir satır seçin')
+        }
+        return
+      }
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
       if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'H' || e.key === 'h')) {
         e.preventDefault()
@@ -647,17 +878,10 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           openHataModal(kalemler[idx])
         }
       }
-      if (!e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'B')) {
-        e.preventDefault()
-        const idx = focusedRowIndexRef.current
-        if (idx != null && idx >= 0 && idx < kalemler.length) {
-          directPrint(kalemler[idx])
-        }
-      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [kalemler])
+  }, [kalemler, message, openPrintOnay])
 
   const focusCellEditor = (colId: string, rowIndex: number) => {
     const tryFocus = (attempt = 0) => {
@@ -737,6 +961,22 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           }}
           className="!h-full !text-[12px] !rounded-none !px-2"
         />
+      ),
+    },
+    {
+      headerName: 'Top No', field: 'topNo', width: 80, type: 'rightAligned',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <div className="!h-full !flex !items-center !justify-end !px-2 !text-[12px] !font-semibold !text-[#f57c00]">
+          {p.data.topNo ?? ''}
+        </div>
+      ),
+    },
+    {
+      headerName: '11 Fiş No', field: 'irsaliyeNo', width: 100,
+      cellRenderer: (p: { data: KalemRow }) => (
+        <div className="!h-full !flex !items-center !px-2 !text-[12px] !text-[#f57c00]">
+          {p.data.irsaliyeNo || '—'}
+        </div>
       ),
     },
     {
@@ -911,201 +1151,167 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
         })}
       />
-      <div className="!flex-1 !min-h-0 !flex !flex-col !p-3 !overflow-auto">
-        <Tabs
-          defaultActiveKey="genel"
-          size="small"
-          tabBarGutter={2}
-          className="!flex-1 !flex !flex-col !min-h-0 !overflow-hidden [&_.ant-tabs-content-holder]:!flex [&_.ant-tabs-content-holder]:!flex-col [&_.ant-tabs-content-holder]:!flex-1 [&_.ant-tabs-content-holder]:!min-h-0 [&_.ant-tabs-content-holder]:!overflow-hidden [&_.ant-tabs-content]:!flex-1 [&_.ant-tabs-content]:!min-h-0 [&_.ant-tabs-content]:!overflow-hidden [&_.ant-tabs-tabpane]:!h-full [&_.ant-tabs-tabpane]:!overflow-hidden [&_.ant-tabs-nav]:!mb-2 [&_.ant-tabs-nav]:!border-b [&_.ant-tabs-nav]:!border-gray-200 [&_.ant-tabs-nav]:!flex-shrink-0 [&_.ant-tabs-tab]:!text-[12px] [&_.ant-tabs-tab]:!px-2 [&_.ant-tabs-tab]:!py-1 [&_.ant-tabs-tab]:!bg-[#E0E0E0] [&_.ant-tabs-tab]:!border [&_.ant-tabs-tab]:!border-gray-200 [&_.ant-tabs-tab]:!text-[#333] [&_.ant-tabs-tab-active]:!bg-white [&_.ant-tabs-tab-active]:!border-t-2 [&_.ant-tabs-tab-active]:!border-t-[#FF9933] [&_.ant-tabs-tab-active]:!text-[#FF9933] [&_.ant-tabs-ink-bar]:!hidden"
-          items={[
-            {
-              key: 'genel',
-              label: 'Genel',
-              children: (
-                <div className="!flex !flex-col !h-full">
-                  <div className="!flex-shrink-0 !space-y-1.5">
-                    <div className="!flex !gap-2">
-                      <div className="!flex !flex-col !gap-1.5 !shrink-0">
-                        <div className="!border !border-gray-200 !rounded-sm !p-2">
-                          <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Genel Bilgiler</div>
-                          <div className="!space-y-0.5">
-                            <div className="!flex !items-center !gap-3">
-                              <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Fiş No</div>
-                              <Input size="small" value={fisNo} onChange={(e) => setFisNo(e.target.value)} className="!w-48 !text-[12px]" />
-                            </div>
-                            <div className="!flex !items-center !gap-3">
-                              <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Fiş Tarihi</div>
-                              <DatePicker size="small" value={fisTarihi} onChange={(d) => d && setFisTarihi(d)} format="DD.MM.YYYY" placeholder="Fiş tarihi" className="!w-48 !text-[12px]" />
-                            </div>
-                            <div className="!flex !items-center !gap-3">
-                              <div className="!text-[12px] !text-[#6b7280] !w-20 !shrink-0">Açıklama</div>
-                              <Input size="small" value={aciklama} onChange={(e) => setAciklama(e.target.value)} className="!flex-1 !text-[12px]" />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="!border !border-gray-200 !rounded-sm !p-2">
-                          <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Depo Bilgileri</div>
-                          <div className="!flex !items-start !gap-3">
-                            <div className="!text-[12px] !text-[red] !w-20 !shrink-0 !pt-0.5">Depo</div>
-                            <div className="!flex !flex-col !gap-1.5 !flex-1 !w-48">
-                              <SearchableDepoSelect value={depoKod} onChange={(kod, rec) => { setDepoKod(kod); setDepoId(kod ? (rec as any)?.id ?? null : null) }} />
-                              <Button
-                                size="small"
-                                type="default"
-                                block
-                                onClick={() => setIsEmriModalOpen(true)}
-                                className="!text-[11px]"
-                              >
-                                İş Emirleri
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="!flex-1 !border !border-gray-200 !rounded-sm !p-2">
-                        <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Cari Hesap Bilgileri</div>
-                        <div className="!space-y-0.5">
-                          <div className="!flex !items-center !gap-3">
-                            <div className="!text-[12px] !text-[red] !w-20 !shrink-0">Cari Hesap</div>
-                            <SearchableCariSelect value={cariKod} onChange={(kod, rec) => { setCariKod(kod); setCariHesapId(kod ? (rec as any)?.id ?? null : null) }} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="!border !border-gray-200 !rounded-sm !flex-1 !min-h-0 !flex !flex-col !mt-1.5">
-                    <div className="!flex !items-center !justify-between !px-3 !pt-2 !pb-1 !flex-shrink-0">
-                      <div className="!text-[12px] !font-bold !text-[#333] !uppercase !tracking-wide">Satır Detayları</div>
-                      <div className="!flex !items-center !gap-1.5">
-                        <Button size="small" type="default" icon={<InboxOutlined />} onClick={handleBekleyenAc} className="!text-[12px]">
-                          Kalite Bekleyen
-                        </Button>
-                        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} className="!text-[12px]">
-                          Satır Ekle
-                        </Button>
-                      </div>
-                    </div>
-                    <Dropdown
-                      menu={{
-                        items: [
-                          { key: 'stogaAl', label: 'Stoğa Al', disabled: !id || !!stokFisId, onClick: handleStogaAl },
-                        ],
-                      }}
-                      trigger={['contextMenu']}
-                    >
-                      <div className="!flex-1 !min-h-0 !flex !flex-col kk-grid">
-                        <div className="!flex-1 !min-h-0">
-                          <AgGridReact
-                            style={{ height: '100%' }}
-                            rowData={kalemler}
-                            columnDefs={kolonDefs}
-                            theme={antTheme}
-                            headerHeight={32}
-                            rowHeight={30}
-                            rowSelection="single"
-                            getRowId={(p) => p.data.key}
-                            localeText={agGridLocaleTR}
-                            defaultColDef={{ resizable: true, sortable: true }}
-                            onGridReady={(e) => { gridApiRef.current = e.api }}
-                            onCellKeyDown={async (e: any) => {
-                              if (e.event?.key !== 'ArrowDown') return
-                              const rowIndex = e.node?.rowIndex
-                              if (rowIndex == null) return
-                              if (rowIndex !== kalemler.length - 1) return
-                              const cur = kalemler[rowIndex]
-                              if (!cur || !cur.malzemeKod) return
-                              const added = await addKalem(cur)
-                              setTimeout(() => {
-                                gridApiRef.current?.setFocusedCell(rowIndex + 1, 'barkod')
-                              }, 50)
-                            }}
-                            tabToNextCell={(params) => {
-                              const editableCols = kolonDefs
-                                .map((c) => c.field as string)
-                                .filter((f) => f && !['key', 'malzemeAd', 'isEmriNo', 'isEmriKg'].includes(f))
-                              const prev = params.previousCellPosition
-                              if (!prev) return params.nextCellPosition ?? false
-                              const curCol = prev.column.getColId()
-                              const curIdx = editableCols.indexOf(curCol)
-                              const rowCount = kalemler.length
-                              let colIdx = curIdx
-                              let rowIndex = prev.rowIndex
-                              if (params.backwards) {
-                                colIdx -= 1
-                                if (colIdx < 0) { colIdx = editableCols.length - 1; rowIndex -= 1 }
-                              } else {
-                                colIdx += 1
-                                if (colIdx > editableCols.length - 1) { colIdx = 0; rowIndex += 1 }
-                              }
-                              if (rowIndex < 0 || rowIndex >= rowCount) return prev
-                              const col = gridApiRef.current?.getColumn(editableCols[colIdx])
-                              if (!col) return prev
-                              return { rowIndex, column: col, rowPinned: null }
-                            }}
-                            onCellFocused={(e: CellFocusedEvent) => {
-                              const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
-                              if (e.rowIndex != null) focusedRowIndexRef.current = e.rowIndex
-                              if (colId && colId !== 'key' && colId !== 'malzemeAd' && colId !== 'isEmriNo' && colId !== 'isEmriKg' && e.rowIndex != null) {
-                                focusCellEditor(colId, e.rowIndex)
-                              }
-                            }}
-                          />
-                        </div>
-                        <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
-                          <div className="!flex !items-center !gap-4">
-                            <span className="!text-[11px] !font-bold !text-[#6b7280] !uppercase !tracking-wide">Toplamlar</span>
-                            <div className="!flex !items-center !gap-3 !text-[12px] !text-[#333]">
-                              <span>
-                                Kalem: <span className="!font-semibold !tabular-nums">{kalemSayisi}</span>
-                              </span>
-                              <span className="!text-[#d1d5db]">|</span>
-                              <span>
-                                Kg: <span className="!font-semibold !tabular-nums">{numberFormat(toplamKg)}</span>
-                              </span>
-                              <span className="!text-[#d1d5db]">|</span>
-                              <span>
-                                Mt: <span className="!font-semibold !tabular-nums">{numberFormat(toplamMt)}</span>
-                              </span>
-                              <span className="!text-[#d1d5db]">|</span>
-                              <span>
-                                Adet: <span className="!font-semibold !tabular-nums">{toplamAdet}</span>
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Dropdown>
-                    <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
-                      <div className="!flex !items-center !gap-4">
-                        <span className="!text-[11px] !font-bold !text-[#6b7280] !uppercase !tracking-wide">Toplamlar</span>
-                        <div className="!flex !items-center !gap-3 !text-[12px] !text-[#333]">
-                          <span>
-                            Kalem: <span className="!font-semibold !tabular-nums">{kalemSayisi}</span>
-                          </span>
-                          <span className="!text-[#d1d5db]">|</span>
-                          <span>
-                            Kg: <span className="!font-semibold !tabular-nums">{numberFormat(toplamKg)}</span>
-                          </span>
-                          <span className="!text-[#d1d5db]">|</span>
-                          <span>
-                            Mt: <span className="!font-semibold !tabular-nums">{numberFormat(toplamMt)}</span>
-                          </span>
-                          <span className="!text-[#d1d5db]">|</span>
-                          <span>
-                            Adet: <span className="!font-semibold !tabular-nums">{toplamAdet}</span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
+      <div className="!flex-1 !min-h-0 !flex !flex-col !px-3 !overflow-hidden">
+        <div className="!flex-shrink-0 !space-y-1.5">
+          <div className="!flex !gap-2">
+            <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
+              <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Genel Bilgiler</div>
+              <div className="!space-y-0.5">
+                <div className="!flex !items-center !gap-3">
+                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fiş Tarihi</div>
+                  <DatePicker size="small" value={fisTarihi} onChange={(d) => d && setFisTarihi(d)} format="DD.MM.YYYY" placeholder="Fiş tarihi" className="!w-48 !text-[12px]" />
                 </div>
-              ),
-            },
-          ]}
-        />
+              </div>
+            </div>
+
+            <div className="!flex-1 !border !border-gray-200 !rounded-sm !p-2">
+              <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Depo Bilgileri</div>
+              <div className="!flex !items-start !gap-6">
+                <div className="!flex !items-center !gap-3">
+                  <div className="!text-[12px] !text-[red] !w-24 !shrink-0">Depo</div>
+                  <SearchableDepoSelect value={depoKod} onChange={(kod, rec) => { setDepoKod(kod); setDepoId(kod ? (rec as any)?.id ?? null : null) }} />
+                </div>
+                <div className="!border-l !border-gray-200 !pl-6">
+                  <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Diğer Bilgiler</div>
+                  <div className="!flex !items-center !gap-3">
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">İş Emirleri</div>
+                    <Button size="small" type="default" onClick={() => setIsEmriModalOpen(true)} className="!text-[11px]">
+                      Seç
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="!border !border-gray-200 !rounded-sm !flex-1 !min-h-0 !flex !flex-col !mt-1.5">
+          <div className="!flex !items-center !justify-between !px-3 !pt-2 !pb-1 !flex-shrink-0">
+            <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Satır Detayları</div>
+            <div className="!flex !items-center !gap-1">
+              <Button size="small" type="default" icon={<InboxOutlined />} onClick={handleBekleyenAc} className="!text-[12px]">
+                Kalite Bekleyen
+              </Button>
+              <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} className="!text-[12px]">
+                Satır Ekle
+              </Button>
+            </div>
+          </div>
+          <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'yazdir',
+                    label: 'Barkod Yazdır (F10)',
+                    onClick: () => {
+                      const idx = focusedRowIndexRef.current
+                      openPrintOnay(idx != null ? kalemler[idx] : null)
+                    },
+                  },
+                  {
+                    key: 'hatalar',
+                    label: 'Hatalar (Ctrl+H)',
+                    onClick: () => {
+                      const idx = focusedRowIndexRef.current
+                      if (idx != null && idx >= 0 && idx < kalemler.length) openHataModal(kalemler[idx])
+                      else message.warning('Önce bir satır seçin')
+                    },
+                  },
+                  { type: 'divider' },
+                  { key: 'stogaAl', label: 'Stoğa Al', disabled: !id || !!stokFisId, onClick: handleStogaAl },
+                ],
+              }}
+              trigger={['contextMenu']}
+            >
+              <div style={{ height: '100%', width: '100%' }}>
+                <AgGridReact
+                  style={{ height: '100%' }}
+                  rowData={kalemler}
+                  columnDefs={kolonDefs}
+                  theme={antTheme}
+                  headerHeight={32}
+                  rowHeight={30}
+                  rowSelection="single"
+                  getRowId={(p) => p.data.key}
+                  localeText={agGridLocaleTR}
+                  defaultColDef={{ resizable: true, sortable: true }}
+                  onGridReady={(e) => { gridApiRef.current = e.api }}
+                  onCellContextMenu={(e: CellContextMenuEvent<KalemRow>) => {
+                    if (e.data && e.node?.rowIndex != null) {
+                      focusedRowIndexRef.current = e.node.rowIndex
+                      e.node.setSelected(true)
+                    }
+                  }}
+                  onCellKeyDown={async (e: any) => {
+                    if (e.event?.key !== 'ArrowDown') return
+                    const rowIndex = e.node?.rowIndex
+                    if (rowIndex == null) return
+                    if (rowIndex !== kalemler.length - 1) return
+                    const cur = kalemler[rowIndex]
+                    if (!cur || !cur.malzemeKod) return
+                    const added = await addKalem(cur)
+                    setTimeout(() => {
+                      gridApiRef.current?.setFocusedCell(rowIndex + 1, 'barkod')
+                    }, 50)
+                  }}
+                  tabToNextCell={(params) => {
+                    const editableCols = kolonDefs
+                      .map((c) => c.field as string)
+                      .filter((f) => f && !['key', 'malzemeAd', 'isEmriNo', 'isEmriKg'].includes(f))
+                    const prev = params.previousCellPosition
+                    if (!prev) return params.nextCellPosition ?? false
+                    const curCol = prev.column.getColId()
+                    const curIdx = editableCols.indexOf(curCol)
+                    const rowCount = kalemler.length
+                    let colIdx = curIdx
+                    let rowIndex = prev.rowIndex
+                    if (params.backwards) {
+                      colIdx -= 1
+                      if (colIdx < 0) { colIdx = editableCols.length - 1; rowIndex -= 1 }
+                    } else {
+                      colIdx += 1
+                      if (colIdx > editableCols.length - 1) { colIdx = 0; rowIndex += 1 }
+                    }
+                    if (rowIndex < 0 || rowIndex >= rowCount) return prev
+                    const col = gridApiRef.current?.getColumn(editableCols[colIdx])
+                    if (!col) return prev
+                    return { rowIndex, column: col, rowPinned: null }
+                  }}
+                  onCellFocused={(e: CellFocusedEvent) => {
+                    const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
+                    if (e.rowIndex != null) focusedRowIndexRef.current = e.rowIndex
+                    if (colId && colId !== 'key' && colId !== 'malzemeAd' && colId !== 'isEmriNo' && colId !== 'isEmriKg' && e.rowIndex != null) {
+                      focusCellEditor(colId, e.rowIndex)
+                    }
+                  }}
+                />
+              </div>
+            </Dropdown>
+          </div>
+          <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
+            <div className="!flex !items-center !gap-4">
+              <span className="!text-[11px] !font-bold !text-[#6b7280] !uppercase !tracking-wide">Toplamlar</span>
+              <div className="!flex !items-center !gap-3 !text-[12px] !text-[#333]">
+                <span>
+                  Kalem: <span className="!font-semibold !tabular-nums">{kalemSayisi}</span>
+                </span>
+                <span className="!text-[#d1d5db]">|</span>
+                <span>
+                  Kg: <span className="!font-semibold !tabular-nums">{numberFormat(toplamKg)}</span>
+                </span>
+                <span className="!text-[#d1d5db]">|</span>
+                <span>
+                  Mt: <span className="!font-semibold !tabular-nums">{numberFormat(toplamMt)}</span>
+                </span>
+                <span className="!text-[#d1d5db]">|</span>
+                <span>
+                  Adet: <span className="!font-semibold !tabular-nums">{toplamAdet}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <IsEmriSecimiModal
         open={isEmriModalOpen}

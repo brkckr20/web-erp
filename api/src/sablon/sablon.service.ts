@@ -37,6 +37,7 @@ export class SablonService {
     solBosluk?: number
     sagBosluk?: number
     altBilgi?: boolean
+    barkodOneki?: string | null
     filigranMetin?: string
     filigranKosul?: string
     sorgular?: { ad: string; sqlIcerik: string; sira?: number }[]
@@ -54,6 +55,7 @@ export class SablonService {
         solBosluk: data.solBosluk ?? 15,
         sagBosluk: data.sagBosluk ?? 15,
         altBilgi: data.altBilgi ?? true,
+        barkodOneki: data.barkodOneki?.trim() || null,
         filigranMetin: data.filigranMetin ?? null,
         filigranKosul: data.filigranKosul ?? 'kapali',
         sorgular: data.sorgular
@@ -77,6 +79,7 @@ export class SablonService {
     sagBosluk?: number
     altBilgi?: boolean
     aktif?: boolean
+    barkodOneki?: string | null
     filigranMetin?: string
     filigranKosul?: string
     sorgular?: { id?: number; ad: string; sqlIcerik: string; sira?: number }[]
@@ -103,6 +106,7 @@ export class SablonService {
         sagBosluk: data.sagBosluk,
         altBilgi: data.altBilgi,
         aktif: data.aktif,
+        barkodOneki: data.barkodOneki === undefined ? undefined : (data.barkodOneki?.trim() || null),
         filigranMetin: data.filigranMetin,
         filigranKosul: data.filigranKosul,
         guncellemeTarihi: new Date(),
