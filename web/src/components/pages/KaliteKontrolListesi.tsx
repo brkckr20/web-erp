@@ -281,84 +281,86 @@ export default function KaliteKontrolListesi({ onNew, onSelect }: KaliteKontrolL
   ], [])
 
   return (
-    <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
-      <div className="!p-3 !flex !flex-col !h-full">
-        <div className="!flex !items-center !justify-between !mb-3">
-          <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
-            Kalite Kontrol Girişleri
-          </div>
-          <div className="!flex !items-center !gap-1.5">
-            <Button
-              size="small"
-              icon={<ReloadOutlined />}
-              onClick={load}
-              className="!text-[12px] !h-7"
-            />
-            <Button
-              size="small"
-              icon={<InboxOutlined />}
-              onClick={handleBekleyenAc}
-              className="!text-[12px] !h-7"
-            >
-              Kalite Bekleyen
-            </Button>
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={handleNew}
-              className="!text-[12px] !h-7"
-            >
-              Yeni
-            </Button>
-            <Button
-              size="small"
-              danger
-              disabled={!selectedRow}
-              icon={<DeleteOutlined />}
-              onClick={handleSil}
-              className="!text-[12px] !h-7"
-            >
-              Sil
-            </Button>
-          </div>
-        </div>
-
-        <div className="!flex-1 !min-h-0" style={{ minHeight: 300 }}>
-          <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
-            <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
-              <DataGrid
-                rowData={data}
-                columnDefs={columns}
-                domLayout="normal"
-                exportFileName="kalite-kontrol"
-                storageKey="kaliteKontrol"
-                rowSelection="single"
-                onCellDoubleClicked={(e: CellDoubleClickedEvent<KKRow>) => {
-                  const row = e.data as KKRow | undefined
-                  if (row?.id != null) onSelect?.(row.id)
-                }}
-                onCellContextMenu={(e: CellContextMenuEvent<KKRow>) => {
-                  const row = e.data as KKRow | undefined
-                  if (row?.key) {
-                    e.node?.setSelected(true)
-                    setSelectedRow(row.key)
-                  }
-                }}
-                onSelectionChanged={(e: SelectionChangedEvent<KKRow>) => {
-                  const sel = e.api.getSelectedRows()
-                  setSelectedRow(sel[0]?.key ?? null)
-                }}
+    <>
+      <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
+        <div className="!p-3 !flex !flex-col !h-full">
+          <div className="!flex !items-center !justify-between !mb-3">
+            <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
+              Kalite Kontrol Girişleri
+            </div>
+            <div className="!flex !items-center !gap-1.5">
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={load}
+                className="!text-[12px] !h-7"
               />
+              <Button
+                size="small"
+                icon={<InboxOutlined />}
+                onClick={handleBekleyenAc}
+                className="!text-[12px] !h-7"
+              >
+                Kalite Bekleyen
+              </Button>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={handleNew}
+                className="!text-[12px] !h-7"
+              >
+                Yeni
+              </Button>
+              <Button
+                size="small"
+                danger
+                disabled={!selectedRow}
+                icon={<DeleteOutlined />}
+                onClick={handleSil}
+                className="!text-[12px] !h-7"
+              >
+                Sil
+              </Button>
             </div>
+          </div>
 
-            <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">
-              <span />
-              <span className="!text-[11px] !text-[#9ca3af] !tabular-nums">{data.length} kayıt</span>
+          <div className="!flex-1 !min-h-0" style={{ minHeight: 300 }}>
+            <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
+              <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
+                <DataGrid
+                  rowData={data}
+                  columnDefs={columns}
+                  domLayout="normal"
+                  exportFileName="kalite-kontrol"
+                  storageKey="kaliteKontrol"
+                  rowSelection="single"
+                  onCellDoubleClicked={(e: CellDoubleClickedEvent<KKRow>) => {
+                    const row = e.data as KKRow | undefined
+                    if (row?.id != null) onSelect?.(row.id)
+                  }}
+                  onCellContextMenu={(e: CellContextMenuEvent<KKRow>) => {
+                    const row = e.data as KKRow | undefined
+                    if (row?.key) {
+                      e.node?.setSelected(true)
+                      setSelectedRow(row.key)
+                    }
+                  }}
+                  onSelectionChanged={(e: SelectionChangedEvent<KKRow>) => {
+                    const sel = e.api.getSelectedRows()
+                    setSelectedRow(sel[0]?.key ?? null)
+                  }}
+                />
+              </div>
+
+              <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">
+                <span />
+                <span className="!text-[11px] !text-[#9ca3af] !tabular-nums">{data.length} kayıt</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Dropdown>
 
       <Modal
         open={bekleyenOpen}
@@ -405,6 +407,6 @@ export default function KaliteKontrolListesi({ onNew, onSelect }: KaliteKontrolL
           </div>
         </Spin>
       </Modal>
-    </Dropdown>
+    </>
   )
 }
