@@ -888,7 +888,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
         />
       ),
     },
-  ], [kalemler.length, faturaTipi])
+  ], [faturaTipi])
 
   const focusNextCell = (currentColId: string, rowIndex: number) => {
     const editableCols = colDefs.map((c) => c.field as string).filter((f) => f && f !== 'key' && f !== 'malzemeAd' && f !== 'varyant1RenkAd' && f !== 'irsaliyeNo' && f !== 'satirTutari')
@@ -946,14 +946,14 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
     if (!kayitlar.length) return
-    kayitlar.forEach((k) => {
-      if (k.gizli !== undefined) {
-        api.setColumnsVisible([k.kolonAdi], !k.gizli)
-      }
-      if (k.genislik != null) {
-        api.setColumnWidths([{ key: k.kolonAdi, newWidth: k.genislik }])
-      }
-    })
+    const sorted = [...kayitlar].sort((a, b) => (a.sira ?? 0) - (b.sira ?? 0))
+    const state = sorted.map(k => ({
+      colId: k.kolonAdi,
+      hide: k.gizli,
+      width: k.genislik ?? undefined,
+      sort: k.siralamaYon as 'asc' | 'desc' | undefined,
+    }))
+    api.applyColumnState({ state, applyOrder: true })
   }, [])
 
   const tryLoadKolonFromDb = useCallback((api: GridApi<KalemRow>) => {
@@ -980,11 +980,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     if (!api) return
     const states = api.getColumnState()
     if (!states) return
-    const kolonlar: KolonKaydi[] = states.map((s) => ({
+    const kolonlar: KolonKaydi[] = states.map((s, idx) => ({
       kolonAdi: s.colId,
       gizli: s.hide ?? false,
       genislik: s.width ?? null,
-      sira: null,
+      sira: idx,
       siralamaYon: s.sort ?? null,
     }))
     localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
@@ -1010,6 +1010,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   }, [persistKolonlar])
 
   const contextMenuItems: MenuProps['items'] = [
+    { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
     { key: 'satir-ekle', label: 'Satır Ekle', icon: <PlusOutlined />, onClick: addKalem },
     { key: 'irsaliye-ekle', label: 'İrsaliye Ekle...', icon: <LinkOutlined />, onClick: openIrsaliyeModal },
   ]
@@ -1026,14 +1027,6 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           {c.label}
         </Checkbox>
       ))}
-      <Button
-        type="primary"
-        size="small"
-        className="!mt-2 !text-[12px]"
-        onClick={saveKolonlar}
-      >
-        Kaydet
-      </Button>
     </div>
   )
 

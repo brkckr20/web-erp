@@ -1260,7 +1260,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         />
       ),
     },
-  ], [kalemler.length])
+  ], [irsaliyeTipi])
 
   const storageKey = 'irsaliyeKarti_' + irsaliyeTipi
   const kolonLayoutKey = useCallback(
@@ -1286,7 +1286,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           label: c.headerName ?? '',
         }))
         .filter((c) => c.id && c.id !== 'key'),
-    [],
+    [colDefs],
   )
 
   const syncHiddenFromGrid = useCallback(() => {
@@ -1299,14 +1299,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
     if (!kayitlar.length) return
-    kayitlar.forEach((k) => {
-      if (k.gizli !== undefined) {
-        api.setColumnsVisible([k.kolonAdi], !k.gizli)
-      }
-      if (k.genislik != null) {
-        api.setColumnWidths([{ key: k.kolonAdi, newWidth: k.genislik }])
-      }
-    })
+    const sorted = [...kayitlar].sort((a, b) => (a.sira ?? 0) - (b.sira ?? 0))
+    const state = sorted.map(k => ({
+      colId: k.kolonAdi,
+      hide: k.gizli,
+      width: k.genislik ?? undefined,
+      sort: k.siralamaYon as 'asc' | 'desc' | undefined,
+    }))
+    api.applyColumnState({ state, applyOrder: true })
   }, [])
 
   const tryLoadKolonFromDb = useCallback((api: GridApi<KalemRow>) => {
@@ -1340,11 +1340,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     if (!api) return
     const states = api.getColumnState()
     if (!states) return
-    const kolonlar: KolonKaydi[] = states.map((s) => ({
+    const kolonlar: KolonKaydi[] = states.map((s, idx) => ({
       kolonAdi: s.colId,
       gizli: s.hide ?? false,
       genislik: s.width ?? null,
-      sira: null,
+      sira: idx,
       siralamaYon: s.sort ?? null,
     }))
     localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
@@ -1484,31 +1484,38 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const contextMenuItems: MenuProps['items'] =
     irsaliyeTipi === '11'
       ? [
+          { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
           { key: 'barkod-detay', label: 'Barkod Detayları', onClick: openBarkodDetay },
           { key: 'fason-gidenler', label: 'Fason Gidenler', onClick: () => openFasonGidenler() },
           ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
         ]
       : irsaliyeTipi === '201'
         ? [
+            { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
             { key: 'irsaliye-olustur', label: 'İrsaliye Oluştur', onClick: handleIrsaliyeOlustur },
             { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
           ]
         : irsaliyeTipi === '202'
           ? [
+              { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
               { key: 'irsaliye-olustur', label: 'Fasona Çıkış (134) Oluştur', onClick: handleIrsaliyeOlustur },
               { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
               { key: 'prosesler', label: 'Prosesler...', onClick: openProsesler },
             ]
           : irsaliyeTipi === '134'
             ? [
+                { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
                 { key: 'acik-talimatlar', label: 'Açık Talimatlar (202)...', onClick: openAcikTalimatlari },
                 ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
                 { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
                 { key: 'prosesler', label: 'Prosesler...', onClick: openProsesler },
               ]
             : id
-              ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }]
-              : []
+              ? [
+                  { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
+                  { key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }
+                ]
+              : [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }]
 
   const iceriAktar = () => {
     const secili = fasonGidenGridRef.current?.getSelectedRows() ?? []
@@ -1878,14 +1885,6 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           {c.label}
         </Checkbox>
       ))}
-      <Button
-        type="primary"
-        size="small"
-        className="!mt-2 !text-[12px]"
-        onClick={saveKolonlar}
-      >
-        Kaydet
-      </Button>
     </div>
   )
 
@@ -2058,7 +2057,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
               <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
                 <div style={{ height: '100%', width: '100%' }}>
-                  <AgGridReact
+                    <AgGridReact
                     rowData={kalemler}
                     columnDefs={colDefs}
                     theme={antTheme}
