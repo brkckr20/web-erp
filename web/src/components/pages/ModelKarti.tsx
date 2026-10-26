@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Tabs, Input, Select, Modal, App, Spin, Button, Switch, Row, Col, Popover, Checkbox, Space } from 'antd'
+import { Tabs, Input, Select, Modal, App, Spin, Button, Switch, Row, Col, Popover, Checkbox, Space, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi } from 'ag-grid-community'
@@ -32,6 +33,8 @@ import { malzemeFiyatApi, type MalzemeFiyat, type UpdateMalzemeFiyat } from '@/l
 import { dovizApi, type Doviz } from '@/lib/doviz-api'
 import { useAuth } from '@/context/AuthContext'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
+import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
+import { applyKolonDurumu } from '@/lib/kolon-durumu'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -39,6 +42,9 @@ interface ModelKartiProps {
   isNew?: boolean
   kod?: string
 }
+
+/** Kolon durumu saklanan grid'ler (reçete alt tabloları + fiyat geçmişi). */
+type KolonGrid = 'kumas' | 'iplik' | 'aksesuar' | 'fiyat'
 
 const tabClass =
   '!px-3 !pt-2 !flex-1 !flex !flex-col !min-h-0 ' +
@@ -688,7 +694,71 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     api.exportDataAsCsv({ fileName: `${ad}.csv`, allColumns: true })
   }
 
-  const kolonContent = (api: GridApi | null) => {
+  const kolonStorageKey = (grid: KolonGrid) => `modelKarti_${grid}`
+
+  const kolonLayoutKey = useCallback(
+    (grid: KolonGrid) => `kolon_layout_${kullanici?.id ?? 'anonim'}_${kolonStorageKey(grid)}`,
+    [kullanici?.id],
+  )
+
+  const getGridApi = (grid: KolonGrid): GridApi | null => {
+    if (grid === 'kumas') return kumasGridApiRef.current
+    if (grid === 'iplik') return iplikGridApiRef.current
+    if (grid === 'aksesuar') return aksesuarGridApiRef.current
+    return fiyatGridApiRef.current
+  }
+
+  // Kayıtlı kolon durumunu (gizlilik/genişlik/sıra/sıralama) grid'e uygular.
+  // AG Grid ilk veri işleminde sıralamayı sıfırlayabildiği için firstDataRendered'da tekrar uygulanır.
+  const loadKolonlar = useCallback((api: GridApi, grid: KolonGrid) => {
+    let lsKayitlar: KolonKaydi[] = []
+    try {
+      lsKayitlar = JSON.parse(localStorage.getItem(kolonLayoutKey(grid)) || '[]')
+    } catch { lsKayitlar = [] }
+    if (lsKayitlar.length > 0) {
+      applyKolonDurumu(api, lsKayitlar)
+      return
+    }
+    kolonSecimiApi.get(kolonStorageKey(grid))
+      .then((dbKayitlar) => {
+        if (dbKayitlar.length > 0) applyKolonDurumu(api, dbKayitlar)
+      })
+      .catch(() => { /* sessiz */ })
+  }, [kolonLayoutKey])
+
+  const persistKolonlar = useCallback((api: GridApi | null, grid: KolonGrid): boolean => {
+    if (!api) return false
+    const states = api.getColumnState()
+    if (!states) return false
+    const kolonlar: KolonKaydi[] = states.map((s, idx) => ({
+      kolonAdi: s.colId,
+      gizli: s.hide ?? false,
+      genislik: s.width ?? null,
+      sira: idx,
+      siralamaYon: s.sort ?? null,
+    }))
+    try {
+      localStorage.setItem(kolonLayoutKey(grid), JSON.stringify(kolonlar))
+    } catch {
+      return false
+    }
+    if (kullanici?.id) {
+      kolonSecimiApi.save(kolonStorageKey(grid), kolonlar)
+        .catch(() => message.error('Kolon durumu sunucuya kaydedilemedi'))
+    }
+    return true
+  }, [kolonLayoutKey, kullanici?.id, message])
+
+  const saveKolonlar = useCallback((grid: KolonGrid) => {
+    if (persistKolonlar(getGridApi(grid), grid)) message.success('Kolon durumu kaydedildi')
+    else message.error('Kolon durumu kaydedilemedi')
+  }, [persistKolonlar, message])
+
+  const contextMenuItems = (grid: KolonGrid): MenuProps['items'] => [
+    { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: () => saveKolonlar(grid) },
+  ]
+
+  const kolonContent = (api: GridApi | null, grid?: KolonGrid) => {
     if (!api) return <span className="!text-[11px] !text-gray-400">Grid yüklenmedi</span>
     const cols = api.getColumns()
     if (!cols) return null
@@ -701,7 +771,10 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             <div key={colId} className="!flex !items-center !gap-2 !py-0.5">
               <Checkbox
                 checked={visible}
-                onChange={(e) => api.setColumnsVisible([colId], e.target.checked)}
+                onChange={(e) => {
+                  api.setColumnsVisible([colId], e.target.checked)
+                  if (grid) persistKolonlar(api, grid)
+                }}
               >
                 <span className="!text-[11px]">{col.getColDef().headerName || colId}</span>
               </Checkbox>
@@ -1213,7 +1286,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       <div className="!flex !items-center !justify-end !px-2 !py-1 !gap-1">
         <Button size="small" icon={<DownloadOutlined />} onClick={() => exportCsv(kumasGridApiRef.current, 'Kumas')} className="!text-[11px] !h-7">Excel</Button>
         <Popover
-          content={kolonContent(kumasGridApiRef.current)}
+          content={kolonContent(kumasGridApiRef.current, 'kumas')}
           title={<span className="!text-[11px] !font-semibold">Kolonlar</span>}
           trigger="click"
         >
@@ -1224,26 +1297,32 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         </Button>
       </div>
       <div className="kumas-grid" style={{ height: 300, width: '100%' }}>
-        <AgGridReact<KumasRow>
-          rowData={kumasKalemler}
-          columnDefs={kumasColDefs}
-          theme={antGridTheme}
-          headerHeight={28}
-          rowHeight={28}
-          getRowId={(p) => p.data.key}
-          localeText={agGridLocaleTR}
-          defaultColDef={{ resizable: true, sortable: true, cellClass: '!p-1' }}
-          onGridReady={(e) => {
-            kumasGridApiRef.current = e.api
-            e.api.sizeColumnsToFit()
-          }}
-          onCellValueChanged={(e) => {
-            if (e.data && e.colDef.field) {
-              updateKumasKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<KumasRow>)
-              persistKalemField(e.data.backendId, e.colDef.field, e.newValue)
-            }
-          }}
-        />
+        <Dropdown menu={{ items: contextMenuItems('kumas') }} trigger={['contextMenu']}>
+          <div style={{ height: '100%', width: '100%' }}>
+            <AgGridReact<KumasRow>
+              rowData={kumasKalemler}
+              columnDefs={kumasColDefs}
+              theme={antGridTheme}
+              headerHeight={28}
+              rowHeight={28}
+              getRowId={(p) => p.data.key}
+              localeText={agGridLocaleTR}
+              defaultColDef={{ resizable: true, sortable: true, cellClass: '!p-1' }}
+              onGridReady={(e) => {
+                kumasGridApiRef.current = e.api
+                e.api.sizeColumnsToFit()
+                loadKolonlar(e.api, 'kumas')
+                e.api.addEventListener('firstDataRendered', () => loadKolonlar(e.api, 'kumas'))
+              }}
+              onCellValueChanged={(e) => {
+                if (e.data && e.colDef.field) {
+                  updateKumasKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<KumasRow>)
+                  persistKalemField(e.data.backendId, e.colDef.field, e.newValue)
+                }
+              }}
+            />
+          </div>
+        </Dropdown>
       </div>
     </div>
   )
@@ -1254,7 +1333,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       <div className="!flex !items-center !justify-end !px-2 !py-1 !gap-1">
         <Button size="small" icon={<DownloadOutlined />} onClick={() => exportCsv(iplikGridApiRef.current, 'Iplik')} className="!text-[11px] !h-7">Excel</Button>
         <Popover
-          content={kolonContent(iplikGridApiRef.current)}
+          content={kolonContent(iplikGridApiRef.current, 'iplik')}
           title={<span className="!text-[11px] !font-semibold">Kolonlar</span>}
           trigger="click"
         >
@@ -1265,26 +1344,32 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         </Button>
       </div>
       <div className="iplik-grid" style={{ height: 300, width: '100%' }}>
-        <AgGridReact<IplikRow>
-          rowData={iplikKalemler}
-          columnDefs={iplikColDefs}
-          theme={antGridTheme}
-          headerHeight={28}
-          rowHeight={28}
-          getRowId={(p) => p.data.key}
-          localeText={agGridLocaleTR}
-          defaultColDef={{ resizable: true, sortable: true, cellClass: '!p-1' }}
-          onGridReady={(e) => {
-            iplikGridApiRef.current = e.api
-            e.api.sizeColumnsToFit()
-          }}
-          onCellValueChanged={(e) => {
-            if (e.data && e.colDef.field) {
-              updateIplikKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<IplikRow>)
-              persistIplikKalemField(e.data.backendId, e.colDef.field, e.newValue)
-            }
-          }}
-        />
+        <Dropdown menu={{ items: contextMenuItems('iplik') }} trigger={['contextMenu']}>
+          <div style={{ height: '100%', width: '100%' }}>
+            <AgGridReact<IplikRow>
+              rowData={iplikKalemler}
+              columnDefs={iplikColDefs}
+              theme={antGridTheme}
+              headerHeight={28}
+              rowHeight={28}
+              getRowId={(p) => p.data.key}
+              localeText={agGridLocaleTR}
+              defaultColDef={{ resizable: true, sortable: true, cellClass: '!p-1' }}
+              onGridReady={(e) => {
+                iplikGridApiRef.current = e.api
+                e.api.sizeColumnsToFit()
+                loadKolonlar(e.api, 'iplik')
+                e.api.addEventListener('firstDataRendered', () => loadKolonlar(e.api, 'iplik'))
+              }}
+              onCellValueChanged={(e) => {
+                if (e.data && e.colDef.field) {
+                  updateIplikKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<IplikRow>)
+                  persistIplikKalemField(e.data.backendId, e.colDef.field, e.newValue)
+                }
+              }}
+            />
+          </div>
+        </Dropdown>
       </div>
     </div>
   )
@@ -1295,7 +1380,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       <div className="!flex !items-center !justify-end !px-2 !py-1 !gap-1">
         <Button size="small" icon={<DownloadOutlined />} onClick={() => exportCsv(aksesuarGridApiRef.current, 'Aksesuar')} className="!text-[11px] !h-7">Excel</Button>
         <Popover
-          content={kolonContent(aksesuarGridApiRef.current)}
+          content={kolonContent(aksesuarGridApiRef.current, 'aksesuar')}
           title={<span className="!text-[11px] !font-semibold">Kolonlar</span>}
           trigger="click"
         >
@@ -1306,26 +1391,32 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         </Button>
       </div>
       <div className="aksesuar-grid" style={{ height: 300, width: '100%' }}>
-        <AgGridReact<AksesuarRow>
-          rowData={aksesuarKalemler}
-          columnDefs={aksesuarColDefs}
-          theme={antGridTheme}
-          headerHeight={28}
-          rowHeight={28}
-          getRowId={(p) => p.data.key}
-          localeText={agGridLocaleTR}
-          defaultColDef={{ resizable: true, sortable: true, cellClass: '!p-1' }}
-          onGridReady={(e) => {
-            aksesuarGridApiRef.current = e.api
-            e.api.sizeColumnsToFit()
-          }}
-          onCellValueChanged={(e) => {
-            if (e.data && e.colDef.field) {
-              updateAksesuarKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<AksesuarRow>)
-              persistAksesuarKalemField(e.data.backendId, e.colDef.field, e.newValue)
-            }
-          }}
-        />
+        <Dropdown menu={{ items: contextMenuItems('aksesuar') }} trigger={['contextMenu']}>
+          <div style={{ height: '100%', width: '100%' }}>
+            <AgGridReact<AksesuarRow>
+              rowData={aksesuarKalemler}
+              columnDefs={aksesuarColDefs}
+              theme={antGridTheme}
+              headerHeight={28}
+              rowHeight={28}
+              getRowId={(p) => p.data.key}
+              localeText={agGridLocaleTR}
+              defaultColDef={{ resizable: true, sortable: true, cellClass: '!p-1' }}
+              onGridReady={(e) => {
+                aksesuarGridApiRef.current = e.api
+                e.api.sizeColumnsToFit()
+                loadKolonlar(e.api, 'aksesuar')
+                e.api.addEventListener('firstDataRendered', () => loadKolonlar(e.api, 'aksesuar'))
+              }}
+              onCellValueChanged={(e) => {
+                if (e.data && e.colDef.field) {
+                  updateAksesuarKalem(e.data.key, { [e.colDef.field]: e.newValue } as Partial<AksesuarRow>)
+                  persistAksesuarKalemField(e.data.backendId, e.colDef.field, e.newValue)
+                }
+              }}
+            />
+          </div>
+        </Dropdown>
       </div>
     </div>
   )
@@ -1535,7 +1626,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         <div className="!flex !items-center !gap-1">
           <Button size="small" icon={<DownloadOutlined />} onClick={() => exportCsv(fiyatGridApiRef.current, 'Fiyatlar')} className="!text-[11px] !h-7">Excel</Button>
           <Popover
-            content={kolonContent(fiyatGridApiRef.current)}
+            content={kolonContent(fiyatGridApiRef.current, 'fiyat')}
             title={<span className="!text-[11px] !font-semibold">Kolonlar</span>}
             trigger="click"
           >
@@ -1545,18 +1636,26 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         </div>
       </div>
       <div style={{ height: 220 }}>
-        <AgGridReact
-          rowData={fiyatlar}
-          columnDefs={fiyatColumns}
-          theme={antGridTheme}
-          localeText={agGridLocaleTR}
-          headerHeight={32}
-          rowHeight={30}
-          domLayout="normal"
-          getRowId={(p) => String(p.data.id)}
-          defaultColDef={{ resizable: true, sortable: true, flex: 1 }}
-          onGridReady={(e) => { fiyatGridApiRef.current = e.api }}
-        />
+        <Dropdown menu={{ items: contextMenuItems('fiyat') }} trigger={['contextMenu']}>
+          <div style={{ height: '100%', width: '100%' }}>
+            <AgGridReact
+              rowData={fiyatlar}
+              columnDefs={fiyatColumns}
+              theme={antGridTheme}
+              localeText={agGridLocaleTR}
+              headerHeight={32}
+              rowHeight={30}
+              domLayout="normal"
+              getRowId={(p) => String(p.data.id)}
+              defaultColDef={{ resizable: true, sortable: true, flex: 1 }}
+              onGridReady={(e) => {
+                fiyatGridApiRef.current = e.api
+                loadKolonlar(e.api, 'fiyat')
+                e.api.addEventListener('firstDataRendered', () => loadKolonlar(e.api, 'fiyat'))
+              }}
+            />
+          </div>
+        </Dropdown>
       </div>
     </div>
   )

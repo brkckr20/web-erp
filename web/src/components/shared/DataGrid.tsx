@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef, useMemo, useRef, useState, useImperativeHandle, useCallback } from 'react'
-import { Button, Popover, Checkbox } from 'antd'
+import { Button, Popover, Checkbox, App } from 'antd'
 import { SettingOutlined, FileExcelOutlined } from '@ant-design/icons'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
@@ -11,6 +11,7 @@ import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { exportGridToExcel } from '@/lib/grid-excel-export'
 import { useAuth } from '@/context/AuthContext'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
+import { applyKolonDurumu } from '@/lib/kolon-durumu'
 
 const kolonLayoutKey = (ekranAdi: string, kullaniciId?: number | null) =>
   `kolon_layout_${kullaniciId ?? 'anonim'}_${ekranAdi}`
@@ -25,12 +26,13 @@ function loadLayout(ekranAdi: string, kullaniciId?: number | null): KolonKaydi[]
   }
 }
 
-function saveLayout(kayitlar: KolonKaydi[], ekranAdi: string, kullaniciId?: number | null) {
-  if (typeof window === 'undefined') return
+function saveLayout(kayitlar: KolonKaydi[], ekranAdi: string, kullaniciId?: number | null): boolean {
+  if (typeof window === 'undefined') return false
   try {
     localStorage.setItem(kolonLayoutKey(ekranAdi, kullaniciId), JSON.stringify(kayitlar))
+    return true
   } catch {
-    /* sessiz */
+    return false
   }
 }
 
@@ -78,6 +80,7 @@ function DataGridInner<T>(
   ref: React.Ref<DataGridHandle>,
 ) {
   const { kullanici } = useAuth()
+  const { message } = App.useApp()
   const gridApiRef = useRef<GridApi<T> | null>(null)
   const loadingRef = useRef(false)
   const dbLoadApplied = useRef(false)
@@ -100,6 +103,14 @@ function DataGridInner<T>(
   const [chooserOpen, setChooserOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
 
+  // defaultColDef her render'da yeni obje olmasın (AG Grid kolon sırasını sıfırlayabiliyor)
+  const defaultColDefKey = JSON.stringify(defaultColDef ?? null)
+  const mergedDefaultColDef = useMemo(
+    () => ({ sortable: true, filter: true, resizable: true, ...defaultColDef }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [defaultColDefKey],
+  )
+
   const syncHiddenColsFromGrid = useCallback(() => {
     const api = gridApiRef.current
     if (!api) return
@@ -111,41 +122,7 @@ function DataGridInner<T>(
   useImperativeHandle(ref, () => ({ get api() { return gridApiRef.current } }), [])
 
   const applyKolonKayitlari = useCallback((api: GridApi<T>, kayitlar: KolonKaydi[]) => {
-    if (!kayitlar.length) return
-    const byCol = new Map(kayitlar.map((k) => [k.kolonAdi, k]))
-    const colStates = api.getColumnState()
-    if (!colStates) return
-
-    colStates.forEach((cs) => {
-      const colId = (cs.colId ?? (cs as any).field) as string | undefined
-      if (!colId) return
-      const k = byCol.get(colId)
-      if (!k) return
-      if (k.gizli !== undefined && cs.hide !== k.gizli) {
-        api.setColumnsVisible([colId], !k.gizli)
-      }
-      if (k.genislik != null && cs.width !== k.genislik) {
-        api.setColumnWidths([{ key: colId, newWidth: k.genislik }])
-      }
-    })
-
-    const siralanan = kayitlar
-      .filter((k) => k.sira != null && k.kolonAdi)
-      .sort((a, b) => (a.sira as number) - (b.sira as number))
-    siralanan.forEach((k, idx) => {
-      const allCols = api.getAllGridColumns()
-      const fromIdx = allCols.findIndex((c) => c.getColId() === k.kolonAdi)
-      if (fromIdx !== idx && fromIdx > -1) {
-        api.moveColumns([k.kolonAdi], idx)
-      }
-    })
-
-    const sortState = kayitlar
-      .filter((k) => k.siralamaYon === 'asc' || k.siralamaYon === 'desc')
-      .map((k) => ({ colId: k.kolonAdi, sort: k.siralamaYon as 'asc' | 'desc' }))
-    if (sortState.length) {
-      api.applyColumnState({ state: sortState, defaultState: { sort: null } })
-    }
+    applyKolonDurumu(api, kayitlar)
   }, [])
 
   const tryLoadFromDb = useCallback((api: GridApi<T>) => {
@@ -153,7 +130,7 @@ function DataGridInner<T>(
     kolonSecimiApi.get(storageKey)
       .then((dbKayitlar) => {
         if (dbKayitlar.length > 0) {
-          const lsKayitlar = loadLayout(storageKey, kullanici?.id)
+          const lsKayitlar = loadLayout(storageKey)
           if (lsKayitlar.length === 0) {
             applyKolonKayitlari(api, dbKayitlar)
           }
@@ -181,46 +158,8 @@ function DataGridInner<T>(
       loadingRef.current = true
       try {
         const kayitlar = loadLayout(storageKey)
-        const byCol = new Map<string, KolonKaydi>(
-          kayitlar.map((k) => [k.kolonAdi, k]),
-        )
-        if (byCol.size === 0) return
-
-        // Gizlilik + genişlik
-        const colStates = api.getColumnState()
-        if (!colStates) return
-        colStates.forEach((cs) => {
-          const colId = (cs.colId ?? (cs as any).field) as string | undefined
-          if (!colId) return
-          const k = byCol.get(colId)
-          if (!k) return
-          if (k.gizli !== undefined && cs.hide !== k.gizli) {
-            api.setColumnsVisible([colId], !k.gizli)
-          }
-          if (k.genislik != null && cs.width !== k.genislik) {
-            api.setColumnWidths([{ key: colId, newWidth: k.genislik }])
-          }
-        })
-
-        // Sıra (en düşük siradan başa doğru taşı)
-        const siralanan = kayitlar
-          .filter((k) => k.sira != null && k.kolonAdi)
-          .sort((a, b) => (a.sira as number) - (b.sira as number))
-        siralanan.forEach((k, idx) => {
-          const allCols = api.getAllGridColumns()
-          const fromIdx = allCols.findIndex((c) => c.getColId() === k.kolonAdi)
-          if (fromIdx !== idx && fromIdx > -1) {
-            api.moveColumns([k.kolonAdi], idx)
-          }
-        })
-
-        // Sıralama yönü
-        const sortState = kayitlar
-          .filter((k) => k.siralamaYon === 'asc' || k.siralamaYon === 'desc')
-          .map((k) => ({ colId: k.kolonAdi, sort: k.siralamaYon as 'asc' | 'desc' }))
-        if (sortState.length) {
-          api.applyColumnState({ state: sortState, defaultState: { sort: null } })
-        }
+        if (kayitlar.length === 0) return
+        applyKolonDurumu(api, kayitlar)
       } finally {
         loadingRef.current = false
       }
@@ -228,12 +167,12 @@ function DataGridInner<T>(
     [storageKey],
   )
 
-  // Mevcut kolon durumunu toplayıp localStorage + DB'ye kaydet (debounce'lu)
-  const doSave = useCallback(() => {
+  // Mevcut kolon durumunu toplayıp localStorage + DB'ye kaydet
+  const doSave = useCallback((): boolean => {
     const api = gridApiRef.current
-    if (!api || !storageKey || loadingRef.current) return
+    if (!api || !storageKey || loadingRef.current) return false
     const states = api.getColumnState()
-    if (!states) return
+    if (!states) return false
     const kolonlar: KolonKaydi[] = states
       .map((cs) => ({
         kolonAdi: (cs.colId ?? (cs as any).field) as string | undefined,
@@ -244,12 +183,14 @@ function DataGridInner<T>(
       }))
       .filter((k) => !!k.kolonAdi)
       .map((k, idx) => ({ ...k, kolonAdi: k.kolonAdi as string, sira: idx }))
-    if (kolonlar.length === 0) return
-    saveLayout(kolonlar, storageKey)
+    if (kolonlar.length === 0) return false
+    if (!saveLayout(kolonlar, storageKey)) return false
     if (kullanici?.id) {
-      kolonSecimiApi.save(storageKey, kolonlar).catch(() => {})
+      kolonSecimiApi.save(storageKey, kolonlar)
+        .catch(() => message.error('Kolon durumu sunucuya kaydedilemedi'))
     }
-  }, [storageKey, kullanici?.id])
+    return true
+  }, [storageKey, kullanici?.id, message])
 
   const toggleCol = (id: string, visible: boolean) => {
     setHiddenCols((prev) => {
@@ -278,7 +219,8 @@ function DataGridInner<T>(
         size="small"
         className="!mt-2 !text-[12px]"
         onClick={() => {
-          doSave()
+          if (doSave()) message.success('Kolon durumu kaydedildi')
+          else message.error('Kolon durumu kaydedilemedi')
           setChooserOpen(false)
         }}
       >
@@ -326,6 +268,7 @@ function DataGridInner<T>(
       )}
       <div className="!flex-1 !min-h-0">
         <AgGridReact<T>
+          {...rest}
           theme={antGridTheme}
           localeText={agGridLocaleTR}
           columnDefs={columnDefs}
@@ -337,11 +280,12 @@ function DataGridInner<T>(
             applySavedLayout(e.api)
             syncHiddenColsFromGrid()
             tryLoadFromDb(e.api)
+            // AG Grid ilk veri işleminde sıralamayı sıfırlayabildiği için tekrar uygula
+            e.api.addEventListener('firstDataRendered', () => applySavedLayout(e.api))
             rest.onGridReady?.(e)
           }}
-          defaultColDef={{ sortable: true, filter: true, resizable: true, ...defaultColDef }}
+          defaultColDef={mergedDefaultColDef}
           rowSelection={enableRowSelection ? { mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true } : undefined}
-          {...rest}
         />
       </div>
     </div>

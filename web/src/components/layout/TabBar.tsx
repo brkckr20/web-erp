@@ -8,9 +8,11 @@ interface TabBarProps {
   activeKey: string | null
   onTabChange: (key: string) => void
   onTabClose: (key: string) => void
+  /** Kaydedilmemiş değişiklik olan sekmeler (başlıkta kırmızı nokta). */
+  kirliKeys?: Record<string, boolean>
 }
 
-export default function TabBar({ tabs, activeKey, onTabChange, onTabClose }: TabBarProps) {
+export default function TabBar({ tabs, activeKey, onTabChange, onTabClose, kirliKeys }: TabBarProps) {
   if (tabs.length === 0) return null
 
   return (
@@ -26,6 +28,12 @@ export default function TabBar({ tabs, activeKey, onTabChange, onTabClose }: Tab
           key: tab.key,
           label: (
             <span className="!text-[11px] !flex !items-center !gap-1">
+              {kirliKeys?.[tab.key] && (
+                <span
+                  title="Kaydedilmemiş değişiklikler"
+                  className="!inline-block !w-[7px] !h-[7px] !rounded-full !bg-[#ef4444] !shrink-0"
+                />
+              )}
               {tab.isForm && <span className="!text-[10px] !text-gray-300">📄</span>}
               {tab.label}
             </span>

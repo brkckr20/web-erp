@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Input, Switch, App, Spin } from 'antd'
+import { Input, Switch, App, Spin, Select } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { grupApi } from '@/lib/grup-api'
@@ -11,6 +11,7 @@ interface GrupFormData {
   ad: string
   kullanimda: boolean
   aciklama: string
+  hesapBirimi: string
 }
 
 const emptyData: GrupFormData = {
@@ -18,7 +19,16 @@ const emptyData: GrupFormData = {
   ad: '',
   kullanimda: true,
   aciklama: '',
+  hesapBirimi: '',
 }
+
+const HESAP_BIRIMI_OPTIONS = [
+  { value: 'brutKg', label: 'Brüt Kg' },
+  { value: 'kg', label: 'Kg' },
+  { value: 'brutMt', label: 'Brüt Mt' },
+  { value: 'mt', label: 'Mt' },
+  { value: 'adet', label: 'Adet' },
+]
 
 interface GrupKartiProps {
   isNew?: boolean
@@ -51,6 +61,7 @@ export default function GrupKarti({ isNew, kod }: GrupKartiProps) {
         ad: data.ad,
         kullanimda: data.kullanimda,
         aciklama: data.aciklama ?? '',
+        hesapBirimi: data.hesapBirimi ?? '',
       })
     } catch {
       message.warning('Kayıt bulunamadı')
@@ -198,6 +209,17 @@ export default function GrupKarti({ isNew, kod }: GrupKartiProps) {
               <div className="!border !border-gray-200 !rounded-sm !p-3">
                 <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">Grup Detay</div>
                 <div className="!space-y-2.5">
+                  <FormField label="Hesap Birimi">
+                    <Select
+                      size="small"
+                      value={form.hesapBirimi || undefined}
+                      onChange={(v) => set('hesapBirimi', v)}
+                      className="!w-full !text-[11px]"
+                      allowClear
+                      placeholder="Malzeme kartında boşsa bu birim kullanılır"
+                      options={HESAP_BIRIMI_OPTIONS}
+                    />
+                  </FormField>
                   <FormField label="Açıklama">
                     <Input.TextArea size="small" value={form.aciklama} onChange={(e) => set('aciklama', e.target.value)} className="!text-[11px]" rows={3} />
                   </FormField>

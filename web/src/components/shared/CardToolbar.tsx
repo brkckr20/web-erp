@@ -19,6 +19,8 @@ export interface ToolbarButton {
   danger?: boolean
   type?: 'default' | 'primary'
   hidden?: boolean
+  /** Dikkat vurgusu (ör. kaydedilmemiş değişiklik): kırmızı ring. */
+  accent?: boolean
 }
 
 const defaultIconMap: Record<string, React.ReactNode> = {
@@ -39,7 +41,7 @@ export function createToolbarButtons(
     onDelete?: () => void
     onReport?: () => void
   },
-  overrides?: Partial<Record<string, Omit<ToolbarButton, 'key'>>>,
+  overrides?: Partial<Record<string, Partial<Omit<ToolbarButton, 'key'>>>>,
 ): ToolbarButton[] {
   const defs: { key: string; label: string; type?: 'default' | 'primary'; danger?: boolean; condition?: boolean }[] = [
     { key: 'new', label: 'Yeni' },
@@ -70,6 +72,7 @@ export function createToolbarButtons(
       danger: override?.danger ?? def.danger ?? false,
       type: override?.type ?? def.type ?? 'default',
       hidden: override?.hidden ?? !handlerMap[def.key],
+      accent: override?.accent ?? false,
     }
   })
 }
@@ -93,7 +96,7 @@ export default function CardToolbar({ buttons, className = '' }: CardToolbarProp
             onClick={btn.onClick}
             disabled={btn.disabled}
             danger={btn.danger}
-            className="!text-[11px] !h-[26px]"
+            className={`!text-[11px] !h-[26px] ${btn.accent ? '!ring-2 !ring-[#ef4444]/60 !border-[#ef4444]' : ''}`}
           >
             {btn.label}
           </Button>

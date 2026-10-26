@@ -42,6 +42,8 @@ interface KumasDetaySatir {
 interface KumasIhtiyacSatir {
   kumasKod: string
   kumasAdi: string
+  varyant: string
+  renk: string
   adet: number
   birim: string
   netMetraj: number
@@ -52,6 +54,8 @@ interface MalzemeDetaySatir {
   id?: number
   malzemeKodu: string
   malzemeAdi: string
+  varyant: string
+  renk: string
   miktar: number
   kfMiktar: number
   birim: string
@@ -60,6 +64,8 @@ interface MalzemeDetaySatir {
 interface MalzemeIhtiyacSatir {
   malzemeKodu: string
   malzemeAdi: string
+  varyant: string
+  renk: string
   miktar: number
   kfMiktar: number
   birim: string
@@ -80,6 +86,15 @@ interface SatirKaynak {
 const fmt = (v: number | null | undefined, basamak = 2): string => {
   if (v === null || v === undefined || isNaN(v)) return ''
   return v.toLocaleString('tr-TR', { minimumFractionDigits: basamak, maximumFractionDigits: basamak })
+}
+
+// Aynı kumaş (varyant + renk) altındaki erişim kalemleri tek satırda kümülatif
+// toplanır; kod/ad listeleri benzersiz ve virgülle ayrılmış olarak birleştirilir.
+const birlestirDeger = (mevcut: string, yeni: string): string => {
+  if (!yeni) return mevcut
+  if (!mevcut) return yeni
+  if (mevcut.split(', ').includes(yeni)) return mevcut
+  return `${mevcut}, ${yeni}`
 }
 
 const kesimFazlasiYuzde = (siparis: Siparis | null): number => {
@@ -189,14 +204,20 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
         const ihtiyacTopla = new Map<string, KumasIhtiyacSatir>()
         for (const s of satirlar) {
           const key = s.malzemeKod
+          const varyant = s.kumasGrupKod ?? ''
+          const renk = s.renkKod ? `${s.renkKod} - ${s.renkAd ?? ''}`.trim() : (s.renkAd ?? '')
           const mevcut = ihtiyacTopla.get(key)
           if (mevcut) {
             mevcut.netMetraj += Number(s.brutMiktar) || 0
             mevcut.kfMetraj += Number(s.netMiktar) || 0
+            mevcut.varyant = birlestirDeger(mevcut.varyant, varyant)
+            mevcut.renk = birlestirDeger(mevcut.renk, renk)
           } else {
             ihtiyacTopla.set(key, {
               kumasKod: s.malzemeKod,
               kumasAdi: s.malzemeAd,
+              varyant,
+              renk,
               adet: 0,
               birim: s.birim,
               netMetraj: Number(s.brutMiktar) || 0,
@@ -215,23 +236,33 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
           id: s.id,
           malzemeKodu: s.malzemeKod,
           malzemeAdi: s.malzemeAd,
+          varyant: s.kumasGrupKod ?? '',
+          renk: s.renkKod ? `${s.renkKod} - ${s.renkAd ?? ''}`.trim() : (s.renkAd ?? ''),
           miktar: Number(s.brutMiktar) || 0,
           kfMiktar: Number(s.netMiktar) || 0,
           birim: s.birim,
         }))
-        .sort((a, b) => a.malzemeKodu.localeCompare(b.malzemeKodu))
+        .sort((a, b) => a.malzemeKodu.localeCompare(b.malzemeKodu) || a.renk.localeCompare(b.renk))
       setDetaySatirlar(detayList)
       const ihtiyacTopla = new Map<string, MalzemeIhtiyacSatir>()
       for (const s of satirlar) {
-        const key = s.malzemeKod
+        const varyant = s.kumasGrupKod ?? ''
+        const renk = s.renkKod ? `${s.renkKod} - ${s.renkAd ?? ''}`.trim() : (s.renkAd ?? '')
+        // Aynı kumaş (varyant + renk) ve aynı birim altındaki erişimler tek satırda
+        // kümülatif toplanır; malzeme kod/ad listesi satır içinde birleştirilir.
+        const key = `${varyant}|${renk}|${s.birim}`
         const mevcut = ihtiyacTopla.get(key)
         if (mevcut) {
           mevcut.miktar += Number(s.brutMiktar) || 0
           mevcut.kfMiktar += Number(s.netMiktar) || 0
+          mevcut.malzemeKodu = birlestirDeger(mevcut.malzemeKodu, s.malzemeKod)
+          mevcut.malzemeAdi = birlestirDeger(mevcut.malzemeAdi, s.malzemeAd)
         } else {
           ihtiyacTopla.set(key, {
             malzemeKodu: s.malzemeKod,
             malzemeAdi: s.malzemeAd,
+            varyant,
+            renk,
             miktar: Number(s.brutMiktar) || 0,
             kfMiktar: Number(s.netMiktar) || 0,
             birim: s.birim,
@@ -239,7 +270,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
         }
       }
       const ihtiyacList = [...ihtiyacTopla.values()].sort((a, b) =>
-        a.malzemeKodu.localeCompare(b.malzemeKodu),
+        a.varyant.localeCompare(b.varyant) || a.renk.localeCompare(b.renk) || a.malzemeKodu.localeCompare(b.malzemeKodu),
       )
       setIhtiyacSatirlar(ihtiyacList)
       return { detaySayisi: detayList.length, ihtiyacSayisi: ihtiyacList.length }
@@ -390,6 +421,8 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
       return [
         { headerName: 'Malzeme Kodu', field: 'malzemeKodu', width: 140 },
         { headerName: 'Malzeme Adı', field: 'malzemeAdi', flex: 1, minWidth: 160 },
+        { headerName: 'Varyant-1', field: 'varyant', width: 100 },
+        { headerName: 'Renk', field: 'renk', width: 150 },
         { headerName: 'Miktar', field: 'miktar', width: 100, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
         { headerName: 'Birim', field: 'birim', width: 80 },
       ]
@@ -408,8 +441,10 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
   const ihtiyacGridKolonlar = useMemo<ColDef[]>(() => {
     if (tip !== 'kumas') {
       return [
-        { headerName: 'Malzeme Kodu', field: 'malzemeKodu', width: 140 },
-        { headerName: 'Malzeme Adı', field: 'malzemeAdi', flex: 1, minWidth: 160 },
+        { headerName: 'Malzeme Kodu', field: 'malzemeKodu', width: 240 },
+        { headerName: 'Malzeme Adı', field: 'malzemeAdi', flex: 1, minWidth: 180 },
+        { headerName: 'Varyant-1', field: 'varyant', width: 110 },
+        { headerName: 'Renk', field: 'renk', width: 150 },
         { headerName: 'Miktar', field: 'miktar', width: 110, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
         { headerName: 'Birim', field: 'birim', width: 80 },
       ]
@@ -417,6 +452,8 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
     return [
       { headerName: 'Kumaş Kodu', field: 'kumasKod', width: 130 },
       { headerName: 'Kumaş Adı', field: 'kumasAdi', flex: 1, minWidth: 140 },
+      { headerName: 'Varyant-1', field: 'varyant', width: 110 },
+      { headerName: 'Renk', field: 'renk', width: 150 },
       { headerName: 'Miktar', field: 'netMetraj', width: 130, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
       { headerName: 'Birim', field: 'birim', width: 80 },
       { headerName: 'KF Dahil (mt)', field: 'kfMetraj', width: 130, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },

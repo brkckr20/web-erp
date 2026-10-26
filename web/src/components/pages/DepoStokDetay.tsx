@@ -10,12 +10,17 @@ import { depoApi, type Depo } from '@/lib/depo-api'
 
 const tire = (v: string | null) => v || '-'
 
+/** Satırın birleşik anahtarı (id'siz). Tıklanan satırın hafızası için. */
+const satirAnahtari = (r: DepoStokDetaySatir) =>
+  [r.depoKod, r.malzemeKod, r.renkKod, r.siparisNo, r.partiNo, r.takipNo].map((v) => v ?? '').join('|')
+
 export default function DepoStokDetay() {
   const [satirlar, setSatirlar] = useState<DepoStokDetaySatir[]>([])
   const [depoList, setDepoList] = useState<Depo[]>([])
   const [depoFiltre, setDepoFiltre] = useState<string[]>([])
   const [arama, setArama] = useState('')
   const [loading, setLoading] = useState(false)
+  const [tiklananSatir, setTiklananSatir] = useState<string | null>(null)
   const { message } = App.useApp()
 
   const load = () => {
@@ -133,6 +138,13 @@ export default function DepoStokDetay() {
               columnDefs={columns}
               domLayout="normal"
               exportFileName="depo-stok-detay"
+              onCellClicked={(e) => {
+                const a = e.data ? satirAnahtari(e.data) : null
+                setTiklananSatir((prev) => (prev === a ? null : a))
+              }}
+              getRowClass={(e) =>
+                e.data && satirAnahtari(e.data) === tiklananSatir ? 'secili-satir' : undefined
+              }
             />
           </div>
           <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">

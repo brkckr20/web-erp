@@ -22,6 +22,8 @@ import { cariHesapApi } from '@/lib/cari-hesap-api'
 import { depoApi } from '@/lib/depo-api'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
+import { applyKolonDurumu } from '@/lib/kolon-durumu'
+import { useKirli } from '@/lib/kirli'
 import { useAuth } from '@/context/AuthContext'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -54,6 +56,8 @@ interface FisKartiProps {
   fisTipi?: string
   id?: number
   onDeleted?: (fisTipi: string) => void
+  /** Kaydedilmemiş değişiklik durumu AppLayout'taki sekme rozeti için bildirilir. */
+  onKirliChange?: (kirli: boolean) => void
 }
 
 interface KalemRow {
@@ -203,7 +207,7 @@ function CellTextInput({
   )
 }
 
-export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: FisKartiProps) {
+export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, onKirliChange }: FisKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -222,6 +226,13 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   const [kayitliId, setKayitliId] = useState<number | null>(id ?? null)
   const isCikis = cikisTipleri.has(fisTipi)
   const isGiris = fisTipi === '10'
+
+  // Kaydedilmemiş değişiklik: fisNo salt-okunur (otomatik).
+  const { kirli, temizle } = useKirli([cariKod, depoKod, fisTarihi, sevkTarihi, kalemler])
+
+  useEffect(() => {
+    onKirliChange?.(kirli)
+  }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (id) {
@@ -255,14 +266,17 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
           setKalemler(rows.length > 0 ? rows : [])
         })
         .catch((err) => message.error('Fiş yüklenemedi: ' + (err?.message || err)))
-        .finally(() => setLoading(false))
+        .finally(() => {
+          setLoading(false)
+          temizle()
+        })
     } else {
       malzemeYonetimFisleriApi
         .nextIrsaliyeNo(fisTipi)
         .then((res) => setFisNo(res.irsaliyeNo))
         .catch(() => setFisNo('00000001'))
     }
-  }, [id, fisTipi])
+  }, [id, fisTipi, temizle])
 
   const hesapMiktariGetir = (k: KalemRow): number => {
     switch (k.hesapBirimi) {
@@ -359,6 +373,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
           kalemler: kalemPayload,
         } as any)
         message.success('Fiş güncellendi')
+        temizle()
       } else {
         const created = await malzemeYonetimFisleriApi.create({
           irsaliyeNo: fisNo,
@@ -373,6 +388,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
         } as any)
         setKayitliId(created.id)
         message.success('Fiş ve kalemler kaydedildi')
+        temizle()
       }
     } catch (err: any) {
       message.error('Hata: ' + (err?.message || err))
@@ -715,6 +731,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     [kullanici?.id],
   )
   const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
+  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: true }), [])
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
     try {
@@ -745,19 +762,23 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
   }, [getActiveApi])
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
-    if (!kayitlar.length) return
-    const sorted = [...kayitlar].sort((a, b) => (a.sira ?? 0) - (b.sira ?? 0))
-    const state = sorted.map(k => ({
-      colId: k.kolonAdi,
-      hide: k.gizli,
-      width: k.genislik ?? undefined,
-      sort: k.siralamaYon as 'asc' | 'desc' | undefined,
-    }))
-    api.applyColumnState({ state, applyOrder: true })
+    applyKolonDurumu(api, kayitlar)
   }, [])
 
+  // Kayıtlı kolon durumunu (localStorage) aktif grid'e uygular; firstDataRendered'da
+  // tekrar çağrılır çünkü AG Grid ilk veri işleminde sıralamayı sıfırlayabiliyor.
+  const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
+    try {
+      const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+    } catch { /* sessiz */ }
+  }, [kolonLayoutKey])
+
   const tryLoadKolonFromDb = useCallback((api: GridApi<KalemRow>) => {
-    const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    let lsKayitlar: KolonKaydi[] = []
+    try {
+      lsKayitlar = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    } catch { lsKayitlar = [] }
     if (lsKayitlar.length > 0) {
       applyKolonKayitlari(api, lsKayitlar)
       syncHiddenFromGrid()
@@ -770,7 +791,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
         syncHiddenFromGrid()
       })
       .catch(() => syncHiddenFromGrid())
-  }, [applyKolonKayitlari, syncHiddenFromGrid])
+  }, [applyKolonKayitlari, syncHiddenFromGrid, storageKey, kolonLayoutKey])
 
   const toggleKolon = (id: string, visible: boolean) => {
     setHiddenCols((prev) => {
@@ -782,11 +803,11 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
     getActiveApi()?.setColumnsVisible([id], visible)
   }
 
-  const persistKolonlar = useCallback(() => {
+  const persistKolonlar = useCallback((): boolean => {
     const api = getActiveApi()
-    if (!api || !kullanici?.id) return
+    if (!api || !kullanici?.id) return false
     const states = api.getColumnState()
-    if (!states) return
+    if (!states) return false
     const kolonlar: KolonKaydi[] = states.map((s, idx) => ({
       kolonAdi: s.colId,
       gizli: s.hide ?? false,
@@ -794,14 +815,21 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
       sira: idx,
       siralamaYon: s.sort ?? null,
     }))
-    localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
-    kolonSecimiApi.save(storageKey, kolonlar).catch(() => {})
-  }, [kullanici?.id, kolonLayoutKey, storageKey])
+    try {
+      localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
+    } catch {
+      return false
+    }
+    kolonSecimiApi.save(storageKey, kolonlar)
+      .catch(() => message.error('Kolon durumu sunucuya kaydedilemedi'))
+    return true
+  }, [kullanici?.id, kolonLayoutKey, storageKey, message])
 
   const saveKolonlar = useCallback(() => {
-    persistKolonlar()
+    if (persistKolonlar()) message.success('Kolon durumu kaydedildi')
+    else message.error('Kolon durumu kaydedilemedi')
     setKolonChooserOpen(false)
-  }, [persistKolonlar, setKolonChooserOpen])
+  }, [persistKolonlar, setKolonChooserOpen, message])
 
   const contextMenuItems: MenuProps['items'] = isCikis
     ? [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }, { key: 'stok-secimi', label: 'Stok Seçimi', onClick: handleStokSecimi }]
@@ -844,6 +872,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
               onSave: handleKaydet,
               onDelete: handleSil,
             }, {
+              save: { accent: kirli },
               delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
             })}
           />
@@ -970,10 +999,11 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
                               rowSelection="single"
                               getRowId={(p) => p.data.key}
                               localeText={agGridLocaleTR}
-                              defaultColDef={{ resizable: true, sortable: true }}
+                              defaultColDef={kalemGridDefaultColDef}
                               onGridReady={(e) => {
                                 gridApiRef1.current = e.api
                                 tryLoadKolonFromDb(e.api)
+                                e.api.addEventListener('firstDataRendered', () => applyLocalKolonlar(e.api))
                               }}
                               tabToNextCell={(params) => {
                                 const editableCols = minimalColDefs
@@ -1017,10 +1047,11 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted }: 
                           rowSelection="single"
                           getRowId={(p) => p.data.key}
                           localeText={agGridLocaleTR}
-                          defaultColDef={{ resizable: true, sortable: true }}
+                          defaultColDef={kalemGridDefaultColDef}
                           onGridReady={(e) => {
                             gridApiRef2.current = e.api
                             tryLoadKolonFromDb(e.api)
+                            e.api.addEventListener('firstDataRendered', () => applyLocalKolonlar(e.api))
                           }}
                           tabToNextCell={(params) => {
                             const editableCols = minimalColDefs

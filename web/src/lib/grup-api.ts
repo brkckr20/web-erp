@@ -8,6 +8,7 @@ export interface Grup {
   ad: string
   kullanimda: boolean
   aciklama: string | null
+  hesapBirimi: string | null
   createdAt: string
   updatedAt: string
 }

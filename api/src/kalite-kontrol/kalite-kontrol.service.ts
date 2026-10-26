@@ -51,17 +51,27 @@ export class KaliteKontrolService {
     return { fisNo: next.toString().padStart(8, '0') }
   }
 
-  findAll() {
-    return this.prisma.kaliteKontrol.findMany({
+  async findAll() {
+    const fisler = await this.prisma.kaliteKontrol.findMany({
       orderBy: { fisNo: 'desc' },
       include: {
         cariHesap: true,
         depo: true,
-        // Kalite bekleyen listesi için: hangi irsaliye kalemleri (11) KK'ya girmiş?
         kalemler: {
-          select: { id: true, barkod: true, topNo: true, irsaliyeKalemId: true, malzemeId: true, netAgirlik: true, netMetre: true, adet: true },
+          select: { id: true, barkod: true, topNo: true, irsaliyeKalemId: true, malzemeId: true, netAgirlik: true, netMetre: true, adet: true, irsaliyeKalem: { select: { irsaliye: { select: { cariHesap: { select: { id: true, ad: true } } } } } } },
         },
       },
+    })
+    // Cari hesap boşsa 11 fişinden al
+    return fisler.map(f => {
+      let cari = f.cariHesap
+      if (!cari && f.kalemler.length > 0) {
+        const dk = f.kalemler.find(k => k.irsaliyeKalem?.irsaliye?.cariHesap)
+        if (dk?.irsaliyeKalem?.irsaliye?.cariHesap) {
+          cari = dk.irsaliyeKalem.irsaliye.cariHesap as any
+        }
+      }
+      return { ...f, cariHesap: cari ?? null }
     })
   }
 
@@ -111,8 +121,8 @@ export class KaliteKontrolService {
           include: {
             malzeme: true,
             hatalar: true,
-            // Satırın geldiği 11 (Fasondan Giriş) fişi — grid'de "11 Fiş No" için.
-            irsaliyeKalem: { select: { irsaliye: { select: { irsaliyeNo: true } } } },
+            // Satırın geldiği 11 (Fasondan Giriş) fişi — grid'de "11 Fiş No" ve cari hesap için.
+            irsaliyeKalem: { select: { irsaliye: { select: { irsaliyeNo: true, cariHesapId: true, cariHesap: { select: { id: true, ad: true } } } } } },
           },
         },
       },
@@ -120,6 +130,14 @@ export class KaliteKontrolService {
     if (!fis) throw new NotFoundException('Fiş bulunamadı')
     const result: any = { ...fis }
     result.siparisNo = fis.isEmri?.siparisNo ?? null
+    // Fiş cari hesap boşsa 11 fişinden al
+    if (!result.cariHesapId && result.kalemler && result.kalemler.length > 0) {
+      const cari = result.kalemler.find(k => k.irsaliyeKalem?.irsaliye?.cariHesapId)
+      if (cari?.irsaliyeKalem?.irsaliye?.cariHesapId) {
+        result.cariHesapId = cari.irsaliyeKalem.irsaliye.cariHesapId
+        result.cariHesap = cari.irsaliyeKalem.irsaliye.cariHesap ?? null
+      }
+    }
     return result
   }
 
@@ -210,31 +228,50 @@ export class KaliteKontrolService {
     return this.prisma.$transaction(async (tx) => {
       await tx.kaliteKontrol.update({ where: { id }, data })
       if (Array.isArray(kalemler)) {
-        const existingKalemIds = await tx.kaliteKontrolKalem.findMany({
+        const existing = await tx.kaliteKontrolKalem.findMany({
           where: { fisId: id },
           select: { id: true },
         })
-        if (existingKalemIds.length > 0) {
-          await tx.kaliteKontrolHata.deleteMany({
-            where: { kalemId: { in: existingKalemIds.map((k) => k.id) } },
-          })
+        const existingIds = existing.map((k) => k.id)
+        const gelenIds = new Set<number>()
+        for (const k of kalemler as any[]) {
+          if (k.id != null && existingIds.includes(Number(k.id))) gelenIds.add(Number(k.id))
         }
-        await tx.kaliteKontrolKalem.deleteMany({ where: { fisId: id } })
+        // Fişte olup gelen olmayan satırları sil.
+        const silinecekIds = existingIds.filter((x) => !gelenIds.has(x))
+        if (silinecekIds.length > 0) {
+          await tx.kaliteKontrolHata.deleteMany({ where: { kalemId: { in: silinecekIds } } })
+          await tx.kaliteKontrolKalem.deleteMany({ where: { id: { in: silinecekIds } } })
+        }
         const topNoBekleyen: { id: number; irsaliyeKalemId: number }[] = []
         for (const k of kalemler) {
-          const { hatalar: hataArr, id: _id, malzeme, fis: _fis, ...kalemData } = k as any
-          const kalem = await tx.kaliteKontrolKalem.create({
-            data: { ...kalemData, fisId: id } as any,
+          const { hatalar: hataArr, id: kId, malzeme, fis: _fis, ...kalemData } = k as any
+          const hataListe = (Array.isArray(hataArr) ? hataArr : []).map((h: any) => {
+            const { id: _hid, kalemId: _kId, fis: _fisH, ...hd } = h ?? {}
+            return hd
           })
-          if (kalemData.topNo == null && kalemData.irsaliyeKalemId != null) {
-            topNoBekleyen.push({ id: kalem.id, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+          let kalemId: number
+          if (kId != null && gelenIds.has(Number(kId))) {
+            // Mevcut satır: id korunarak güncelle.
+            kalemId = Number(kId)
+            await tx.kaliteKontrolKalem.update({
+              where: { id: kalemId },
+              data: kalemData,
+            })
+            await tx.kaliteKontrolHata.deleteMany({ where: { kalemId } })
+          } else {
+            const kalem = await tx.kaliteKontrolKalem.create({
+              data: { ...kalemData, fisId: id } as any,
+            })
+            kalemId = kalem.id
           }
-          if (Array.isArray(hataArr) && hataArr.length > 0) {
-            for (const h of hataArr) {
-              await tx.kaliteKontrolHata.create({
-                data: { ...h, kalemId: kalem.id },
-              })
-            }
+          if (kalemData.topNo == null && kalemData.irsaliyeKalemId != null) {
+            topNoBekleyen.push({ id: kalemId, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+          }
+          for (const h of hataListe) {
+            await tx.kaliteKontrolHata.create({
+              data: { ...h, kalemId },
+            })
           }
         }
         for (const b of topNoBekleyen) {

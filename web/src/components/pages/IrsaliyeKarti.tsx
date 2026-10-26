@@ -24,6 +24,8 @@ import { depoApi } from '@/lib/depo-api'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kalemMiktari } from '@/lib/miktar'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
+import { applyKolonDurumu } from '@/lib/kolon-durumu'
+import { useKirli } from '@/lib/kirli'
 import { useAuth } from '@/context/AuthContext'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 
@@ -57,6 +59,8 @@ interface IrsaliyeKartiProps {
   id?: number
   ekranAdi?: string
   onDeleted?: (irsaliyeTipi: string) => void
+  /** Kaydedilmemiş değişiklik durumu AppLayout'taki sekme rozeti için bildirilir. */
+  onKirliChange?: (kirli: boolean) => void
   baslangicKalemler?: IrsaliyeBaslangicKalem[]
   /** 202'den 134 açılırken taşınan talimat id'si (kaydederken talimatId yazılır). */
   baslangicTalimatId?: number | null
@@ -377,7 +381,7 @@ function CellTextInput({
   )
 }
 
-export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, baslangicKalemler, baslangicTalimatId, onCreateIrsaliye, onCreateFatura, onOpenFatura, onOpenIrsaliye }: IrsaliyeKartiProps) {
+export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: propId, ekranAdi, onDeleted, onKirliChange, baslangicKalemler, baslangicTalimatId, onCreateIrsaliye, onCreateFatura, onOpenFatura, onOpenIrsaliye }: IrsaliyeKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -418,6 +422,26 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       : [],
   )
   const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
+
+  // Kaydedilmemiş değişiklik: irsaliyeNo readonly, talimatId'yi yalnızca sunucu yazar.
+  const { kirli, temizle } = useKirli([
+    cariKod,
+    depoKod,
+    irsaliyeTarihi,
+    sevkTarihi,
+    terminTarihi,
+    belgeNo,
+    bagliFaturaNo,
+    aciklama,
+    yetkili,
+    onaylandi,
+    tamamlandi,
+    kalemler,
+  ])
+
+  useEffect(() => {
+    onKirliChange?.(kirli)
+  }, [kirli, onKirliChange])
   const [raporModalAcik, setRaporModalAcik] = useState(false)
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
   // Sağ tık menüsü hangi satırda açıldıysa Tahsis Detayları onu gösterir (yoksa seçili satır).
@@ -643,7 +667,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           setKalemler(rows.length > 0 ? rows : [])
         })
         .catch((err) => message.error('İrsaliye yüklenemedi: ' + (err?.message || err)))
-        .finally(() => { if (!cancelled) setLoading(false) })
+        .finally(() => {
+          if (cancelled) return
+          setLoading(false)
+          temizle()
+        })
     } else {
       irsaliyeApi
         .nextIrsaliyeNo(irsaliyeTipi)
@@ -651,7 +679,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         .catch(() => setIrsaliyeNo('00000001'))
     }
     return () => { cancelled = true }
-  }, [propId, irsaliyeTipi, message])
+  }, [propId, irsaliyeTipi, message, temizle])
 
   useEffect(() => {
     setLocalId(propId)
@@ -814,6 +842,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           kalemler: kalemPayload,
          } as Irsaliye)
       message.success('İrsaliye güncellendi')
+      temizle()
     } else {
       const created = await irsaliyeApi.create({
         irsaliyeNo,
@@ -844,6 +873,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           .catch(() => {})
       }
       message.success('İrsaliye ve kalemler kaydedildi')
+      temizle()
     }
   } catch (err: unknown) {
     message.error('Hata: ' + ((err as Error)?.message ?? String(err)))
@@ -1268,6 +1298,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     [kullanici?.id, storageKey],
   )
   const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
+  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: true }), [])
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return defaultHiddenColsFor(irsaliyeTipi)
     try {
@@ -1298,19 +1329,23 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }, [])
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
-    if (!kayitlar.length) return
-    const sorted = [...kayitlar].sort((a, b) => (a.sira ?? 0) - (b.sira ?? 0))
-    const state = sorted.map(k => ({
-      colId: k.kolonAdi,
-      hide: k.gizli,
-      width: k.genislik ?? undefined,
-      sort: k.siralamaYon as 'asc' | 'desc' | undefined,
-    }))
-    api.applyColumnState({ state, applyOrder: true })
+    applyKolonDurumu(api, kayitlar)
   }, [])
 
+  // Kayıtlı kolon durumunu (localStorage) grid'e uygular; firstDataRendered'da
+  // tekrar çağrılır çünkü AG Grid ilk veri işleminde sıralamayı sıfırlayabiliyor.
+  const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
+    try {
+      const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+    } catch { /* sessiz */ }
+  }, [kolonLayoutKey])
+
   const tryLoadKolonFromDb = useCallback((api: GridApi<KalemRow>) => {
-    const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    let lsKayitlar: KolonKaydi[] = []
+    try {
+      lsKayitlar = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    } catch { lsKayitlar = [] }
     if (lsKayitlar.length > 0) {
       applyKolonKayitlari(api, lsKayitlar)
       syncHiddenFromGrid()
@@ -1335,11 +1370,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       })
   }, [applyKolonKayitlari, syncHiddenFromGrid, irsaliyeTipi, storageKey, kolonLayoutKey])
 
-  const persistKolonlar = useCallback(() => {
+  const persistKolonlar = useCallback((): boolean => {
     const api = gridApiRef.current
-    if (!api) return
+    if (!api) return false
     const states = api.getColumnState()
-    if (!states) return
+    if (!states) return false
     const kolonlar: KolonKaydi[] = states.map((s, idx) => ({
       kolonAdi: s.colId,
       gizli: s.hide ?? false,
@@ -1347,11 +1382,17 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       sira: idx,
       siralamaYon: s.sort ?? null,
     }))
-    localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
-    if (kullanici?.id) {
-      kolonSecimiApi.save(storageKey, kolonlar).catch(() => {})
+    try {
+      localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
+    } catch {
+      return false
     }
-  }, [kullanici?.id, kolonLayoutKey, storageKey])
+    if (kullanici?.id) {
+      kolonSecimiApi.save(storageKey, kolonlar)
+        .catch(() => message.error('Kolon durumu sunucuya kaydedilemedi'))
+    }
+    return true
+  }, [kullanici?.id, kolonLayoutKey, storageKey, message])
 
   const toggleKolon = (id: string, visible: boolean) => {
     setHiddenCols((prev) => {
@@ -1365,9 +1406,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }
 
   const saveKolonlar = useCallback(() => {
-    persistKolonlar()
+    if (persistKolonlar()) message.success('Kolon durumu kaydedildi')
+    else message.error('Kolon durumu kaydedilemedi')
     setKolonChooserOpen(false)
-  }, [persistKolonlar])
+  }, [persistKolonlar, message])
 
   const [fasonGidenlerOpen, setFasonGidenlerOpen] = useState(false)
   const [fasonGidenlerData, setFasonGidenlerData] = useState<Irsaliye[]>([])
@@ -1903,6 +1945,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
               onDelete: handleSil,
               onReport: () => setRaporModalAcik(true),
             }, {
+              save: { accent: kirli },
               delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
               report: { disabled: !id },
             })}
@@ -2066,10 +2109,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                     rowSelection="single"
                     getRowId={(p) => p.data.key}
                     localeText={agGridLocaleTR}
-                    defaultColDef={{ resizable: true, sortable: true }}
+                    defaultColDef={kalemGridDefaultColDef}
                     onGridReady={(e) => {
                       gridApiRef.current = e.api
                       tryLoadKolonFromDb(e.api)
+                      e.api.addEventListener('firstDataRendered', () => applyLocalKolonlar(e.api))
                     }}
                     onCellContextMenu={(e: { data?: KalemRow | null }) => {
                       if (e.data) setSagTikSatir(e.data)

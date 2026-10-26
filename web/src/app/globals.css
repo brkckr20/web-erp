@@ -20,6 +20,16 @@ body {
   color: #92400e;
 }
 
+/* Depo Stok Detayı: hücresi tıklanan satırın vurgusu (uygulama rengi). */
+.secili-satir {
+  background-color: #ffedd5 !important;
+  box-shadow: inset 3px 0 0 0 #f59e0b;
+}
+
+.secili-satir .ag-cell {
+  color: #7c2d12;
+}
+
 /* Kumaş Tedarik Raporu: çift satırlara hafif gri zemin (sadece bu rapor). */
 .kumas-tedarik-raporu .cift-satir,
 .kumas-tedarik-raporu .cift-satir .ag-cell {

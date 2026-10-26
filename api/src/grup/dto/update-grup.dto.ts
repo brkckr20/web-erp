@@ -3,4 +3,5 @@ export class UpdateGrupDto {
   ad?: string
   kullanimda?: boolean
   aciklama?: string
+  hesapBirimi?: string
 }

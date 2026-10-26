@@ -22,6 +22,8 @@ import { cariHesapApi } from '@/lib/cari-hesap-api'
 import { depoApi } from '@/lib/depo-api'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
+import { applyKolonDurumu } from '@/lib/kolon-durumu'
+import { useKirli } from '@/lib/kirli'
 import { useAuth } from '@/context/AuthContext'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import { faturaTipiLabelMap } from './FaturaListesi'
@@ -58,6 +60,8 @@ interface FaturaKartiProps {
   baslangicIrsaliyeIds?: number[]
   onDeleted?: (faturaTipi: string) => void
   onOpenIrsaliye?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
+  /** Kaydedilmemiş değişiklik durumu AppLayout'taki sekme rozeti için bildirilir. */
+  onKirliChange?: (kirli: boolean) => void
 }
 
 interface KalemRow {
@@ -200,7 +204,7 @@ function CellTextInput({ value, onCommit, onEnter, className }: { value: string;
   )
 }
 
-export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, baslangicIrsaliyeIds, onDeleted, onOpenIrsaliye }: FaturaKartiProps) {
+export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, baslangicIrsaliyeIds, onDeleted, onOpenIrsaliye, onKirliChange }: FaturaKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
@@ -229,6 +233,24 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const [baglanabilirArama, setBaglanabilirArama] = useState('')
   const [seciliIrsaliyeler, setSeciliIrsaliyeler] = useState<number[]>([])
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
+
+  // Kaydedilmemiş değişiklik: faturaNo salt-okunur (otomatik).
+  const { kirli, temizle } = useKirli([
+    cariKod,
+    depoKod,
+    faturaTarihi,
+    sevkTarihi,
+    belgeNo,
+    aciklama,
+    yetkili,
+    fasonTipiKayit,
+    bagliIrsaliyeler,
+    kalemler,
+  ])
+
+  useEffect(() => {
+    onKirliChange?.(kirli)
+  }, [kirli, onKirliChange])
 
   useEffect(() => {
     setLocalId(propId)
@@ -284,7 +306,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           setKalemler(rows.length > 0 ? rows : [])
         })
         .catch((err) => message.error('Fatura yüklenemedi: ' + (err?.message || err)))
-        .finally(() => { if (!cancelled) setLoading(false) })
+        .finally(() => {
+          if (cancelled) return
+          setLoading(false)
+          temizle()
+        })
     } else {
       faturaApi
         .nextFaturaNo(faturaTipi)
@@ -292,7 +318,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
         .catch(() => setFaturaNo('00000001'))
     }
     return () => { cancelled = true }
-  }, [propId, faturaTipi, message])
+  }, [propId, faturaTipi, message, temizle])
 
   useEffect(() => {
     fasonTipiApi
@@ -467,7 +493,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
         setKalemler(irsaliyelerdenSatirlar(list))
       })
       .catch((err) => message.error('İrsaliye kalemleri alınamadı: ' + (err?.message || err)))
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .finally(() => {
+        if (cancelled) return
+        setLoading(false)
+        temizle()
+      })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propId])
@@ -545,6 +575,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           kalemler: kalemPayload,
         } as Fatura)
         message.success('Fatura güncellendi')
+        temizle()
       } else {
         const created = await faturaApi.create({
           faturaNo,
@@ -567,6 +598,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
             ? 'Fatura ve kalemler kaydedildi'
             : 'Fatura kaydedildi (otomatik irsaliye oluştu)',
         )
+        temizle()
       }
     } catch (err: unknown) {
       message.error('Hata: ' + ((err as Error)?.message ?? String(err)))
@@ -914,10 +946,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     [kullanici?.id, storageKey],
   )
   const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
+  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: true }), [])
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return defaultHiddenColsFor()
     try {
-      const raw = localStorage.getItem(`kolon_layout_${'anonim'}_${storageKey}`)
+      const raw = localStorage.getItem(kolonLayoutKey())
       if (!raw) return defaultHiddenColsFor()
       const kayitlar: KolonKaydi[] = JSON.parse(raw)
       return new Set(kayitlar.filter((k) => k.gizli).map((k) => k.kolonAdi))
@@ -945,19 +978,23 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   }, [])
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
-    if (!kayitlar.length) return
-    const sorted = [...kayitlar].sort((a, b) => (a.sira ?? 0) - (b.sira ?? 0))
-    const state = sorted.map(k => ({
-      colId: k.kolonAdi,
-      hide: k.gizli,
-      width: k.genislik ?? undefined,
-      sort: k.siralamaYon as 'asc' | 'desc' | undefined,
-    }))
-    api.applyColumnState({ state, applyOrder: true })
+    applyKolonDurumu(api, kayitlar)
   }, [])
 
+  // Kayıtlı kolon durumunu (localStorage) grid'e uygular; firstDataRendered'da
+  // tekrar çağrılır çünkü AG Grid ilk veri işleminde sıralamayı sıfırlayabiliyor.
+  const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
+    try {
+      const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+    } catch { /* sessiz */ }
+  }, [kolonLayoutKey])
+
   const tryLoadKolonFromDb = useCallback((api: GridApi<KalemRow>) => {
-    const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    let lsKayitlar: KolonKaydi[] = []
+    try {
+      lsKayitlar = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    } catch { lsKayitlar = [] }
     if (lsKayitlar.length > 0) {
       applyKolonKayitlari(api, lsKayitlar)
       syncHiddenFromGrid()
@@ -975,11 +1012,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
       })
   }, [applyKolonKayitlari, syncHiddenFromGrid, storageKey, kolonLayoutKey])
 
-  const persistKolonlar = useCallback(() => {
+  const persistKolonlar = useCallback((): boolean => {
     const api = gridApiRef.current
-    if (!api) return
+    if (!api) return false
     const states = api.getColumnState()
-    if (!states) return
+    if (!states) return false
     const kolonlar: KolonKaydi[] = states.map((s, idx) => ({
       kolonAdi: s.colId,
       gizli: s.hide ?? false,
@@ -987,11 +1024,17 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
       sira: idx,
       siralamaYon: s.sort ?? null,
     }))
-    localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
-    if (kullanici?.id) {
-      kolonSecimiApi.save(storageKey, kolonlar).catch(() => {})
+    try {
+      localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
+    } catch {
+      return false
     }
-  }, [kullanici?.id, kolonLayoutKey, storageKey])
+    if (kullanici?.id) {
+      kolonSecimiApi.save(storageKey, kolonlar)
+        .catch(() => message.error('Kolon durumu sunucuya kaydedilemedi'))
+    }
+    return true
+  }, [kullanici?.id, kolonLayoutKey, storageKey, message])
 
   const toggleKolon = (id: string, visible: boolean) => {
     setHiddenCols((prev) => {
@@ -1005,9 +1048,10 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   }
 
   const saveKolonlar = useCallback(() => {
-    persistKolonlar()
+    if (persistKolonlar()) message.success('Kolon durumu kaydedildi')
+    else message.error('Kolon durumu kaydedilemedi')
     setKolonChooserOpen(false)
-  }, [persistKolonlar])
+  }, [persistKolonlar, message])
 
   const contextMenuItems: MenuProps['items'] = [
     { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
@@ -1053,6 +1097,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
               onDelete: handleSil,
               onReport: () => setRaporModalAcik(true),
             }, {
+              save: { accent: kirli },
               delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
               report: { label: 'Rapor', onClick: () => setRaporModalAcik(true), disabled: !id },
             })}
@@ -1176,10 +1221,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                     rowSelection="single"
                     getRowId={(p) => p.data.key}
                     localeText={agGridLocaleTR}
-                    defaultColDef={{ resizable: true, sortable: true }}
+                    defaultColDef={kalemGridDefaultColDef}
                     onGridReady={(e) => {
                       gridApiRef.current = e.api
                       tryLoadKolonFromDb(e.api)
+                      e.api.addEventListener('firstDataRendered', () => applyLocalKolonlar(e.api))
                     }}
                     onCellFocused={(e: CellFocusedEvent) => {
                       const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined

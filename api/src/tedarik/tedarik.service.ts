@@ -156,7 +156,9 @@ export class TedarikService {
           m.id           AS malzeme_id,
           m.kod          AS malzeme_kod,
           m.ad           AS malzeme_ad,
-          n.grup_kodu    AS grup_kodu,
+          m.hesap_birimi AS hesap_birimi,
+          gr.hesap_birimi AS grup_hesap_birimi,
+          rk.miktar_bolen AS miktar_bolen,
           kg.id          AS kumas_grup_id,
           kg.kod         AS kumas_grup_kod,
           g.renk_id      AS renk_id,
@@ -164,16 +166,20 @@ export class TedarikService {
           rn.ad          AS renk_ad,
           rk.id          AS recete_kalem_id,
           sk.id          AS siparis_kalem_id,
-          SUM(ISNULL(ro.miktar, 0) * ISNULL(srb.miktar, 0)) AS brut
+          -- Miktar Bölen: 1/ölçü × sipariş adedi (örn. ölçü 200, sipariş 400 → 2).
+          -- Normal satır: ölçü miktarı × sipariş beden miktarı.
+          CASE WHEN rk.miktar_bolen = 1
+               THEN ISNULL(SUM(ISNULL(srb.miktar, 0) / NULLIF(ro.miktar, 0)), 0)
+               ELSE SUM(ISNULL(ro.miktar, 0) * ISNULL(srb.miktar, 0)) END AS brut
         FROM siparis s
         JOIN siparis_kalem sk        ON sk.siparis_id   = s.id
         JOIN model_recete mr         ON mr.malzeme_id   = sk.malzeme_id
         JOIN recete_kalem rk         ON rk.recete_id  = mr.id
-          AND rk.tip IN (2, 3, 4)
+          AND rk.tip = 2
           AND ISNULL(rk.tedarik_hesaplanmayacak, 0) = 0
         JOIN kumas_grup kg           ON kg.kod        = rk.variant_1
         JOIN malzeme m               ON m.id          = rk.malzeme_id
-        LEFT JOIN numarator n        ON n.id          = m.numarator_id
+        LEFT JOIN grup gr            ON gr.id         = m.grup_id
         JOIN recete_olcu ro          ON ro.kalem_id  = rk.id
         JOIN siparis_renk sr         ON sr.siparis_kalem_id = sk.id
         LEFT JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
@@ -184,7 +190,7 @@ export class TedarikService {
         WHERE s.id = ${siparisId}
           AND (${kalemId} IS NULL OR sk.id = ${kalemId})
         GROUP BY
-          m.id, m.kod, m.ad, n.grup_kodu,
+          m.id, m.kod, m.ad, m.hesap_birimi, gr.hesap_birimi, rk.miktar_bolen,
           kg.id, kg.kod,
           g.renk_id, rn.kod, rn.ad,
           rk.id, sk.id
@@ -200,14 +206,28 @@ export class TedarikService {
         d.renk_ad             AS renkAd,
         d.recete_kalem_id     AS receteKalemId,
         d.siparis_kalem_id    AS siparisKalemId,
-        CASE WHEN UPPER(ISNULL(d.grup_kodu, '')) = N'KH' THEN N'ADET' ELSE N'MT' END AS birim,
-        CASE WHEN UPPER(ISNULL(d.grup_kodu, '')) = N'KH'
+        -- Birim: malzeme kartındaki hesap birimi öncelikli, sonra malzeme grubu,
+        -- boşsa tip varsayılanı.
+        CASE
+          WHEN UPPER(ISNULL(d.hesap_birimi, '')) IN (N'ADET', N'MT', N'KG') THEN UPPER(d.hesap_birimi)
+          WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'BRUTMT' THEN N'MT'
+          WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'BRUTKG' THEN N'KG'
+          WHEN UPPER(ISNULL(d.grup_hesap_birimi, '')) IN (N'ADET', N'MT', N'KG') THEN UPPER(d.grup_hesap_birimi)
+          WHEN UPPER(ISNULL(d.grup_hesap_birimi, '')) = N'BRUTMT' THEN N'MT'
+          WHEN UPPER(ISNULL(d.grup_hesap_birimi, '')) = N'BRUTKG' THEN N'KG'
+          WHEN d.miktar_bolen = 1 THEN N'ADET'
+          ELSE N'MT'
+        END AS birim,
+        CAST(d.brut AS FLOAT) AS brutMiktar,
+        -- Miktar Bölen: kesim fazlası uygulanmaz, kürat yukarı yuvarlanır.
+        CASE WHEN d.miktar_bolen = 1
              THEN CAST(CEILING(d.brut) AS FLOAT)
-             ELSE CAST(d.brut AS FLOAT) END AS brutMiktar,
-        CASE WHEN UPPER(ISNULL(d.grup_kodu, '')) = N'KH'
+             WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'ADET'
              THEN CAST(CEILING(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) AS FLOAT)
              ELSE CAST(ROUND(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0), 6) AS FLOAT) END AS netMiktar,
-        CASE WHEN UPPER(ISNULL(d.grup_kodu, '')) = N'KH'
+        CASE WHEN d.miktar_bolen = 1
+             THEN CAST(CEILING(SUM(d.brut) OVER (PARTITION BY d.malzeme_id)) AS FLOAT)
+             WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'ADET'
              THEN CAST(CEILING(SUM(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) OVER (PARTITION BY d.malzeme_id)) AS FLOAT)
              ELSE CAST(ROUND(SUM(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) OVER (PARTITION BY d.malzeme_id), 6) AS FLOAT) END AS kumasNetToplam
       FROM detay d
@@ -234,6 +254,10 @@ export class TedarikService {
           m.id           AS malzeme_id,
           m.kod          AS malzeme_kod,
           m.ad           AS malzeme_ad,
+          m.hesap_birimi AS hesap_birimi,
+          gr.hesap_birimi AS grup_hesap_birimi,
+          rk.tip         AS recete_tip,
+          rk.miktar_bolen AS miktar_bolen,
           kg.id          AS kumas_grup_id,
           kg.kod         AS kumas_grup_kod,
           g.renk_id      AS renk_id,
@@ -241,7 +265,11 @@ export class TedarikService {
           rn.ad          AS renk_ad,
           rk.id          AS recete_kalem_id,
           sk.id          AS siparis_kalem_id,
-          SUM(ISNULL(ro.miktar, 0) * ISNULL(srb.miktar, 0)) AS brut
+          -- Miktar Bölen: 1/ölçü × sipariş adedi (örn. ölçü 200, sipariş 400 → 2).
+          -- Normal satır: ölçü miktarı × sipariş beden miktarı.
+          CASE WHEN rk.miktar_bolen = 1
+               THEN ISNULL(SUM(ISNULL(srb.miktar, 0) / NULLIF(ro.miktar, 0)), 0)
+               ELSE SUM(ISNULL(ro.miktar, 0) * ISNULL(srb.miktar, 0)) END AS brut
         FROM siparis s
         JOIN siparis_kalem sk        ON sk.siparis_id   = s.id
         JOIN model_recete mr         ON mr.malzeme_id   = sk.malzeme_id
@@ -249,10 +277,28 @@ export class TedarikService {
           AND rk.tip = ${receteTip}
           AND ISNULL(rk.tedarik_hesaplanmayacak, 0) = 0
         JOIN malzeme m               ON m.id          = rk.malzeme_id
-        -- Reçete varyantı (kumaş grup kodu) LEFT: varyantsız satır renksiz hesaba girer.
-        LEFT JOIN kumas_grup kg      ON kg.kod        = rk.variant_1
+        LEFT JOIN grup gr            ON gr.id         = m.grup_id
         JOIN recete_olcu ro          ON ro.kalem_id  = rk.id
         JOIN siparis_renk sr         ON sr.siparis_kalem_id = sk.id
+        -- Erişim kaleminin kendi varyant_1'i yoksa (ör. koli, etiket, paket) modelin
+        -- ana kumaş kalemi devralınır: metrajı en büyük tip=2 kalemi.
+        OUTER APPLY (
+          SELECT TOP 1 rk2.variant_1 AS variant_1
+          FROM recete_kalem rk2
+          JOIN recete_olcu ro2 ON ro2.kalem_id = rk2.id
+          JOIN siparis_renk_beden srb2 ON srb2.siparis_renk_id = sr.id
+            AND srb2.beden_id = ro2.beden_id
+          WHERE rk2.recete_id = rk.recete_id
+            AND rk2.tip = 2
+            AND ISNULL(rk2.tedarik_hesaplanmayacak, 0) = 0
+            AND rk2.variant_1 IS NOT NULL
+          GROUP BY rk2.variant_1
+          ORDER BY SUM(ISNULL(ro2.miktar, 0) * ISNULL(srb2.miktar, 0)) DESC, rk2.variant_1
+        ) ana_kumas
+        -- Reçete varyantı (kumaş grup kodu) LEFT: varyantsız satır renksiz hesaba girer.
+        LEFT JOIN kumas_grup kg      ON kg.kod        = CASE
+          WHEN rk.tip = 4 THEN COALESCE(rk.variant_1, ana_kumas.variant_1)
+          ELSE rk.variant_1 END
         -- Sipariş rengi -> kumaş grup eşleşmesi (kumaş hesabındaki zincirin aynısı).
         LEFT JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
           AND g.kumas_grup_id = kg.id
@@ -262,7 +308,7 @@ export class TedarikService {
         WHERE s.id = ${siparisId}
           AND (${kalemId} IS NULL OR sk.id = ${kalemId})
         GROUP BY
-          m.id, m.kod, m.ad,
+          m.id, m.kod, m.ad, m.hesap_birimi, gr.hesap_birimi, rk.tip, rk.miktar_bolen,
           kg.id, kg.kod,
           g.renk_id, rn.kod, rn.ad,
           rk.id, sk.id
@@ -278,10 +324,31 @@ export class TedarikService {
         d.renk_ad             AS renkAd,
         d.recete_kalem_id     AS receteKalemId,
         d.siparis_kalem_id    AS siparisKalemId,
-        N'KG'                AS birim,
+        -- Birim: malzeme kartındaki hesap birimi öncelikli, sonra malzeme grubu,
+        -- boşsa tip varsayılanı (iplik → KG, aksesuar → ADET).
+        CASE
+          WHEN UPPER(ISNULL(d.hesap_birimi, '')) IN (N'ADET', N'MT', N'KG') THEN UPPER(d.hesap_birimi)
+          WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'BRUTMT' THEN N'MT'
+          WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'BRUTKG' THEN N'KG'
+          WHEN UPPER(ISNULL(d.grup_hesap_birimi, '')) IN (N'ADET', N'MT', N'KG') THEN UPPER(d.grup_hesap_birimi)
+          WHEN UPPER(ISNULL(d.grup_hesap_birimi, '')) = N'BRUTMT' THEN N'MT'
+          WHEN UPPER(ISNULL(d.grup_hesap_birimi, '')) = N'BRUTKG' THEN N'KG'
+          WHEN d.miktar_bolen = 1 THEN N'ADET'
+          WHEN d.recete_tip = 4 THEN N'ADET'
+          ELSE N'KG'
+        END AS birim,
         CAST(d.brut AS FLOAT) AS brutMiktar,
-        CAST(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0) AS FLOAT) AS netMiktar,
-        CAST(SUM(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) OVER (PARTITION BY d.malzeme_id) AS FLOAT) AS kumasNetToplam
+        -- Miktar Bölen: kesim fazlası uygulanmaz, kürat yukarı yuvarlanır.
+        CASE WHEN d.miktar_bolen = 1
+             THEN CAST(CEILING(d.brut) AS FLOAT)
+             WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'ADET'
+             THEN CAST(CEILING(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) AS FLOAT)
+             ELSE CAST(ROUND(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0), 6) AS FLOAT) END AS netMiktar,
+        CASE WHEN d.miktar_bolen = 1
+             THEN CAST(CEILING(SUM(d.brut) OVER (PARTITION BY d.malzeme_id)) AS FLOAT)
+             WHEN UPPER(ISNULL(d.hesap_birimi, '')) = N'ADET'
+             THEN CAST(CEILING(SUM(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) OVER (PARTITION BY d.malzeme_id)) AS FLOAT)
+             ELSE CAST(ROUND(SUM(d.brut * (1 + ISNULL(TRY_CAST(REPLACE(s.kesim_fazlasi, ',', '.') AS FLOAT), 0) / 100.0)) OVER (PARTITION BY d.malzeme_id), 6) AS FLOAT) END AS kumasNetToplam
       FROM detay d
       JOIN siparis s ON s.id = ${siparisId}
       ORDER BY d.malzeme_kod

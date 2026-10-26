@@ -103,6 +103,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [satinalmaBaslangicKalemler, setSatinalmaBaslangicKalemler] = useState<IrsaliyeBaslangicKalem[]>([])
   const [baslangicTalimatId, setBaslangicTalimatId] = useState<number | null>(null)
   const [satinalmaSiparisKey, setSatinalmaSiparisKey] = useState(0)
+  const { modal } = App.useApp()
+  /** Sekme anahtarı -> kaydedilmemiş değişiklik var mı? */
+  const [kirliSekmeler, setKirliSekmeler] = useState<Record<string, boolean>>({})
+
+  const setKirli = (key: string, kirli: boolean) =>
+    setKirliSekmeler((prev) => {
+      if (Boolean(prev[key]) === kirli) return prev
+      if (!kirli) {
+        if (!(key in prev)) return prev
+        const next = { ...prev }
+        delete next[key]
+        return next
+      }
+      return { ...prev, [key]: true }
+    })
 
   const handleModuleSelect = (mod: Module) => {
     setSelectedModule((prev) => (prev?.key === mod.key ? null : mod))
@@ -895,19 +910,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   const handleTabClose = (key: string) => {
-    setTabs((prev) => {
-      const idx = prev.findIndex((t) => t.key === key)
-      const next = prev.filter((t) => t.key !== key)
+    const closeTabNow = () => {
+      setKirli(key, false)
+      setTabs((prev) => {
+        const idx = prev.findIndex((t) => t.key === key)
+        const next = prev.filter((t) => t.key !== key)
 
-      if (key === activeTab && next.length > 0) {
-        const newIdx = Math.min(idx, next.length - 1)
-        setActiveTab(next[newIdx].key)
-      } else if (next.length === 0) {
-        setActiveTab(null)
-      }
+        if (key === activeTab && next.length > 0) {
+          const newIdx = Math.min(idx, next.length - 1)
+          setActiveTab(next[newIdx].key)
+        } else if (next.length === 0) {
+          setActiveTab(null)
+        }
 
-      return next
-    })
+        return next
+      })
+    }
+
+    if (kirliSekmeler[key]) {
+      modal.confirm({
+        title: 'Kaydedilmemiş değişiklikler',
+        content: 'Bu ekranda kaydedilmemiş değişiklikler var. Yine de kapatılsın mı?',
+        okText: 'Yine de kapat',
+        okButtonProps: { danger: true },
+        cancelText: 'Vazgeç',
+        onOk: closeTabNow,
+      })
+      return
+    }
+    closeTabNow()
   }
 
   const renderTabContent = (tab: Tab) => {
@@ -1081,11 +1112,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('malzeme-yonetim-fisi-yeni-')) {
       const fisTipi = tab.key.replace('malzeme-yonetim-fisi-yeni-', '')
-      return <MalzemeYonetimFisleriKarti fisTipi={fisTipi} />
+      return <MalzemeYonetimFisleriKarti fisTipi={fisTipi} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('malzeme-yonetim-fisi-karti-')) {
       const fisId = Number(tab.key.replace('malzeme-yonetim-fisi-karti-', ''))
-      return <MalzemeYonetimFisleriKarti id={fisId} onDeleted={(ft) => handleMalzemeYonetimFisiDeleted(ft)} />
+      return <MalzemeYonetimFisleriKarti id={fisId} onDeleted={(ft) => handleMalzemeYonetimFisiDeleted(ft)} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'malzeme-kartlari') {
       return <MalzemeListesi onSelect={openMalzemeKarti} onNew={openYeniMalzeme} onStokEkstresi={openMalzemeStokEkstresi} />
@@ -1130,11 +1161,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <KaliteKontrolListesi onNew={openYeniKaliteKontrol} onSelect={openKaliteKontrolKarti} />
     }
     if (tab.key === 'kalite-kontrol-karti-yeni') {
-      return <KaliteKontrolKarti />
+      return <KaliteKontrolKarti active={activeTab === tab.key} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('kalite-kontrol-karti-')) {
       const kkId = Number(tab.key.replace('kalite-kontrol-karti-', ''))
-      return <KaliteKontrolKarti id={kkId} onDeleted={() => handleTabClose(tab.key)} />
+      return <KaliteKontrolKarti id={kkId} active={activeTab === tab.key} onDeleted={() => handleTabClose(tab.key)} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'is-emri-tanimlari') {
       return <IsEmriListesi onSelect={openIsEmriKarti} onNew={openYeniIsEmri} />
@@ -1369,12 +1400,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           baslangicTalimatId={irsaliyeTipi === '134' ? baslangicTalimatId : undefined}
           onCreateIrsaliye={handleCreateIrsaliye}
           onOpenIrsaliye={openIrsaliyeKarti}
+          onKirliChange={(b) => setKirli(tab.key, b)}
         />
       )
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} onOpenFatura={openFaturaKarti} onOpenIrsaliye={openIrsaliyeKarti} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onKirliChange={(b) => setKirli(tab.key, b)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} onOpenFatura={openFaturaKarti} onOpenIrsaliye={openIrsaliyeKarti} />
     }
     // Faturalar: satis-/satinalma- + [kumas|iplik|aksesuar]- + faturalari
     if (tab.key.endsWith('-faturalari')) {
@@ -1395,12 +1427,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           baslangicIrsaliyeIds={tab.baslangicIrsaliyeIds}
           onDeleted={() => handleTabClose(tab.key)}
           onOpenIrsaliye={openIrsaliyeKarti}
+          onKirliChange={(b) => setKirli(tab.key, b)}
         />
       )
     }
     if (tab.key.startsWith('fatura-karti-')) {
       const faturaId = Number(tab.key.replace('fatura-karti-', ''))
-      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onOpenIrsaliye={openIrsaliyeKarti} />
+      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onKirliChange={(b) => setKirli(tab.key, b)} onOpenIrsaliye={openIrsaliyeKarti} />
     }
     return (
       <div className="!p-3">
@@ -1463,6 +1496,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 activeKey={activeTab}
                 onTabChange={handleTabChange}
                 onTabClose={handleTabClose}
+                kirliKeys={kirliSekmeler}
               />
               <Content className="!p-0 !bg-[#F0F0F0] !flex-1 !overflow-hidden">
                 {activeTab ? tabPanels : children}

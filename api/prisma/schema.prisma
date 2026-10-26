@@ -326,6 +326,7 @@ model Grup {
   kullanimda        Boolean  @default(true)
 
   aciklama          String?  @db.VarChar(1000)
+  hesapBirimi       String?  @map("hesap_birimi") @db.VarChar(50)
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -572,6 +573,7 @@ model IrsaliyeKalem {
   // Fason kumaş bilgileri: istenen gramaj ve ebat talimattan (202) çıkışa (134)
   // otomatik taşınır; top sayısı 134 girişinde kullanılır.
   istenenGram       Decimal? @map("istenen_gram") @db.Decimal(18, 4)
+  istenenEn         Decimal? @map("istenen_en") @db.Decimal(18, 4)
   ebat              String?  @db.VarChar(100)
   topSayisi         Int?     @map("top_sayisi")
   // Kalite kontrol gerekmez mi? (11-Fasondan Giriş kalemi). true ise kalem

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AntdRegistry } from '@ant-design/nextjs-registry';
+import { App } from 'antd';
 import { AuthProvider } from '@/context/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
 import PwaRegister from '@/components/PwaRegister';
@@ -50,7 +51,9 @@ export default function RootLayout({
       <body className="min-h-full">
         <AntdRegistry>
           <AuthProvider>
-            <AppLayout>{children}</AppLayout>
+            <App>
+              <AppLayout>{children}</AppLayout>
+            </App>
             <PwaRegister />
           </AuthProvider>
         </AntdRegistry>

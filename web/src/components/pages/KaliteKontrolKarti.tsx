@@ -13,6 +13,7 @@ import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableIsEmriSelect from '@/components/shared/SearchableIsEmriSelect'
 import { kaliteKontrolApi } from '@/lib/kalite-kontrol-api'
+import { useKirli } from '@/lib/kirli'
 import { irsaliyeApi } from '@/lib/irsaliye-api'
 import { kalemMiktari } from '@/lib/miktar'
 import { isEmriApi } from '@/lib/is-emri-api'
@@ -53,6 +54,10 @@ const antTheme = themeQuartz.withParams({
 interface KKFormProps {
   id?: number
   onDeleted?: () => void
+  /** Sekme paneli aktifken global kısayollar (F10 / Ctrl+H) çalışsın. */
+  active?: boolean
+  /** Kaydedilmemiş değişiklik durumu AppLayout'taki sekme rozeti için bildirilir. */
+  onKirliChange?: (kirli: boolean) => void
 }
 
 interface KalemRow {
@@ -163,7 +168,7 @@ function TurkishNumberInput({ value, onChange, className, onEnter }: { value: nu
 
 const numberFormat = (v: number) => (v ?? 0).toFixed(2)
 
-export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProps) {
+export default function KaliteKontrolKarti({ id: propId, onDeleted, active = true, onKirliChange }: KKFormProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -175,6 +180,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
   const [isEmriMalzemeKodlari, setIsEmriMalzemeKodlari] = useState<string[]>([])
   const [siparisNo, setSiparisNo] = useState<string>('')
   const [cariHesapId, setCariHesapId] = useState<number | null>(null)
+  const [cariAd, setCariAd] = useState<string>('')
+  const [belgeAdi, setBelgeAdi] = useState<string>('')
   const [depoKod, setDepoKod] = useState<string>('')
   const [depoId, setDepoId] = useState<number | null>(null)
   const [fisTarihi, setFisTarihi] = useState(dayjs())
@@ -192,6 +199,13 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
   const [bekleyenRows, setBekleyenRows] = useState<BekleyenRow[]>([])
   const [bekleyenSecili, setBekleyenSecili] = useState<BekleyenRow[]>([])
   const [aktariliyor, setAktariliyor] = useState(false)
+
+  // Kaydedilmemiş değişiklik: fisNo/cariAd/depoKod/siparisNo salt-okunur veya türev.
+  const { kirli, temizle } = useKirli([fisTarihi, cariHesapId, depoKod, depoId, isEmriId, belgeAdi, aciklama, kalemler])
+
+  useEffect(() => {
+    onKirliChange?.(kirli)
+  }, [kirli, onKirliChange])
   const focusedRowIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -205,7 +219,9 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           setStokFisId(f.stokFisId ?? null)
           if (f.fisTarihi) setFisTarihi(dayjs(f.fisTarihi))
           setAciklama(f.aciklama ?? '')
+          setBelgeAdi(f.belgeAdi ?? '')
           setCariHesapId(f.cariHesapId ?? null)
+          setCariAd(f.cariHesap?.ad ?? '')
           setDepoKod(f.depo?.kod ?? '')
           setDepoId(f.depoId ?? null)
           setIsEmriKod(f.isEmri?.isEmriNo ?? '')
@@ -253,7 +269,10 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           }
         })
         .catch((err) => message.error('Yüklenemedi: ' + (err?.message || err)))
-        .finally(() => setLoading(false))
+        .finally(() => {
+          setLoading(false)
+          temizle()
+        })
     } else {
       setId(null)
       setStokFisId(null)
@@ -271,8 +290,9 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
         .nextFisNo()
         .then((res) => setFisNo(res.fisNo))
         .catch(() => setFisNo('00000001'))
+      temizle()
     }
-  }, [propId])
+  }, [propId, temizle])
 
   const addKalem = async (fromRow?: KalemRow) => {
     const newRow = emptyKalem()
@@ -497,6 +517,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
       const kalemPayload = kalemler
         .filter((k) => k.malzemeKod)
         .map((k) => ({
+          // Mevcut satırın DB id'si: güncellemede id ile eşleşip kalem id'si korunur.
+          id: k.kalemId ?? null,
           barkod: k.barkod || null,
           topNo: k.topNo ?? null,
           // Kaynak 11 kalemi bağı (kalite bekleyen listesinden aktarımda gelir).
@@ -550,6 +572,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
           }),
         )
       }
+      // Senkron bittikten sonra temizle (kalemler referansı değişmiş olur).
+      temizle()
       return kaydedilenId as number
     } catch (err: any) {
       message.error('Hata: ' + (err?.message || err))
@@ -858,6 +882,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Kısayollar yalnızca bu kartın sekmesi aktifken çalışsın (diğer sekmelerde sussun).
+      if (!active) return
       const target = e.target as HTMLElement
       // F10, hücre düzenlenirken de çalışmalı (kg girip hemen yazdırma akışı).
       if (e.key === 'F10') {
@@ -881,7 +907,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [kalemler, message, openPrintOnay])
+  }, [active, kalemler, message, openPrintOnay])
 
   const focusCellEditor = (colId: string, rowIndex: number) => {
     const tryFocus = (attempt = 0) => {
@@ -1148,6 +1174,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
             setEtiketOpen(true)
           },
         }, {
+          save: { accent: kirli },
           delete: { onClick: handleSil, label: 'Sil', disabled: !id, danger: true },
         })}
       />
@@ -1160,6 +1187,16 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted }: KKFormProp
                 <div className="!flex !items-center !gap-3">
                   <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fiş Tarihi</div>
                   <DatePicker size="small" value={fisTarihi} onChange={(d) => d && setFisTarihi(d)} format="DD.MM.YYYY" placeholder="Fiş tarihi" className="!w-48 !text-[12px]" />
+                </div>
+                <div className="!flex !items-center !gap-3">
+                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Cari Hesap</div>
+                  <div className="!text-[12px] !text-[#111] !w-48 !truncate" title={cariAd || undefined}>
+                    {cariAd ? cariAd.trim().split(/\s+/)[0] : '—'}
+                  </div>
+                </div>
+                <div className="!flex !items-center !gap-3">
+                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Belge No</div>
+                  <div className="!text-[12px] !text-[#111] !w-48">{belgeAdi || '—'}</div>
                 </div>
               </div>
             </div>

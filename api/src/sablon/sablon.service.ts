@@ -277,7 +277,30 @@ export class SablonService {
     // İç içe {{#each}} destekler: en içteki satırdan dışa doğru kapsam zinciriyle {{kolon}} çözülür.
     const result = this.bindEach(html, sorguSonuclari, [], barkodImg)
 
-    return result.replace(/\{\{(\w+)\.(\w+)\}\}/g, (_, sorguAd, kolon) => {
+    let replaced = result
+    // Barkod img_src desteği: {{sorgu.kolon_img_src}} → sadece data URI döner
+    replaced = replaced.replace(/\{\{(\w+)\.(\w+)_img_src\}\}/g, (_, sorguAd, kolon) => {
+      const satirlar = sorguSonuclari[sorguAd] || []
+      if (!satirlar.length) return ''
+      let barkodDeger = satirlar[0][kolon]
+      if (barkodDeger == null && satirlar[0]['barkod'] != null) barkodDeger = satirlar[0]['barkod']
+      const kod = String(barkodDeger ?? '')
+      return barkodImg.get(kod) ?? ''
+    })
+    // Barkod img desteği: {{sorgu.kolon_img}} → barkod kolonundan img tag üretir
+    replaced = replaced.replace(/\{\{(\w+)\.(\w+)_img\}\}/g, (_, sorguAd, kolon) => {
+      const satirlar = sorguSonuclari[sorguAd] || []
+      if (!satirlar.length) return ''
+      // kolondan barkod değeri al, kolon ismi barkod değilse o satırın barkod kolonunu dene
+      let barkodDeger = satirlar[0][kolon]
+      if (barkodDeger == null && satirlar[0]['barkod'] != null) barkodDeger = satirlar[0]['barkod']
+      const kod = String(barkodDeger ?? '')
+      const img = barkodImg.get(kod)
+      if (img) return `<img src="${img}" alt="${kod}" style="max-height:40px;"/>`
+      return kod
+    })
+
+    return replaced.replace(/\{\{(\w+)\.(\w+)\}\}/g, (_, sorguAd, kolon) => {
       const satirlar = sorguSonuclari[sorguAd] || []
       const ilkSatir = satirlar[0]
       return ilkSatir && ilkSatir[kolon] != null ? String(ilkSatir[kolon]) : ''
@@ -294,6 +317,29 @@ export class SablonService {
       const kumasli = this.bindKumasIhtiyac(kesimli, sorguSonuclari, kapsam)
       if (kapsam.length === 0) return kumasli
       return kumasli.replace(/\{\{(\w+)\}\}/g, (_, kolon) => {
+        if (kolon.endsWith('_img_src')) {
+          const baseKolon = kolon.slice(0, -8)
+          let barkodDeger = null
+          for (let i = kapsam.length - 1; i >= 0; i--) {
+            const v = kapsam[i][baseKolon]
+            if (v != null) { barkodDeger = v; break }
+          }
+          const kod = String(barkodDeger ?? '')
+          const img = barkodImg.get(kod)
+          return img ?? ''
+        }
+        if (kolon.endsWith('_img')) {
+          const baseKolon = kolon.slice(0, -4)
+          let barkodDeger = null
+          for (let i = kapsam.length - 1; i >= 0; i--) {
+            const v = kapsam[i][baseKolon]
+            if (v != null) { barkodDeger = v; break }
+          }
+          const kod = String(barkodDeger ?? '')
+          const img = barkodImg.get(kod)
+          if (img) return `<img src="${img}" alt="${kod}" style="max-height:40px;"/>`
+          return kod
+        }
         for (let i = kapsam.length - 1; i >= 0; i--) {
           const v = kapsam[i][kolon]
           if (v != null) return String(v)

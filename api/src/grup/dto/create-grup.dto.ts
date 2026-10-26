@@ -3,4 +3,5 @@ export class CreateGrupDto {
   ad: string
   kullanimda?: boolean
   aciklama?: string
+  hesapBirimi?: string
 }
