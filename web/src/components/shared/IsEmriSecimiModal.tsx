@@ -199,7 +199,8 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
           localeText={agGridLocaleTR}
           headerHeight={32}
           rowHeight={30}
-          rowSelection="multiple"
+          rowSelection={{ mode: 'multiRow', enableClickSelection: true }}
+          suppressCellFocus
           defaultColDef={{ resizable: true, sortable: true, filter: true }}
           onRowDoubleClicked={(e) => {
             if (e.data) {

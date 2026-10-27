@@ -26,6 +26,7 @@ export interface Tab {
   faturaTipi?: string
   ekranAdi?: string
   baslangicIrsaliyeIds?: number[]
+  depoKod?: string | null
 }
 
 export const modules: Module[] = [

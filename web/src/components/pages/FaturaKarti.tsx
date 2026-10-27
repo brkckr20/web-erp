@@ -1218,7 +1218,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                     theme={antTheme}
                     headerHeight={32}
                     rowHeight={30}
-                    rowSelection="single"
+                    rowSelection={{ mode: 'singleRow', enableClickSelection: true }}
                     getRowId={(p) => p.data.key}
                     localeText={agGridLocaleTR}
                     defaultColDef={kalemGridDefaultColDef}

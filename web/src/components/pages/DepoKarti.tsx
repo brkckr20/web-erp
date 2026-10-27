@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Tabs, Input, Checkbox, Row, Col, Select, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
+import { useKirli } from '@/lib/kirli'
 import { depoApi } from '@/lib/depo-api'
 import type { Depo, CreateDepo } from '@/lib/depo-api'
 
@@ -41,14 +42,17 @@ const emptyData: CreateDepo = {
 interface DepoKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
+export default function DepoKarti({ isNew, kod, onKirliChange }: DepoKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<CreateDepo>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod) {
@@ -98,6 +102,7 @@ export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -116,6 +121,7 @@ export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm(emptyData)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -141,6 +147,7 @@ export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -153,6 +160,7 @@ export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
         return
       }
       await loadByKod(list[idx - 1].kod)
+      temizle()
     } catch {
       message.warning('Önceki kayıt yüklenemedi')
     }
@@ -167,6 +175,7 @@ export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
         return
       }
       await loadByKod(list[idx + 1].kod)
+      temizle()
     } catch {
       message.warning('Sonraki kayıt yüklenemedi')
     }
@@ -190,6 +199,7 @@ export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
           message.error('Silme sırasında hata oluştu')
         } finally {
           setSaving(false)
+          temizle()
         }
       },
     })
@@ -201,6 +211,7 @@ export default function DepoKarti({ isNew, kod }: DepoKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+    save: { accent: kirli },
   })
 
   return (

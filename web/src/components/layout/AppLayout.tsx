@@ -389,13 +389,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
-  const openMalzemeStokEkstresi = useCallback((kod: string) => {
+  const openMalzemeStokEkstresi = useCallback((kod: string, depoKod?: string | null) => {
     const key = 'malzeme-stok-ekstresi-' + kod
     setTabs((prev) => {
-      const tab: Tab = { key, label: 'Ekstre - ' + kod, moduleKey: 'stok', isForm: true }
       const exists = prev.find((t) => t.key === key)
+      const tab: Tab = { key, label: 'Ekstre - ' + kod, moduleKey: 'stok', isForm: true, depoKod }
       if (!exists) return [...prev, tab]
-      return prev
+      return prev.map((t) => (t.key === key ? tab : t))
     })
     setActiveTab(key)
   }, [])
@@ -956,10 +956,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if (!isNaN(rafId)) return <RafKarti id={rafId} />
     }
     if (tab.key === 'depo-karti-yeni') {
-      return <DepoKarti isNew />
+      return <DepoKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('depo-karti-')) {
-      return <DepoKarti kod={tab.key.replace('depo-karti-', '')} />
+      return <DepoKarti kod={tab.key.replace('depo-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'kullanici-tanimlari') {
       return <KullaniciListesi onSelect={openKullaniciKarti} onNew={openYeniKullanici} />
@@ -1105,10 +1105,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />
     }
     if (tab.key === 'depo-bazli-stok') {
-      return <DepoBazliStok />
+      return <DepoBazliStok onStokEkstresi={openMalzemeStokEkstresi} />
     }
     if (tab.key === 'depo-stok-detay') {
-      return <DepoStokDetay />
+      return <DepoStokDetay onStokEkstresi={openMalzemeStokEkstresi} />
     }
     if (tab.key.startsWith('malzeme-yonetim-fisi-yeni-')) {
       const fisTipi = tab.key.replace('malzeme-yonetim-fisi-yeni-', '')
@@ -1137,7 +1137,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <MalzemeKarti kod={tab.key.replace('malzeme-karti-', '')} />
     }
     if (tab.key.startsWith('malzeme-stok-ekstresi-')) {
-      return <MalzemeStokEkstresi malzemeKod={tab.key.replace('malzeme-stok-ekstresi-', '')} />
+      return <MalzemeStokEkstresi malzemeKod={tab.key.replace('malzeme-stok-ekstresi-', '')} depoKod={tab.depoKod ?? undefined} />
     }
     if (tab.key === 'makina-kartlari') {
       return <MakinaListesi onSelect={openMakinaKarti} onNew={openYeniMakina} />
@@ -1309,14 +1309,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <AksesuarListesi onSelect={openAksesuarKarti} onNew={openYeniAksesuar} onNewTipi={openYeniAksesuarTipi} />
     }
     if (tab.key === 'aksesuar-karti-yeni') {
-      return <AksesuarKarti isNew />
+      return <AksesuarKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('aksesuar-karti-yeni-')) {
       const tipId = Number(tab.key.replace('aksesuar-karti-yeni-', ''))
-      return <AksesuarKarti isNew selectedTipId={tipId} />
+      return <AksesuarKarti isNew selectedTipId={tipId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('aksesuar-karti-')) {
-      return <AksesuarKarti kod={tab.key.replace('aksesuar-karti-', '')} />
+      return <AksesuarKarti kod={tab.key.replace('aksesuar-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'siparis-girisi') {
       return <SiparisGirisi onSelect={openSiparisKarti} onNew={openYeniSiparis} onTedarik={openTedarik} />

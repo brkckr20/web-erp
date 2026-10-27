@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, App } from 'antd'
+import { Button, App, Select } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
@@ -9,6 +9,7 @@ import { stokEkstresiApi, type StokEkstresiSatir } from '@/lib/stok-ekstresi-api
 
 interface MalzemeStokEkstresiProps {
   malzemeKod: string
+  depoKod?: string | null
 }
 
 const formatTarih = (d: string | null) => {
@@ -48,9 +49,10 @@ const irsaliyeTipiMap: Record<string, string> = {
   '201': '201-Satın Alma Siparişi',
 }
 
-export default function MalzemeStokEkstresi({ malzemeKod }: MalzemeStokEkstresiProps) {
+export default function MalzemeStokEkstresi({ malzemeKod, depoKod }: MalzemeStokEkstresiProps) {
   const [data, setData] = useState<StokEkstresiSatir[]>([])
   const [loading, setLoading] = useState(false)
+  const [seciliDepo, setSeciliDepo] = useState<string>('')
   const { message } = App.useApp()
 
   const load = async () => {
@@ -58,6 +60,7 @@ export default function MalzemeStokEkstresi({ malzemeKod }: MalzemeStokEkstresiP
     try {
       const list = await stokEkstresiApi.list(malzemeKod)
       setData(list)
+      if (!seciliDepo && depoKod) setSeciliDepo(depoKod)
     } catch {
       message.error('Stok ekstresi yüklenemedi')
       setData([])
@@ -70,8 +73,20 @@ export default function MalzemeStokEkstresi({ malzemeKod }: MalzemeStokEkstresiP
     load()
   }, [malzemeKod])
 
-  const toplamGiris = useMemo(() => data.filter((d) => d.yon === 'Giriş').reduce((s, d) => s + d.miktar, 0), [data])
-  const toplamCikis = useMemo(() => data.filter((d) => d.yon === 'Çıkış').reduce((s, d) => s + d.miktar, 0), [data])
+  useEffect(() => {
+    if (depoKod !== undefined && depoKod !== seciliDepo) setSeciliDepo(depoKod ?? '')
+  }, [depoKod])
+
+  const depoSecenekleri = useMemo(() => {
+    const depolar = new Map<string, string>()
+    for (const d of data) if (d.depoKod) depolar.set(d.depoKod, d.depoAd ?? d.depoKod)
+    return [{ value: '', label: 'Tüm Depolar' }, ...[...depolar.entries()].map(([v, a]) => ({ value: v, label: `${v} ${a}` }))]
+  }, [data])
+
+  const filtreliData = useMemo(() => (seciliDepo ? data.filter((d) => d.depoKod === seciliDepo) : data), [data, seciliDepo])
+
+  const toplamGiris = useMemo(() => filtreliData.filter((d) => d.yon === 'Giriş').reduce((s, d) => s + d.miktar, 0), [filtreliData])
+  const toplamCikis = useMemo(() => filtreliData.filter((d) => d.yon === 'Çıkış').reduce((s, d) => s + d.miktar, 0), [filtreliData])
 
   const columns = useMemo<ColDef<StokEkstresiSatir>[]>(
     () => [
@@ -154,7 +169,7 @@ export default function MalzemeStokEkstresi({ malzemeKod }: MalzemeStokEkstresiP
     <div className="!p-3 !h-full !flex !flex-col">
       <div className="!flex !items-center !justify-between !mb-3 !flex-shrink-0">
         <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
-          Ekstre — {malzemeKod}
+          Ekstre — {malzemeKod}{seciliDepo ? ` (${seciliDepo})` : ''}
         </div>
         <div className="!flex !items-center !gap-1.5">
           <span className="!text-[11px] !text-[#16a34a] !font-medium">
@@ -163,19 +178,26 @@ export default function MalzemeStokEkstresi({ malzemeKod }: MalzemeStokEkstresiP
           <span className="!text-[11px] !text-[#dc2626] !font-medium !ml-2">
             Toplam Çıkış: {toplamCikis.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
           </span>
+          <Select
+            value={seciliDepo}
+            onChange={setSeciliDepo}
+            options={depoSecenekleri}
+            className="!w-56 !text-[11px]"
+            placeholder="Tüm Depolar"
+          />
           <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7 !ml-2" />
         </div>
       </div>
 
       <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
-        <DataGrid
-          loading={loading}
-          rowData={data}
-          columnDefs={columns}
-          domLayout="normal"
-          exportFileName={`stok-ekstresi-${malzemeKod}`}
-          storageKey={`stokEkstresi-${malzemeKod}`}
-        />
+          <DataGrid
+            loading={loading}
+            rowData={filtreliData}
+            columnDefs={columns}
+            domLayout="normal"
+            exportFileName={`stok-ekstresi-${malzemeKod}`}
+            storageKey={`stokEkstresi-${malzemeKod}`}
+          />
       </div>
     </div>
   )

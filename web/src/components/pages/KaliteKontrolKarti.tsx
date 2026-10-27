@@ -1269,7 +1269,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                   theme={antTheme}
                   headerHeight={32}
                   rowHeight={30}
-                  rowSelection="single"
+                  rowSelection={{ mode: 'singleRow', enableClickSelection: true }}
                   getRowId={(p) => p.data.key}
                   localeText={agGridLocaleTR}
                   defaultColDef={{ resizable: true, sortable: true }}
@@ -1391,7 +1391,6 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                 storageKey="kaliteBekleyen"
                 height={400}
                 enableRowSelection
-                rowSelection="multiple"
                 onSelectionChanged={(e: SelectionChangedEvent<BekleyenRow>) => {
                   setBekleyenSecili(e.api.getSelectedRows())
                 }}

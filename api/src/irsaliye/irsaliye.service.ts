@@ -246,7 +246,8 @@ export class IrsaliyeService {
           }
         }
 
-        // Payload'da olmayan kalemler silinir. Silinen kalem KK'ya bağlıysa engellenir.
+        // Payload'da olmayan kalemler silinir. Silinen kalem KK'ya veya faturaya
+        // bağlıysa engellenir (FK ihlali yerine okunabilir uyarı).
         const silinecekler = eskiler.filter((e) => !korunanKalemIds.includes(e.id))
         if (silinecekler.length > 0) {
           const silinecekIdler = silinecekler.map((e) => e.id)
@@ -259,6 +260,17 @@ export class IrsaliyeService {
             throw new BadRequestException(
               `Bu kalemler kalite kontrol girişlerine bağlı (KK Fiş No: ${fisNolar}). ` +
                 'Önce kalite kontrol kaydını silin.',
+            )
+          }
+          const bagliFatura = await tx.faturaKalem.findMany({
+            where: { irsaliyeKalemId: { in: silinecekIdler } },
+            select: { fatura: { select: { faturaNo: true } } },
+          })
+          if (bagliFatura.length > 0) {
+            const faturaNolar = [...new Set(bagliFatura.map((b) => b.fatura.faturaNo))].join(', ')
+            throw new BadRequestException(
+              `Bu kalemler faturaya bağlı (Fatura No: ${faturaNolar}). ` +
+                'Önce faturayı silin veya irsaliye bağlantısını kaldırın.',
             )
           }
           await tx.irsaliyeKalemTahsis.deleteMany({ where: { irsaliyeKalemId: { in: silinecekIdler } } })
@@ -307,6 +319,18 @@ export class IrsaliyeService {
             'Önce kalite kontrol kaydını silin.',
         )
       }
+      // İrsaliyeden üretilen faturalar (fatura_kalem.irsaliye_kalem_id) silmeyi engeller.
+      const bagliFatura = await tx.faturaKalem.findMany({
+        where: { irsaliyeKalem: { irsaliyeId: id } },
+        select: { fatura: { select: { faturaNo: true } } },
+      })
+      if (bagliFatura.length > 0) {
+        const faturaNolar = [...new Set(bagliFatura.map((b) => b.fatura.faturaNo))].join(', ')
+        throw new BadRequestException(
+          `Bu fiş faturaya bağlı (Fatura No: ${faturaNolar}). ` +
+            'Önce faturayı silin veya irsaliye bağlantısını kaldırın.',
+        )
+      }
       await tx.irsaliyeKalem.deleteMany({ where: { irsaliyeId: id } })
       return tx.irsaliye.delete({ where: { id } })
     })
@@ -339,6 +363,30 @@ export class IrsaliyeService {
   }
 
   async removeKalem(id: number) {
-    return this.prisma.irsaliyeKalem.delete({ where: { id } })
+    return this.prisma.$transaction(async (tx) => {
+      const bagliKK = await tx.kaliteKontrolKalem.findMany({
+        where: { irsaliyeKalemId: id },
+        select: { fis: { select: { fisNo: true } } },
+      })
+      if (bagliKK.length > 0) {
+        const fisNolar = [...new Set(bagliKK.map((b) => b.fis.fisNo))].join(', ')
+        throw new BadRequestException(
+          `Bu kalem kalite kontrol girişlerine bağlı (KK Fiş No: ${fisNolar}). ` +
+            'Önce kalite kontrol kaydını silin.',
+        )
+      }
+      const bagliFatura = await tx.faturaKalem.findMany({
+        where: { irsaliyeKalemId: id },
+        select: { fatura: { select: { faturaNo: true } } },
+      })
+      if (bagliFatura.length > 0) {
+        const faturaNolar = [...new Set(bagliFatura.map((b) => b.fatura.faturaNo))].join(', ')
+        throw new BadRequestException(
+          `Bu kalem faturaya bağlı (Fatura No: ${faturaNolar}). ` +
+            'Önce faturayı silin veya irsaliye bağlantısını kaldırın.',
+        )
+      }
+      return tx.irsaliyeKalem.delete({ where: { id } })
+    })
   }
 }

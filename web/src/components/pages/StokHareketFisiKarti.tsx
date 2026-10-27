@@ -996,7 +996,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                               theme={antTheme}
                               headerHeight={32}
                               rowHeight={30}
-                              rowSelection="single"
+                              rowSelection={{ mode: 'singleRow', enableClickSelection: true }}
                               getRowId={(p) => p.data.key}
                               localeText={agGridLocaleTR}
                               defaultColDef={kalemGridDefaultColDef}
@@ -1044,7 +1044,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                           theme={antTheme}
                           headerHeight={32}
                           rowHeight={30}
-                          rowSelection="single"
+                          rowSelection={{ mode: 'singleRow', enableClickSelection: true }}
                           getRowId={(p) => p.data.key}
                           localeText={agGridLocaleTR}
                           defaultColDef={kalemGridDefaultColDef}

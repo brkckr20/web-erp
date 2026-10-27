@@ -119,7 +119,8 @@ export default function MalzemeSecModal({ open, onClose, onSelect, tip }: Malzem
           localeText={agGridLocaleTR}
           headerHeight={32}
           rowHeight={30}
-          rowSelection="single"
+          rowSelection={{ mode: 'singleRow', enableClickSelection: true }}
+          suppressCellFocus
           defaultColDef={{ resizable: true, sortable: true, filter: true }}
           onRowDoubleClicked={(e) => handlePick(e.data)}
         />

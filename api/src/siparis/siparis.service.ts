@@ -5,6 +5,17 @@ import { CreateSiparisDto } from './dto/create-siparis.dto';
 import { UpdateSiparisDto } from './dto/create-siparis.dto';
 import { BAYAT } from '../tedarik/tedarik.constants';
 
+/** Siparişe bağlı sayılabilecek irsaliye tipleri ve etiketleri (silme uyarısı için) */
+const SIPARIS_BAGLI_IRSALIYE_TIPLERI: Record<string, string> = {
+  '1': '1-Mal Alım İrsaliyesi',
+  '201': '201-Satın Alma Siparişi',
+};
+
+function tarihTR(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
 interface KalemImzali {
   id: number;
   malzemeId: number | null;
@@ -273,15 +284,38 @@ export class SiparisService {
     const siparis = await this.findOne(id);
     // Siparişe bağlı satın alma siparişi / mal alım irsaliyesi varsa silmeye izin verme
     // (bağlantı şu aşamada kalem açıklamasındaki sipariş numarası üzerinden kuruluyor)
-    const bagliBelge = await this.prisma.irsaliyeKalem.count({
+    const bagliKalemler = await this.prisma.irsaliyeKalem.findMany({
       where: {
         irsaliye: { irsaliyeTipi: { in: ['1', '201'] } },
         aciklama: { contains: siparis.siparisNo },
       },
+      select: {
+        id: true,
+        irsaliye: { select: { id: true, irsaliyeNo: true, irsaliyeTipi: true, irsaliyeTarihi: true } },
+      },
     });
-    if (bagliBelge > 0) {
+    if (bagliKalemler.length > 0) {
+      // Aynı fişteki kalemler tekilleştirilir; fiş tipi + no + tarih ile detay verilir.
+      const fisler = new Map<number, { no: string; tip: string; tarih: Date; kalemSayisi: number }>();
+      for (const k of bagliKalemler) {
+        const f = k.irsaliye;
+        const mevcut = fisler.get(f.id);
+        if (mevcut) mevcut.kalemSayisi += 1;
+        else
+          fisler.set(f.id, {
+            no: f.irsaliyeNo ?? `#${f.id}`,
+            tip: SIPARIS_BAGLI_IRSALIYE_TIPLERI[f.irsaliyeTipi] ?? `${f.irsaliyeTipi}-İrsaliye`,
+            tarih: f.irsaliyeTarihi,
+            kalemSayisi: 1,
+          });
+      }
+      const detay = [...fisler.values()]
+        .sort((a, b) => a.tarih.getTime() - b.tarih.getTime())
+        .map((f) => `• ${f.tip} — No: ${f.no}, Tarih: ${tarihTR(f.tarih)} (${f.kalemSayisi} kalem)`)
+        .join('\n');
       throw new ConflictException(
-        `"${siparis.siparisNo}" siparişine bağlı ${bagliBelge} adet satın alma/alım belgesi bulunduğu için silinemez. Önce ilgili belgeleri silmelisiniz.`,
+        `"${siparis.siparisNo}" siparişine bağlı ${fisler.size} adet satın alma/alım belgesi bulunduğu için silinemez.\n` +
+          `Bağlı belgeler:\n${detay}\nÖnce ilgili belgeleri silmelisiniz.`,
       );
     }
     return this.prisma.$transaction(async (tx) => {

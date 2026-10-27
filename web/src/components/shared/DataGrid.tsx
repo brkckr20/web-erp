@@ -5,7 +5,7 @@ import { Button, Popover, Checkbox, App } from 'antd'
 import { SettingOutlined, FileExcelOutlined } from '@ant-design/icons'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
-import type { ColDef, GridApi, GridOptions } from 'ag-grid-community'
+import type { ColDef, GridApi, GridOptions, RowSelectionOptions } from 'ag-grid-community'
 import { antGridTheme } from '@/lib/ag-grid-theme'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { exportGridToExcel } from '@/lib/grid-excel-export'
@@ -75,6 +75,8 @@ function DataGridInner<T>(
     defaultColDef,
     storageKey,
     enableRowSelection = false,
+    rowSelection,
+    suppressCellFocus = true,
     ...rest
   }: DataGridProps<T>,
   ref: React.Ref<DataGridHandle>,
@@ -110,6 +112,17 @@ function DataGridInner<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [defaultColDefKey],
   )
+
+  const resolvedRowSelection = useMemo<RowSelectionOptions<T> | undefined>(() => {
+    if (enableRowSelection) {
+      return { mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }
+    }
+    if (!rowSelection) return undefined
+    if (rowSelection === 'single' || rowSelection === 'multiple') {
+      return { mode: rowSelection === 'single' ? 'singleRow' : 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }
+    }
+    return { checkboxes: false, headerCheckbox: false, enableClickSelection: true, ...rowSelection }
+  }, [enableRowSelection, rowSelection])
 
   const syncHiddenColsFromGrid = useCallback(() => {
     const api = gridApiRef.current
@@ -285,7 +298,8 @@ function DataGridInner<T>(
             rest.onGridReady?.(e)
           }}
           defaultColDef={mergedDefaultColDef}
-          rowSelection={enableRowSelection ? { mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true } : undefined}
+          rowSelection={resolvedRowSelection}
+          suppressCellFocus={suppressCellFocus}
         />
       </div>
     </div>

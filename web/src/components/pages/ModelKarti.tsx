@@ -6,7 +6,7 @@ import type { MenuProps } from 'antd'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi } from 'ag-grid-community'
-import { PlusOutlined, DeleteOutlined, UploadOutlined, DownloadOutlined, SettingOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, UploadOutlined, DownloadOutlined, SettingOutlined, UpOutlined, DownOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
@@ -758,6 +758,27 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: () => saveKolonlar(grid) },
   ]
 
+  const bedenYukari = (id: number) => {
+    setBedenler((prev) => {
+      const idx = prev.findIndex((b) => b.id === id)
+      if (idx <= 0) return prev
+      const next = [...prev]
+      const [item] = next.splice(idx, 1)
+      next.splice(idx - 1, 0, item)
+      return next
+    })
+  }
+  const bedenAsagi = (id: number) => {
+    setBedenler((prev) => {
+      const idx = prev.findIndex((b) => b.id === id)
+      if (idx < 0 || idx >= prev.length - 1) return prev
+      const next = [...prev]
+      const [item] = next.splice(idx, 1)
+      next.splice(idx + 1, 0, item)
+      return next
+    })
+  }
+
   const kolonContent = (api: GridApi | null, grid?: KolonGrid) => {
     if (!api) return <span className="!text-[11px] !text-gray-400">Grid yüklenmedi</span>
     const cols = api.getColumns()
@@ -912,8 +933,11 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           {bedenler.map((b) => (
             <div key={b.id} className="!flex !items-center !justify-between !px-2 !py-1 hover:!bg-gray-50">
               <span className="!text-[11px] !text-[#333]">{b.beden.kod}</span>
-              <button
-                className="!text-[11px] !text-red-500 !cursor-pointer !border-none !bg-transparent hover:!text-red-700"
+              <div className="!flex !items-center !gap-1">
+                <button type="button" className="!text-[11px] !text-[#9ca3af] hover:!text-[#333]" onClick={() => bedenYukari(b.id)} title="Yukarı taşı"><UpOutlined /></button>
+                <button type="button" className="!text-[11px] !text-[#9ca3af] hover:!text-[#333]" onClick={() => bedenAsagi(b.id)} title="Aşağı taşı"><DownOutlined /></button>
+                <button
+                  className="!text-[11px] !text-red-500 !cursor-pointer !border-none !bg-transparent hover:!text-red-700"
                 onClick={() => handleBedenSil(b.bedenId)}
               >
                 Sil
@@ -1300,6 +1324,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         <Dropdown menu={{ items: contextMenuItems('kumas') }} trigger={['contextMenu']}>
           <div style={{ height: '100%', width: '100%' }}>
             <AgGridReact<KumasRow>
+              rowDrag={true}
+              animateRows={true}
               rowData={kumasKalemler}
               columnDefs={kumasColDefs}
               theme={antGridTheme}
@@ -1347,6 +1373,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         <Dropdown menu={{ items: contextMenuItems('iplik') }} trigger={['contextMenu']}>
           <div style={{ height: '100%', width: '100%' }}>
             <AgGridReact<IplikRow>
+              rowDrag={true}
+              animateRows={true}
               rowData={iplikKalemler}
               columnDefs={iplikColDefs}
               theme={antGridTheme}
@@ -1394,6 +1422,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         <Dropdown menu={{ items: contextMenuItems('aksesuar') }} trigger={['contextMenu']}>
           <div style={{ height: '100%', width: '100%' }}>
             <AgGridReact<AksesuarRow>
+              rowDrag={true}
+              animateRows={true}
               rowData={aksesuarKalemler}
               columnDefs={aksesuarColDefs}
               theme={antGridTheme}
@@ -1639,6 +1669,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
         <Dropdown menu={{ items: contextMenuItems('fiyat') }} trigger={['contextMenu']}>
           <div style={{ height: '100%', width: '100%' }}>
             <AgGridReact
+              rowDrag={true}
+              animateRows={true}
               rowData={fiyatlar}
               columnDefs={fiyatColumns}
               theme={antGridTheme}
@@ -1661,7 +1693,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   )
 
   const eklerContent = (
-    <div className="!overflow-y-auto !overflow-x-hidden !h-full">
+    <div className="!overflow-y-auto !overflow-x-hidden !h-full !max-h-[calc(100vh-140px)]">
       <Row gutter={16} className="!h-full">
         <Col span={6}>
           <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !flex-col !gap-2">
@@ -1708,7 +1740,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           </div>
         </Col>
         <Col span={18}>
-          <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !items-center !justify-center !overflow-hidden">
+          <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !items-center !justify-center !overflow-hidden !min-h-0">
             {selectedDosya ? (
               selectedDosya.type === 'pending' && selectedDosya.file.type.startsWith('image/') ? (
                 <img src={URL.createObjectURL(selectedDosya.file)} alt={selectedDosya.file.name} className="!max-w-full !max-h-full !object-contain" />

@@ -214,8 +214,31 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
     set('ad', kumasAdiUret())
   }
 
+  const checkDuplicate = async () => {
+    const list = await malzemeApi.list(2)
+    const ayni = list.filter((m) => {
+      if (m.tip !== 2) return false
+      if (id && m.id === id) return false // güncellemede kendisini hariç tut
+      return (
+        m.cinsi === form.cinsi &&
+        (m.grm2 ?? null) === (form.grm2 ?? null) &&
+        m.ebat === form.ebat &&
+        m.iplikBoyali === form.iplikBoyali &&
+        (m.kumasTuruId ?? null) === (form.kumasTuruId ?? null) &&
+        m.ormeTipi === form.ormeTipi &&
+        m.kumasUretimTipi === form.kumasUretimTipi
+      )
+    })
+    return ayni[0]
+  }
+
   const handleKaydet = async () => {
     if (!form.ad.trim()) { message.warning('Ad alanı zorunludur'); return }
+    const mevcut = await checkDuplicate()
+    if (mevcut) {
+      message.error(`Aynı özelliklere sahip kumaş zaten kayıtlı: ${mevcut.kod}`)
+      return
+    }
     setSaving(true)
     try {
       if (id) {

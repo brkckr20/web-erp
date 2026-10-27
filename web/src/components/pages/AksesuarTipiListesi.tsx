@@ -58,14 +58,14 @@ export default function AksesuarTipiListesi({ onSelect, onNew }: AksesuarTipiLis
       title: 'Ad',
       dataIndex: 'ad',
       key: 'ad',
-      render: (text) => <span className="!text-[11px] !font-medium !text-[#f57c00]">{text}</span>,
+      render: (text) => <span className="!text-[12px] !font-medium !text-[#e65100]">{text}</span>,
     },
     {
       title: 'Ön Ek',
       dataIndex: 'onEk',
       key: 'onEk',
       width: 120,
-      render: (text) => <span className="!text-[11px]">{text || '-'}</span>,
+      render: (text) => <span>{text || '-'}</span>,
     },
     {
       title: 'Durum',
@@ -73,7 +73,7 @@ export default function AksesuarTipiListesi({ onSelect, onNew }: AksesuarTipiLis
       key: 'kullanimda',
       width: 90,
       render: (val: boolean) => (
-        <Tag color={val ? 'green' : 'default'} className="!text-[10px]">
+        <Tag color={val ? 'green' : 'default'} className="!text-[11px]">
           {val ? 'Aktif' : 'Pasif'}
         </Tag>
       ),
@@ -94,23 +94,20 @@ export default function AksesuarTipiListesi({ onSelect, onNew }: AksesuarTipiLis
             </Button>
           </div>
         </div>
-        <div className="!bg-white !rounded-sm !flex-1 !overflow-y-auto">
+        <div className="!bg-white !border !border-[#f0f0f0] !rounded-[2px] !flex-1 !overflow-y-auto">
           <Spin spinning={loading}>
             <Table
               columns={columns}
               dataSource={data}
               size="small"
               pagination={false}
-              rowSelection={{
-                type: 'radio',
-                selectedRowKeys: selectedRow ? [String(selectedRow)] : [],
-                onChange: (keys) => setSelectedRow(Number(keys[0])),
-              }}
+              rowClassName={(record) => (record.id === selectedRow ? 'satir-secili' : '')}
               onRow={(record) => ({
+                onClick: () => setSelectedRow(record.id),
                 onDoubleClick: () => onSelect?.(record.id),
                 className: '!cursor-pointer',
               })}
-              className="[&_.ant-table-thead>tr>th]:!text-[10px] [&_.ant-table-thead>tr>th]:!font-semibold [&_.ant-table-thead>tr>th]:!text-[#6b7280] [&_.ant-table-thead>tr>th]:!uppercase [&_.ant-table-thead>tr>th]:!bg-[#f9fafb] [&_.ant-table-tbody>tr>td]:!text-[11px] [&_.ant-table-tbody>tr>td]:!py-1.5"
+              className="[&_.ant-table-thead>tr>th]:!text-[12px] [&_.ant-table-thead>tr>th]:!leading-[18px] [&_.ant-table-thead>tr>th]:!font-semibold [&_.ant-table-thead>tr>th]:!text-[#6b7280] [&_.ant-table-thead>tr>th]:!bg-[#f9fafb] [&_.ant-table-thead>tr>th]:!px-2.5 [&_.ant-table-thead>tr>th]:!py-[7px] [&_.ant-table-thead>tr>th]:!border [&_.ant-table-thead>tr>th]:!border-r [&_.ant-table-thead>tr>th]:!border-b [&_.ant-table-thead>tr>th]:!border-[#f0f0f0] [&_.ant-table-tbody>tr>td]:!text-[12px] [&_.ant-table-tbody>tr>td]:!leading-[18px] [&_.ant-table-tbody>tr>td]:!text-[#333] [&_.ant-table-tbody>tr>td]:!px-2.5 [&_.ant-table-tbody>tr>td]:!py-[6px] [&_.ant-table-tbody>tr>td]:!border [&_.ant-table-tbody>tr>td]:!border-r [&_.ant-table-tbody>tr>td]:!border-b [&_.ant-table-tbody>tr>td]:!border-[#f0f0f0] [&_.ant-table-tbody>tr:hover>td]:!bg-[#fafafa] [&_.ant-table-tbody>tr.satir-secili>td]:!bg-[#FF9933] [&_.ant-table-tbody>tr.satir-secili:hover>td]:!bg-[#FF9933] !ant-table-small [&_.ant-table]:!text-[12px]"
             />
           </Spin>
         </div>

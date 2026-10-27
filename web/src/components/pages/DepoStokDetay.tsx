@@ -1,10 +1,11 @@
 'use client'
 
 import { Select, Input, App } from 'antd'
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { ReloadOutlined, SearchOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useState, useMemo, useEffect } from 'react'
-import type { ColDef } from 'ag-grid-community'
+import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
+import SagTikMenu from '@/components/shared/SagTikMenu'
 import { depoStokDetayApi, type DepoStokDetaySatir } from '@/lib/depo-bazli-stok-api'
 import { depoApi, type Depo } from '@/lib/depo-api'
 
@@ -14,13 +15,14 @@ const tire = (v: string | null) => v || '-'
 const satirAnahtari = (r: DepoStokDetaySatir) =>
   [r.depoKod, r.malzemeKod, r.renkKod, r.siparisNo, r.partiNo, r.takipNo].map((v) => v ?? '').join('|')
 
-export default function DepoStokDetay() {
+export default function DepoStokDetay({ onStokEkstresi }: { onStokEkstresi?: (malzemeKod: string, depoKod?: string) => void }) {
   const [satirlar, setSatirlar] = useState<DepoStokDetaySatir[]>([])
   const [depoList, setDepoList] = useState<Depo[]>([])
   const [depoFiltre, setDepoFiltre] = useState<string[]>([])
   const [arama, setArama] = useState('')
   const [loading, setLoading] = useState(false)
   const [tiklananSatir, setTiklananSatir] = useState<string | null>(null)
+  const [sagTik, setSagTik] = useState<{ x: number; y: number; kod: string; depoKod: string } | null>(null)
   const { message } = App.useApp()
 
   const load = () => {
@@ -130,7 +132,7 @@ export default function DepoStokDetay() {
       </div>
 
       <div className="!flex-1 !min-h-0" style={{ minHeight: 300 }}>
-        <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
+        <div className="!bg-white !rounded-sm !h-full !flex !flex-col" onContextMenu={(e: any) => { e.preventDefault(); return false; }}>
           <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
             <DataGrid
               loading={loading}
@@ -145,6 +147,11 @@ export default function DepoStokDetay() {
               getRowClass={(e) =>
                 e.data && satirAnahtari(e.data) === tiklananSatir ? 'secili-satir' : undefined
               }
+              onCellContextMenu={(e: CellContextMenuEvent<DepoStokDetaySatir>) => {
+                const ev = e.event as MouseEvent | undefined
+                ev?.preventDefault?.()
+                if (e.data) setSagTik({ x: ev?.clientX ?? 0, y: ev?.clientY ?? 0, kod: e.data.malzemeKod, depoKod: e.data.depoKod ?? '' })
+              }}
             />
           </div>
           <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">
@@ -157,6 +164,23 @@ export default function DepoStokDetay() {
           </div>
         </div>
       </div>
+      {sagTik && (
+        <SagTikMenu
+          position={sagTik}
+          items={[
+            {
+              key: 'ekstre',
+              label: 'Malzeme Ekstresi',
+              icon: <FileTextOutlined />,
+              onClick: () => {
+                onStokEkstresi?.(sagTik.kod, sagTik.depoKod || undefined)
+                setSagTik(null)
+              },
+            },
+          ]}
+          onClose={() => setSagTik(null)}
+        />
+      )}
     </div>
   )
 }

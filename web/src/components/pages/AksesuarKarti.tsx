@@ -8,6 +8,7 @@ import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
 import type { Marka } from '@/lib/marka-api'
 import type { OzellikKodlama } from '@/lib/ozellik-kodlama-api'
+import { useKirli } from '@/lib/kirli'
 import { aksesuarApi, type AksesuarFormData } from '@/lib/aksesuar-api'
 import { aksesuarTipiApi, type AksesuarTipi } from '@/lib/aksesuar-tipi-api'
 import { numaratorApi, type Numarator } from '@/lib/numarator-api'
@@ -42,9 +43,10 @@ interface AksesuarKartiProps {
   isNew?: boolean
   kod?: string
   selectedTipId?: number
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKartiProps) {
+export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange }: AksesuarKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<AksesuarFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
@@ -77,6 +79,11 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
   const [boyOlcuModalOpen, setBoyOlcuModalOpen] = useState(false)
   const [kapakModalOpen, setKapakModalOpen] = useState(false)
   const [micronModalOpen, setMicronModalOpen] = useState(false)
+
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => {
+    onKirliChange?.(kirli)
+  }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod) {
@@ -128,31 +135,32 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
     try {
       const data = await aksesuarApi.getByKod(k)
       setId(data.id)
-      setForm({
-        kod: data.kod,
-        ad: data.ad,
-        kullanimda: data.kullanimda,
-        tip: 4,
-        numaratorId: data.numaratorId ?? null,
-        aksesuarTipiId: (data as any).aksesuarTipiId ?? null,
-        malzemeTuru: data.malzemeTuru ?? null,
-        cinsi: data.cinsi ?? null,
-        renk: (data as any).renk ?? null,
-        ebat: data.ebat ?? null,
-        desenKodu: (data as any).desenKodu ?? null,
-        ureticiUrunKodu: data.ureticiUrunKodu ?? null,
-        markaId: data.markaId ?? null,
-        ozellik1: (data as any).ozellik1 ?? null,
-        ozellik2: (data as any).ozellik2 ?? null,
-        ozellik3: (data as any).ozellik3 ?? null,
-        ozellik4: (data as any).ozellik4 ?? null,
-        derece: (data as any).derece ?? null,
-        enOlcu: (data as any).enOlcu ?? null,
-        boyOlcu: (data as any).boyOlcu ?? null,
-        kapak: (data as any).kapak ?? null,
-        micron: (data as any).micron ?? null,
-        model: (data as any).model ?? null,
-      })
+        setForm({
+          kod: data.kod,
+          ad: data.ad,
+          kullanimda: data.kullanimda,
+          tip: 4,
+          numaratorId: data.numaratorId ?? null,
+          aksesuarTipiId: (data as any).aksesuarTipiId ?? null,
+          malzemeTuru: data.malzemeTuru ?? null,
+          cinsi: data.cinsi ?? null,
+          renk: (data as any).renk ?? null,
+          ebat: data.ebat ?? null,
+          desenKodu: (data as any).desenKodu ?? null,
+          ureticiUrunKodu: data.ureticiUrunKodu ?? null,
+          markaId: data.markaId ?? null,
+          ozellik1: (data as any).ozellik1 ?? null,
+          ozellik2: (data as any).ozellik2 ?? null,
+          ozellik3: (data as any).ozellik3 ?? null,
+          ozellik4: (data as any).ozellik4 ?? null,
+          derece: (data as any).derece ?? null,
+          enOlcu: (data as any).enOlcu ?? null,
+          boyOlcu: (data as any).boyOlcu ?? null,
+          kapak: (data as any).kapak ?? null,
+          micron: (data as any).micron ?? null,
+          model: (data as any).model ?? null,
+        })
+        temizle()
     } catch {
       message.warning('Kod bulunamadı')
     } finally {
@@ -244,6 +252,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
     setKapakData(null)
     setMicronData(null)
     setMarkaAd('')
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -267,6 +276,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -276,6 +286,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
       const idx = list.findIndex((d) => d.id === id)
       if (idx <= 0) { message.info('İlk kayıttasınız'); return }
       await loadByKod(list[idx - 1].kod)
+      temizle()
     } catch { message.warning('Önceki kayıt yüklenemedi') }
   }
 
@@ -285,6 +296,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
       const idx = list.findIndex((d) => d.id === id)
       if (idx < 0 || idx >= list.length - 1) { message.info('Son kayıttasınız'); return }
       await loadByKod(list[idx + 1].kod)
+      temizle()
     } catch { message.warning('Sonraki kayıt yüklenemedi') }
   }
 
@@ -299,10 +311,11 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId }: AksesuarKar
       onOk: async () => {
         setSaving(true)
         try {
-          await aksesuarApi.delete(id)
-          message.success('Aksesuar silindi')
-          handleYeni()
-        } catch { message.error('Silme sırasında hata oluştu') }
+        await aksesuarApi.delete(id)
+        message.success('Aksesuar silindi')
+        handleYeni()
+        temizle()
+      } catch { message.error('Silme sırasında hata oluştu') }
         finally { setSaving(false) }
       },
     })

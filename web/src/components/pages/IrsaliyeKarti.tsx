@@ -2106,7 +2106,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                     theme={antTheme}
                     headerHeight={32}
                     rowHeight={30}
-                    rowSelection="single"
+                    rowSelection={{ mode: 'singleRow', enableClickSelection: true }}
                     getRowId={(p) => p.data.key}
                     localeText={agGridLocaleTR}
                     defaultColDef={kalemGridDefaultColDef}
@@ -2205,7 +2205,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                 theme={antTheme}
                 headerHeight={30}
                 rowHeight={28}
-                rowSelection="multiple"
+                rowSelection={{ mode: 'multiRow', enableClickSelection: true }}
                 localeText={agGridLocaleTR}
                 defaultColDef={{ resizable: true, sortable: true }}
                 onGridReady={(e) => { fasonGidenGridRef.current = e.api }}
@@ -2254,7 +2254,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                 theme={antTheme}
                 headerHeight={30}
                 rowHeight={28}
-                rowSelection="multiple"
+                rowSelection={{ mode: 'multiRow', enableClickSelection: true }}
                 localeText={agGridLocaleTR}
                 defaultColDef={{ resizable: true, sortable: true }}
                 onGridReady={(e) => { acikTalimatGridRef.current = e.api }}

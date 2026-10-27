@@ -571,14 +571,15 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
       },
     }))
 
-    const bedenCols: ColDef<RenkBedenRow>[] = modelBedenler.map((b) => ({
-      headerName: b.beden.kod,
-      field: `miktarlar.${b.bedenId}`,
-      width: 70,
-      minWidth: 60,
-      editable: true,
-      cellDataType: 'numeric',
-    }))
+  const bedenCols: ColDef<RenkBedenRow>[] = modelBedenler.map((b) => ({
+    headerName: b.beden.kod,
+    field: `miktarlar.${b.bedenId}`,
+    width: 70,
+    minWidth: 60,
+    editable: true,
+    singleClickEdit: true,
+    cellDataType: 'numeric',
+  }))
 
     return [
       {
@@ -613,6 +614,7 @@ const fiyatColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     width: 90,
     minWidth: 70,
     editable: true,
+    singleClickEdit: true,
     cellDataType: 'numeric',
   }))
 
@@ -1275,6 +1277,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                           rowHeight={27}
                           onCellValueChanged={handleCellValueChanged}
                           rowSelection="single"
+                          suppressCellFocus={false}
                           getRowId={(params) => params.data.key}
                           onSelectionChanged={handleModelSelectionChanged}
                           onRowClicked={handleModelRowClick}
