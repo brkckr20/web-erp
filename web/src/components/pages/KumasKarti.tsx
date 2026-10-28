@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Input, Switch, Select, InputNumber, App, Spin } from 'antd'
+import { Input, Switch, Select, InputNumber, App, Spin, Tabs } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
@@ -375,6 +375,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
           </div>
 
           <div className="!p-3 !overflow-y-auto !flex-1">
+            <Tabs defaultActiveKey="genel" items={[{ key: 'genel', label: 'Genel', children: (
             <div className="!border !border-gray-200 !rounded-sm !p-3">
               <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">Kumaş Bilgileri</div>
               <div className="!grid !grid-cols-3 !gap-x-6 !gap-y-2.5">
@@ -416,6 +417,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
                 </FormField>
               </div>
             </div>
+            ) }, { key: 'ekler', label: 'Ekler', children: <div className="!p-3">Ekler içeriği</div> }]} />
           </div>
         </Spin>
       </div>

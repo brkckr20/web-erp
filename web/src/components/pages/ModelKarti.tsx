@@ -942,6 +942,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
               >
                 Sil
               </button>
+              </div>
             </div>
           ))}
         </div>
