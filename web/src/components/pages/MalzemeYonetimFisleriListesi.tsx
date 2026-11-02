@@ -122,6 +122,14 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
     },
     {
       headerName: 'Fiş Tarihi', field: 'irsaliyeTarih', width: 100, resizable: true,
+      comparator: (a: any, b: any) => {
+        const da = String(a ?? '').split('.').map(Number)
+        const db = String(b ?? '').split('.').map(Number)
+        if (da.length === 3 && db.length === 3) {
+          return new Date(da[2], da[1] - 1, da[0]).getTime() - new Date(db[2], db[1] - 1, db[0]).getTime()
+        }
+        return String(a ?? '').localeCompare(String(b ?? ''))
+      },
     },
     {
       headerName: 'Cari Hesap', field: 'cariHesap', flex: 1, minWidth: 120, resizable: true,

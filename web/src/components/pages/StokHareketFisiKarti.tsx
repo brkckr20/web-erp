@@ -731,7 +731,11 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
     [kullanici?.id],
   )
   const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
-  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: true }), [])
+  const kalemGridDefaultColDef = useMemo(() => ({
+    resizable: true,
+    sortable: false,
+    filter: true,
+  }), [])
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
     try {
@@ -865,8 +869,8 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
 
   return (
     <Spin spinning={loading} className="!h-full">
-      <div className="!px-3 !flex !flex-col !h-full !overflow-hidden">
-        <div style={{ marginLeft: -12, marginRight: -12 }}>
+      <div className="!px-3 !flex !flex-col !h-full !min-h-0 !overflow-hidden">
+        <div className="!flex-1 !min-h-0 !overflow-auto" style={{ marginLeft: -12, marginRight: -12 }}>
           <CardToolbar
             buttons={createToolbarButtons({
               onSave: handleKaydet,
@@ -986,7 +990,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                         </Button>
                       </div>
                     </div>
-                    <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
+                    <div style={{ height: 'calc(100vh - 500px)', minHeight: 300, width: '100%' }} className="kalemler-grid">
                       {isCikis || isGiris ? (
                         <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
                           <div style={{ height: '100%', width: '100%' }}>

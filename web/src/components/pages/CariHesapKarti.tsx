@@ -5,6 +5,7 @@ import { Tabs, Input, Switch, Select, Row, Col, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { cariHesapApi, type CariHesapFormData } from '@/lib/cari-hesap-api'
+import { useKirli } from '@/lib/kirli'
 import CariHesapAdresleri from './CariHesapAdresleri'
 
 interface CariForm {
@@ -78,14 +79,17 @@ const emptyData: CariForm = {
 interface CariHesapKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function CariHesapKarti({ isNew, kod }: CariHesapKartiProps) {
+export default function CariHesapKarti({ isNew, kod, onKirliChange }: CariHesapKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<CariForm>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod) {
@@ -138,6 +142,7 @@ export default function CariHesapKarti({ isNew, kod }: CariHesapKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -182,6 +187,7 @@ export default function CariHesapKarti({ isNew, kod }: CariHesapKartiProps) {
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -242,6 +248,8 @@ export default function CariHesapKarti({ isNew, kod }: CariHesapKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   const cariTipiOptions = [

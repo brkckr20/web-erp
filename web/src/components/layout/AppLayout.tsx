@@ -1152,10 +1152,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <CariHesapListesi onSelect={openCariHesapKarti} onNew={openYeniCariHesap} />
     }
     if (tab.key === 'cari-hesap-karti-yeni') {
-      return <CariHesapKarti isNew />
+      return <CariHesapKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('cari-hesap-karti-')) {
-      return <CariHesapKarti kod={tab.key.replace('cari-hesap-karti-', '')} />
+      return <CariHesapKarti kod={tab.key.replace('cari-hesap-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'kalite-kontrol-giris') {
       return <KaliteKontrolListesi onNew={openYeniKaliteKontrol} onSelect={openKaliteKontrolKarti} />
