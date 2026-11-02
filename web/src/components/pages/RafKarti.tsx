@@ -5,6 +5,7 @@ import { Input, Checkbox, Row, Col, Select, InputNumber, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { depoRafApi, type CreateDepoRaf } from '@/lib/depo-raf-api'
+import { useKirli } from '@/lib/kirli'
 import { depoApi, type Depo } from '@/lib/depo-api'
 
 interface FormState {
@@ -38,15 +39,18 @@ const BIRIMLER = ['kg', 'mt', 'adet', 'm2', 'koli', 'paket']
 interface RafKartiProps {
   isNew?: boolean
   id?: number
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function RafKarti({ id }: RafKartiProps) {
+export default function RafKarti({ isNew, id, onKirliChange }: RafKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<FormState>(emptyData)
   const [kayitId, setKayitId] = useState<number | null>(null)
   const [depolar, setDepolar] = useState<Depo[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     const yukle = async () => {
@@ -81,6 +85,7 @@ export default function RafKarti({ id }: RafKartiProps) {
         message.warning('Raf bulunamadı')
       } finally {
         setLoading(false)
+        temizle()
       }
     },
     [message],
@@ -164,6 +169,7 @@ export default function RafKarti({ id }: RafKartiProps) {
       message.error(mesaj ? String(mesaj) : 'Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -229,6 +235,8 @@ export default function RafKarti({ id }: RafKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

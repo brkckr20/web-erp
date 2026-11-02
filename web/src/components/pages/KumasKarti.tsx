@@ -6,6 +6,7 @@ import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
 import { malzemeApi, type MalzemeFormData } from '@/lib/malzeme-api'
+import { useKirli } from '@/lib/kirli'
 import { numaratorApi, type Numarator } from '@/lib/numarator-api'
 import { ozellikKodlamaApi, type OzellikKodlama } from '@/lib/ozellik-kodlama-api'
 
@@ -62,9 +63,10 @@ const emptyData: MalzemeFormData = {
 interface KumasKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
+export default function KumasKarti({ isNew, kod, onKirliChange }: KumasKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<MalzemeFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
@@ -73,6 +75,8 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
   const [numaratorlar, setNumaratorlar] = useState<Numarator[]>([])
   const [turModalOpen, setTurModalOpen] = useState(false)
   const [turData, setTurData] = useState<OzellikKodlama | null>(null)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
   const adManuelRef = useRef(false)
 
   const seciliNumarator = numaratorlar.find((x) => x.id === form.numaratorId)
@@ -178,6 +182,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -264,7 +269,7 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
           message.error(parsed.message || 'Kayıt sırasında hata oluştu')
         } catch { message.error(e.message) }
       } else { message.error('Kayıt sırasında hata oluştu') }
-    } finally { setSaving(false) }
+    } finally { setSaving(false); temizle() }
   }
 
   const handlePrevious = async () => {
@@ -311,6 +316,8 @@ export default function KumasKarti({ isNew, kod }: KumasKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   const ormeTipiOptions = [

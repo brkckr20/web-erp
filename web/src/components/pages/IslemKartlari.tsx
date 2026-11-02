@@ -5,6 +5,7 @@ import { Button, Input, InputNumber, Switch, Table, Modal, Form, App, Space, Sel
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { islemApi, type IslemKarti } from '@/lib/islem-api'
+import { useKirli } from '@/lib/kirli'
 
 export type { IslemKarti }
 
@@ -12,15 +13,18 @@ interface IslemKartlariProps {
   onSelect?: (islem: IslemKarti) => void
   /** Doluysa liste bu tipe kilitlenir (örn. 2 = Proses Tanımları), yeni kayıtlar bu tiple açılır. */
   sabitTip?: number | null
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps) {
+export default function IslemKartlari({ onSelect, sabitTip, onKirliChange }: IslemKartlariProps) {
   const { message, modal } = App.useApp()
   const [data, setData] = useState<IslemKarti[]>([])
   const [editing, setEditing] = useState<IslemKarti | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
+  const { kirli, temizle } = useKirli([editing, modalOpen])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
   /** Yeni kayıtta kod otomatik verilsin mi (tip bazında 01'den artan). */
   const [otomatikKod, setOtomatikKod] = useState(true)
 
@@ -101,6 +105,7 @@ export default function IslemKartlari({ onSelect, sabitTip }: IslemKartlariProps
         setModalOpen(false)
         setEditing(null)
         form.resetFields()
+        temizle()
       } catch (e: any) {
         message.error(e?.message || 'Kayıt sırasında hata oluştu')
       }

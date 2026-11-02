@@ -5,6 +5,7 @@ import { Tabs, Input, Checkbox, Row, Col, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { hataTanimApi } from '@/lib/hata-tanim-api'
+import { useKirli } from '@/lib/kirli'
 import type { HataTanim, CreateHataTanim } from '@/lib/hata-tanim-api'
 
 const emptyData: CreateHataTanim = {
@@ -17,14 +18,17 @@ const emptyData: CreateHataTanim = {
 interface HataTanimKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function HataTanimKarti({ isNew, kod }: HataTanimKartiProps) {
+export default function HataTanimKarti({ isNew, kod, onKirliChange }: HataTanimKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<CreateHataTanim>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod) {
@@ -50,6 +54,7 @@ export default function HataTanimKarti({ isNew, kod }: HataTanimKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -93,6 +98,7 @@ export default function HataTanimKarti({ isNew, kod }: HataTanimKartiProps) {
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -153,6 +159,8 @@ export default function HataTanimKarti({ isNew, kod }: HataTanimKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

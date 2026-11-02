@@ -6,6 +6,7 @@ import { SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { makinaApi } from '@/lib/makina-api'
+import { useKirli } from '@/lib/kirli'
 import type { MakinaFormData } from '@/lib/makina-api'
 
 const emptyData: MakinaFormData = {
@@ -40,14 +41,17 @@ const emptyData: MakinaFormData = {
 interface MakinaKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function MakinaKarti({ kod }: MakinaKartiProps) {
+export default function MakinaKarti({ isNew, kod, onKirliChange }: MakinaKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<MakinaFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const loadByKod = useCallback(async (kod: string) => {
     setLoading(true)
@@ -86,6 +90,7 @@ export default function MakinaKarti({ kod }: MakinaKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [message])
 
@@ -138,6 +143,7 @@ export default function MakinaKarti({ kod }: MakinaKartiProps) {
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -198,6 +204,8 @@ export default function MakinaKarti({ kod }: MakinaKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   const makinaTuruOptions = [

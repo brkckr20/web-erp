@@ -949,11 +949,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <RafListesi onSelect={openRafKarti} onNew={openYeniRaf} />
     }
     if (tab.key === 'raf-karti-yeni') {
-      return <RafKarti isNew />
+      return <RafKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('raf-karti-') && !tab.key.startsWith('raf-karti-yeni')) {
       const rafId = Number(tab.key.replace('raf-karti-', ''))
-      if (!isNaN(rafId)) return <RafKarti id={rafId} />
+      if (!isNaN(rafId)) return <RafKarti id={rafId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'depo-karti-yeni') {
       return <DepoKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
@@ -1131,10 +1131,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <HizmetKarti kod={tab.key.replace('hizmet-karti-', '')} />
     }
     if (tab.key === 'malzeme-karti-yeni') {
-      return <MalzemeKarti isNew />
+      return <MalzemeKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('malzeme-karti-') && !tab.key.startsWith('malzeme-karti-yeni')) {
-      return <MalzemeKarti kod={tab.key.replace('malzeme-karti-', '')} />
+      return <MalzemeKarti kod={tab.key.replace('malzeme-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('malzeme-stok-ekstresi-')) {
       return <MalzemeStokEkstresi malzemeKod={tab.key.replace('malzeme-stok-ekstresi-', '')} depoKod={tab.depoKod ?? undefined} />
@@ -1143,10 +1143,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <MakinaListesi onSelect={openMakinaKarti} onNew={openYeniMakina} />
     }
     if (tab.key === 'makina-karti-yeni') {
-      return <MakinaKarti isNew />
+      return <MakinaKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('makina-karti-')) {
-      return <MakinaKarti kod={tab.key.replace('makina-karti-', '')} />
+      return <MakinaKarti kod={tab.key.replace('makina-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'cari-hesap-karti') {
       return <CariHesapListesi onSelect={openCariHesapKarti} onNew={openYeniCariHesap} />
@@ -1180,10 +1180,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <KumasListesi onSelect={openKumasKarti} onNew={openYeniKumas} />
     }
     if (tab.key === 'kumas-karti-yeni') {
-      return <KumasKarti isNew />
+      return <KumasKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('kumas-karti-')) {
-      return <KumasKarti kod={tab.key.replace('kumas-karti-', '')} />
+      return <KumasKarti kod={tab.key.replace('kumas-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'rota-tanimlari') {
       return <RotaListesi onSelect={openRotaKarti} onNew={openYeniRota} />
@@ -1198,28 +1198,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <IplikListesi onSelect={openIplikKarti} onNew={openYeniIplik} />
     }
     if (tab.key === 'iplik-karti-yeni') {
-      return <IplikKarti isNew />
+      return <IplikKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('iplik-karti-')) {
-      return <IplikKarti kod={tab.key.replace('iplik-karti-', '')} />
+      return <IplikKarti kod={tab.key.replace('iplik-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'numarator-tanimlari') {
       return <NumaratorListesi onSelect={openNumaratorKarti} onNew={openYeniNumarator} />
     }
     if (tab.key === 'numarator-karti-yeni') {
-      return <NumaratorKarti isNew />
+      return <NumaratorKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('numarator-karti-')) {
-      return <NumaratorKarti id={Number(tab.key.replace('numarator-karti-', ''))} />
+      return <NumaratorKarti id={Number(tab.key.replace('numarator-karti-', ''))} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'hata-tanimlari') {
       return <HataTanimListesi onSelect={openHataTanimKarti} onNew={openYeniHataTanim} />
     }
     if (tab.key === 'hata-tanim-karti-yeni') {
-      return <HataTanimKarti isNew />
+      return <HataTanimKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('hata-tanim-karti-')) {
-      return <HataTanimKarti kod={tab.key.replace('hata-tanim-karti-', '')} />
+      return <HataTanimKarti kod={tab.key.replace('hata-tanim-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'renk-kartlari') {
       return <RenkListesi onSelect={openRenkKarti} onNew={openYeniRenk} />
@@ -1300,10 +1300,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <AksesuarTipiListesi onSelect={openAksesuarTipiKarti} onNew={openYeniAksesuarTipi} />
     }
     if (tab.key === 'aksesuar-tipi-karti-yeni') {
-      return <AksesuarTipiKarti isNew />
+      return <AksesuarTipiKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('aksesuar-tipi-karti-')) {
-      return <AksesuarTipiKarti id={Number(tab.key.replace('aksesuar-tipi-karti-', ''))} />
+      return <AksesuarTipiKarti id={Number(tab.key.replace('aksesuar-tipi-karti-', ''))} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'aksesuar-kartlari') {
       return <AksesuarListesi onSelect={openAksesuarKarti} onNew={openYeniAksesuar} onNewTipi={openYeniAksesuarTipi} />
@@ -1361,7 +1361,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <IslemKartlari />
     }
     if (tab.key === 'proses-tanimlari') {
-      return <IslemKartlari sabitTip={2} />
+      return <IslemKartlari sabitTip={2} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'kumas-tedarik-raporu') {
       return <KumasTedarikRaporu />

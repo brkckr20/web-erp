@@ -5,6 +5,7 @@ import { Input, Select, Switch, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { numaratorApi } from '@/lib/numarator-api'
+import { useKirli } from '@/lib/kirli'
 
 interface FormData {
   ad: string
@@ -32,14 +33,17 @@ const TIP_OPTIONS = [
 interface NumaratorKartiProps {
   isNew?: boolean
   id?: number
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
+export default function NumaratorKarti({ isNew, id, onKirliChange }: NumaratorKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<FormData>(emptyData)
   const [dbId, setDbId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (id) {
@@ -67,6 +71,7 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -95,6 +100,7 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -131,7 +137,7 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
           message.success('Numaratör silindi')
           handleYeni()
         } catch { message.error('Silme sırasında hata oluştu') }
-        finally { setSaving(false) }
+        finally { setSaving(false); temizle() }
       },
     })
   }
@@ -142,6 +148,8 @@ export default function NumaratorKarti({ isNew, id }: NumaratorKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

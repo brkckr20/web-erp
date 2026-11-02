@@ -8,6 +8,7 @@ import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import SearchableGrupSelect from '@/components/shared/SearchableGrupSelect'
 import { malzemeApi } from '@/lib/malzeme-api'
+import { useKirli } from '@/lib/kirli'
 import type { MalzemeFormData } from '@/lib/malzeme-api'
 import { malzemeEkApi } from '@/lib/malzeme-ek-api'
 import type { MalzemeEk } from '@/lib/malzeme-ek-api'
@@ -66,14 +67,17 @@ const emptyData: MalzemeFormData = {
 interface MalzemeKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
+export default function MalzemeKarti({ isNew, kod, onKirliChange }: MalzemeKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<MalzemeFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
   const [dosyalar, setDosyalar] = useState<File[]>([])
   const [ekList, setEkList] = useState<MalzemeEk[]>([])
   const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
@@ -195,6 +199,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [message])
 
@@ -257,6 +262,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
       }
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -319,6 +325,7 @@ export default function MalzemeKarti({ isNew, kod }: MalzemeKartiProps) {
     onDelete: handleSil,
     onReport: () => setRaporModalAcik(true),
   }, {
+    save: { accent: kirli },
     report: { disabled: !id },
   })
 

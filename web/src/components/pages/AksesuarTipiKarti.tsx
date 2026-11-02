@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Input, Switch, App, Spin } from 'antd'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { aksesuarTipiApi } from '@/lib/aksesuar-tipi-api'
+import { useKirli } from '@/lib/kirli'
 
 interface FormData {
   ad: string
@@ -20,14 +21,17 @@ const emptyData: FormData = {
 interface AksesuarTipiKartiProps {
   isNew?: boolean
   id?: number
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function AksesuarTipiKarti({ isNew, id }: AksesuarTipiKartiProps) {
+export default function AksesuarTipiKarti({ isNew, id, onKirliChange }: AksesuarTipiKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<FormData>(emptyData)
   const [dbId, setDbId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (id) {
@@ -52,6 +56,7 @@ export default function AksesuarTipiKarti({ isNew, id }: AksesuarTipiKartiProps)
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -79,6 +84,7 @@ export default function AksesuarTipiKarti({ isNew, id }: AksesuarTipiKartiProps)
       message.error('Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -126,6 +132,8 @@ export default function AksesuarTipiKarti({ isNew, id }: AksesuarTipiKartiProps)
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (
