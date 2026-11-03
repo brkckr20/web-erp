@@ -1393,6 +1393,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                           height={260}
                           wrapperClassName="!min-h-[260px]"
                           onCellValueChanged={handleRenkBedenCellValueChanged}
+                          navigateToNextCell={() => true}
                         />
                       ) : (
                         <div className="!h-full !flex !items-center !justify-center !text-[11px] !text-gray-400">
