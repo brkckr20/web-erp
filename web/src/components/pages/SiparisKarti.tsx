@@ -180,7 +180,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
 
   const emptyRow = (key: string): ModelRow => ({ key, malzemeId: undefined, modelKod: '', modelAd: '', aciklama: '', ozelKod: '', dovizCinsi: '', dovizFiyat: '', dovizKuru: '', fiyat: '', miktar: '', tutar: '' })
 
-  const emptyRenkBedenRow = useCallback((gruplar: ModelKumasGrup[], bedenler: ModelBeden[]): RenkBedenRow => {
+  const emptyRenkBedenRow = (gruplar: ModelKumasGrup[], bedenler: ModelBeden[]): RenkBedenRow => {
     const renkler: Record<number, RenkBedenVaryant> = {}
     for (const g of gruplar) {
       renkler[g.kumasGrupId] = { renkId: null, renkAd: '', renkHex: '' }
@@ -220,7 +220,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
     toplam: '',
     genelToplam: '',
   }
-  }, [])
+  }
 
   const removeRow = (key: string) =>
     setRows((prev) => prev.filter((r) => r.key !== key))
