@@ -614,6 +614,7 @@ const fiyatColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     width: 90,
     minWidth: 70,
     editable: true,
+    singleClickEdit: true,
     cellDataType: 'numeric',
   }))
 
@@ -1392,7 +1393,6 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                           height={260}
                           wrapperClassName="!min-h-[260px]"
                           onCellValueChanged={handleRenkBedenCellValueChanged}
-                          getRowId={(r: RenkBedenRow) => r.key}
                         />
                       ) : (
                         <div className="!h-full !flex !items-center !justify-center !text-[11px] !text-gray-400">
