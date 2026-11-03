@@ -16,6 +16,20 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
   const { kullanici } = useAuth()
   const { message } = App.useApp()
   const kullaniciId = kullanici?.id
+  const [visible, setVisible] = useState(!!module)
+  const [mounted, setMounted] = useState(!!module)
+
+  useEffect(() => {
+    if (module) {
+      setMounted(true)
+      const t = setTimeout(() => setVisible(true), 10)
+      return () => clearTimeout(t)
+    } else {
+      setVisible(false)
+      const t = setTimeout(() => setMounted(false), 200)
+      return () => clearTimeout(t)
+    }
+  }, [module])
 
   const [shortcuts, setShortcuts] = useState<ShortcutItem[]>([])
   const [starredKeys, setStarredKeys] = useState<Set<string>>(new Set())
@@ -43,7 +57,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
     return grouped
   }, [shortcuts])
 
-  if (!module) return null
+  if (!mounted) return null
 
   const handleClick = (item: { key: string; label: string; isForm?: boolean }, modKey?: string) => {
     onSubItemClick({
@@ -101,7 +115,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
       />
 
       <div
-        className="!fixed !left-[178px] !top-0 !h-screen !z-40 !shadow-2xl animate-[slideInLeft_0.2s_ease-out]"
+        className={`!fixed !left-[178px] !top-0 !h-screen !z-40 !shadow-2xl !transition-all !duration-300 !ease-out ${visible ? '!translate-x-0 !opacity-100' : '!translate-x-[-120%] !opacity-0'}`}
         style={{ width: 'auto', minWidth: 260 }}
       >
         <div className="!h-10 !bg-[#1e2630] !flex !items-center !px-4 !gap-2">

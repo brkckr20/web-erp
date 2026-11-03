@@ -217,6 +217,14 @@ body {
   color: #999 !important;
 }
 
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(-100%); opacity: 0; }
+}
 /* Input/Select yazı boyutu (kalemler grid) */
 .ag-root-wrapper .ag-cell .kalem-input,
 .ag-root-wrapper .ag-cell .kalem-select,
