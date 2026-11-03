@@ -148,6 +148,7 @@ export default function RotaKarti({ isNew, kod }: RotaKartiProps) {
             operasyonAdi: rec?.ad ?? '',
             birim: rec?.birim ?? r.birim,
           })}
+          tip={1}
         />
       ),
     },

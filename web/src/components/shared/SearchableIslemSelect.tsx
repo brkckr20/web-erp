@@ -12,6 +12,7 @@ interface SearchableIslemSelectProps {
   className?: string
   widthClass?: string
   size?: 'small' | 'middle' | 'large'
+  tip?: number
 }
 
 // İşlem Kartları'ndan searchable işlem seçimi (değer = işlem kodu).
@@ -22,6 +23,7 @@ export default function SearchableIslemSelect({
   className,
   widthClass = '!w-full',
   size = 'small',
+  tip,
 }: SearchableIslemSelectProps) {
   const [options, setOptions] = useState<IslemKarti[]>([])
   const [loading, setLoading] = useState(false)
@@ -29,8 +31,9 @@ export default function SearchableIslemSelect({
   const load = async () => {
     setLoading(true)
     try {
-      const list = await islemApi.list()
-      setOptions(list.filter((d) => d.aktif))
+      const list = await islemApi.list(tip ?? undefined)
+      const unique = list.filter((d, i, arr) => arr.findIndex(x => x.kod === d.kod) === i)
+      setOptions(unique.filter((d) => d.aktif))
     } catch {
       setOptions([])
     } finally {
