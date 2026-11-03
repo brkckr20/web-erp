@@ -614,7 +614,6 @@ const fiyatColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     width: 90,
     minWidth: 70,
     editable: true,
-    singleClickEdit: true,
     cellDataType: 'numeric',
   }))
 
