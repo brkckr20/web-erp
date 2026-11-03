@@ -114,6 +114,13 @@ function imzaSayi(v: string | number | null | undefined): string {
   return Number.isFinite(n) ? String(n) : String(v)
 }
 
+/** Birim fiyat alanları Decimal(18,4) standardına göre 4 ondalıkla gösterilir. */
+function formatFiyat4(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === '') return ''
+  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+  return Number.isFinite(n) ? n.toFixed(4) : ''
+}
+
 /**
  * Tedarik hesabını etkileyen kısımların (miktar, renk, beden) imzası.
  * Sipariş kartında bu imza değiştiyse tedarik hesabı bayat kalır.
@@ -405,6 +412,12 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
     setIsDirty(true)
   }
 
+  const tarihRef = useRef(form.tarih)
+
+  useEffect(() => {
+    tarihRef.current = form.tarih
+  }, [form.tarih])
+
   const modelColumns = useMemo<ColDef<ModelRow>[]>(
     () => [
       {
@@ -515,6 +528,27 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
                 ),
               )
               setIsDirty(true)
+              const tarih = tarihRef.current
+              if (tarih && val) {
+                dovizApi.getKurlar(tarih).then((kurlar) => {
+                  const kur = kurlar.find((k) => k.dovizKodu === val && k.satisKuru != null)?.satisKuru
+                  if (kur == null) return
+                  setRows((prev) =>
+                    prev.map((row) => {
+                      if (row.key !== p.data.key || row.dovizCinsi !== val) return row
+                      const f = parseFloat(row.dovizFiyat) || 0
+                      const m = parseFloat(row.miktar) || 0
+                      const fiyat = f > 0 ? formatFiyat4(f * kur) : ''
+                      return {
+                        ...row,
+                        dovizKuru: String(kur),
+                        fiyat,
+                        tutar: f > 0 && m > 0 ? (f * m).toFixed(2) : '',
+                      }
+                    }),
+                  )
+                }).catch(() => {})
+              }
             }}
             variant="borderless"
             className="!w-full !h-full !text-[12px]"
@@ -523,9 +557,9 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
           />
         ),
       },
-      { headerName: 'Döviz Fiyat', field: 'dovizFiyat', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric' },
+      { headerName: 'Döviz Fiyat', field: 'dovizFiyat', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric', valueFormatter: (p) => formatFiyat4(p.value) },
       { headerName: 'Döviz Kuru', field: 'dovizKuru', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric' },
-      { headerName: 'Fiyat (TL)', field: 'fiyat', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric' },
+      { headerName: 'Fiyat (TL)', field: 'fiyat', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric', valueFormatter: (p) => formatFiyat4(p.value) },
       { headerName: 'Miktar', field: 'miktar', width: 100, minWidth: 80, cellClass: '!text-right !font-medium', cellRenderer: (p: { data: ModelRow }) => (
         <span className="!text-[12px] !text-[#f57c00]">{p.data.miktar || ''}</span>
       )},
@@ -558,11 +592,10 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
               value={v.renkId}
               widthClass="!w-[150px]"
               onChange={(id, rec) =>
-                updateRenkBedenRow(p.data.key, {
-                  renkler: {
-                    ...p.data.renkler,
-                    [g.kumasGrupId]: { renkId: id, renkAd: rec ? `${rec.kod} - ${rec.ad}` : '', renkHex: rec?.renk ?? '' },
-                  },
+                updateRenkVaryant(p.data.key, g.kumasGrupId, {
+                  renkId: id,
+                  renkAd: rec ? `${rec.kod} - ${rec.ad}` : '',
+                  renkHex: rec?.renk ?? '',
                 })
               }
             />
@@ -616,6 +649,7 @@ const fiyatColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     editable: true,
     singleClickEdit: true,
     cellDataType: 'numeric',
+    valueFormatter: (p) => formatFiyat4(p.value),
   }))
 
   return [
@@ -953,7 +987,10 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         if ((field === 'dovizFiyat' || field === 'dovizKuru') && updated.dovizFiyat && updated.dovizKuru) {
           const f = parseFloat(updated.dovizFiyat) || 0
           const k = parseFloat(updated.dovizKuru) || 0
-          updated.fiyat = (f * k).toFixed(2)
+          updated.fiyat = formatFiyat4(f * k)
+        }
+        if (field === 'fiyat') {
+          updated.fiyat = formatFiyat4(updated.fiyat)
         }
         updated.tutar = hesaplaTutar(updated.fiyat, updated.miktar)
         return updated
@@ -1052,7 +1089,13 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
 
  const updateRenkBedenRow = useCallback((key: string, patch: Partial<RenkBedenRow>) =>
  setRenkBedenRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r))),
-[])
+ [])
+
+ const updateRenkVaryant = useCallback((key: string, grupId: number, varyant: RenkBedenVaryant) =>
+ setRenkBedenRows((prev) =>
+   prev.map((r) => (r.key === key ? { ...r, renkler: { ...r.renkler, [grupId]: varyant } } : r)),
+ ),
+ [])
 
   const handleRenkBedenCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
     const field = e.colDef.field
@@ -1068,8 +1111,15 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   const handleFiyatCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
     const field = e.colDef.field
     if (!field || !field.startsWith('fiyatlar.')) return
+    const bedenId = Number(field.split('.')[1])
+    if (!Number.isFinite(bedenId)) return
     const row = e.data
-    updateRenkBedenRow(row.key, { fiyatlar: { ...row.fiyatlar } })
+    const formatted = formatFiyat4(row.fiyatlar[bedenId])
+    setRenkBedenRows((prev) =>
+      prev.map((r) =>
+        r.key === row.key ? { ...r, fiyatlar: { ...r.fiyatlar, [bedenId]: formatted } } : r,
+      ),
+    )
   }
 
   const handleAciklamaCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
@@ -1386,6 +1436,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                       {selectedModel ? (
                         <DataGrid
                           rowData={renkBedenRows}
+                          getRowId={(p) => p.data.key}
                           columnDefs={renkBedenColDefs}
                           domLayout="normal"
                           enableColumnChooser={false}
@@ -1415,6 +1466,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
           {selectedModel ? (
             <DataGrid
               rowData={renkBedenRows}
+              getRowId={(p) => p.data.key}
               columnDefs={fiyatColDefs}
               domLayout="normal"
               enableColumnChooser={false}
@@ -1444,6 +1496,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
           {selectedModel ? (
             <DataGrid
               rowData={renkBedenRows}
+              getRowId={(p) => p.data.key}
               columnDefs={renkBedenAciklamaColDefs}
               domLayout="normal"
               enableColumnChooser={false}
@@ -1473,6 +1526,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
           {selectedModel ? (
             <DataGrid
               rowData={renkBedenRows}
+              getRowId={(p) => p.data.key}
               columnDefs={renkBedenBarkodColDefs}
               domLayout="normal"
               enableColumnChooser={false}
@@ -1503,6 +1557,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
           {selectedModel ? (
             <DataGrid
               rowData={renkBedenRows}
+              getRowId={(p) => p.data.key}
               columnDefs={stickerColDefs}
               domLayout="normal"
               enableColumnChooser={false}

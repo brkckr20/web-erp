@@ -5,6 +5,31 @@ import { Select } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { renkApi, type Renk } from '@/lib/renk-api'
 
+const renkListCache = new Map<number, Renk[]>()
+const renkListInflight = new Map<number, Promise<Renk[]>>()
+
+const renkCacheKey = (tip?: number) => (tip ?? -1)
+
+async function fetchRenkList(tip?: number): Promise<Renk[]> {
+  const key = renkCacheKey(tip)
+  const cached = renkListCache.get(key)
+  if (cached) return cached
+  let pending = renkListInflight.get(key)
+  if (!pending) {
+    pending = renkApi
+      .list(tip)
+      .then((list) => {
+        renkListCache.set(key, list)
+        return list
+      })
+      .finally(() => {
+        renkListInflight.delete(key)
+      })
+    renkListInflight.set(key, pending)
+  }
+  return pending
+}
+
 interface SearchableRenkSelectProps {
   value?: number | null
   onChange?: (id: number | null, record?: Renk) => void
@@ -24,15 +49,20 @@ export default function SearchableRenkSelect({
   widthClass = '!w-48',
   adGoster = true,
 }: SearchableRenkSelectProps) {
-  const [options, setOptions] = useState<Renk[]>([])
-  const [loading, setLoading] = useState(false)
+  const [options, setOptions] = useState<Renk[]>(() => renkListCache.get(renkCacheKey(tip)) ?? [])
+  const [loading, setLoading] = useState(() => !renkListCache.has(renkCacheKey(tip)))
   const [selectedAd, setSelectedAd] = useState<string>('')
 
-  const load = async () => {
+  const load = async (force = false) => {
+    const cached = renkListCache.get(renkCacheKey(tip))
+    if (!force && cached) {
+      setOptions(cached)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
-      const list = await renkApi.list(tip)
-      setOptions(list)
+      setOptions(await fetchRenkList(tip))
     } catch {
       setOptions([])
     } finally {

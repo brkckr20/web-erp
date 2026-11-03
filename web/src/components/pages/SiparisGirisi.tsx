@@ -130,7 +130,7 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
 
   const columns = useMemo<ColDef<SiparisRow>[]>(
     () => [
-      { headerName: 'Sipariş No', field: 'siparisNo', width: 120, cellStyle: { color: '#f57c00', fontWeight: 500 } },
+      { headerName: 'Sipariş No', field: 'siparisNo', width: 120, cellClass: 'siparis-no-cell', cellStyle: { color: '#f57c00', fontWeight: 500 } },
       { headerName: 'Tarih', field: 'tarih', width: 100 },
       { headerName: 'Cari Kod', field: 'cariKod', width: 100 },
       { headerName: 'Cari Adı', field: 'cariAd', flex: 1, minWidth: 150 },

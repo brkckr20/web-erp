@@ -137,6 +137,11 @@ body {
   background: #e6f4ff !important;
 }
 
+/* Seçili satırda Sipariş No turuncu zeminde okunur kalsın */
+.ag-root-wrapper .ag-row-selected .siparis-no-cell {
+  color: #1f2937 !important;
+}
+
 /* Select dropdown arrow konumu */
 .ag-root-wrapper .ag-cell .ant-select-single .ant-select-selector .ant-select-arrow {
   margin-right: 4px !important;
