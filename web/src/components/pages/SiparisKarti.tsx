@@ -20,6 +20,7 @@ import { parametreApi } from '@/lib/parametre-api'
 import { siparisApi, type SiparisKalem, type SiparisRenk } from '@/lib/siparis-api'
 import { barkodApi } from '@/lib/barkod-api'
 import { tedarikApi, type TedarikOzet } from '@/lib/tedarik-api'
+import { parseSayi } from '@/lib/sayi'
 import { useAuth } from '@/context/AuthContext'
 import type { ColDef, CellValueChangedEvent, RowClickedEvent, CellDoubleClickedEvent } from 'ag-grid-community'
 
@@ -110,14 +111,16 @@ interface SiparisKartiProps {
 
 function imzaSayi(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === '') return ''
-  const n = Number(v)
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : ''
+  const n = parseSayi(v)
   return Number.isFinite(n) ? String(n) : String(v)
 }
 
 /** Birim fiyat alanları Decimal(18,4) standardına göre 4 ondalıkla gösterilir. */
 function formatFiyat4(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === '') return ''
-  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+  if (typeof v === 'number') return Number.isFinite(v) ? v.toFixed(4) : ''
+  const n = parseSayi(v)
   return Number.isFinite(n) ? n.toFixed(4) : ''
 }
 
@@ -160,7 +163,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
   const [isDirty, setIsDirty] = useState(false)
   const [dovizOptions, setDovizOptions] = useState<{ value: string; label: string }[]>([])
   const [aciklamaTip, setAciklamaTip] = useState<string>('genel')
-  const [aciklamaMetin, setAciklamaMetin] = useState('')
+  const [aciklamalarMetin, setAciklamalarMetin] = useState<Record<string, string>>({})
   const [tamamlandi, setTamamlandi] = useState(false)
   const [selectedModelKey, setSelectedModelKey] = useState<string | null>(null)
   const [modelBedenler, setModelBedenler] = useState<ModelBeden[]>([])
@@ -271,7 +274,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
   useEffect(() => {
     let toplam = 0
     for (const r of rows) {
-      const t = parseFloat(r.tutar)
+      const t = parseSayi(r.tutar)
       if (Number.isFinite(t)) toplam += t
     }
     setForm((prev) => ({
@@ -281,9 +284,35 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
     }))
   }, [rows])
 
+  const dovizToplamlari = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const r of rows) {
+      const kod = (r.dovizCinsi ?? '').trim()
+      if (!kod || kod === 'TL' || kod === 'TRY') continue
+      const dovizFiyat = parseSayi(r.dovizFiyat)
+      const miktar = parseSayi(r.miktar)
+      let tutar = dovizFiyat > 0 && miktar > 0 ? dovizFiyat * miktar : 0
+      if (tutar <= 0) {
+        const tl = parseSayi(r.tutar)
+        const kur = parseSayi(r.dovizKuru)
+        if (tl > 0 && kur > 0) tutar = tl / kur
+      }
+      if (tutar > 0) map.set(kod, (map.get(kod) ?? 0) + tutar)
+    }
+    return Array.from(map, ([kod, tutar]) => ({ kod, tutar }))
+  }, [rows])
+
+  const toplamTutarGosterim = useMemo(() => {
+    const parcalar: string[] = []
+    if (form.toplamTutar) parcalar.push(`${form.toplamTutar} TL`)
+    for (const d of dovizToplamlari) parcalar.push(`${d.tutar.toFixed(2)} ${d.kod}`)
+    return parcalar.join(' | ')
+  }, [form.toplamTutar, dovizToplamlari])
+
   const numOrNull = (v?: string | number | null): number | null => {
     if (v === undefined || v === null || v === '') return null
-    const n = Number(v)
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null
+    const n = parseSayi(v)
     return Number.isFinite(n) ? n : null
   }
 
@@ -375,13 +404,16 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
       setYuklenenImza(siparisYapiImzasi(modelRows, cache))
       setStickerData(stickers)
 
-      const genelAciklama = s.aciklamalar?.find((a) => a.tip === 'genel')
-      const ilkAciklama = s.aciklamalar?.[0]
-      const acik = genelAciklama ?? ilkAciklama
-      setAciklamaTip(acik?.tip ?? 'genel')
-      setAciklamaMetin(acik?.metin ?? '')
+      const metinler: Record<string, string> = {}
+      for (const t of aciklamaTipleri) metinler[t.value] = ''
+      for (const a of s.aciklamalar ?? []) {
+        if (a.tip) metinler[a.tip] = a.metin ?? ''
+      }
+      setAciklamalarMetin(metinler)
+      setAciklamaTip(s.aciklamalar?.find((a) => a.tip === 'genel')?.tip ?? s.aciklamalar?.[0]?.tip ?? 'genel')
 
       if (modelRows.length > 0) {
+        lastLoadedRef.current = null
         handleModelSelect(modelRows[0], cache)
       } else {
         setSelectedModelKey(null)
@@ -417,6 +449,48 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
   useEffect(() => {
     tarihRef.current = form.tarih
   }, [form.tarih])
+
+  const kurGetir = useCallback(async (dovizCinsi: string, tarih: string): Promise<number | null> => {
+    if (!dovizCinsi) return null
+    if (dovizCinsi === 'TL' || dovizCinsi === 'TRY') return 1
+    try {
+      if (tarih) {
+        const kurlar = await dovizApi.getKurlar(tarih)
+        const kur = kurlar.find((k) => k.dovizKodu === dovizCinsi && k.satisKuru != null)?.satisKuru
+        if (kur != null) return kur
+      }
+      const sonKurlar = await dovizApi.getSonKurlar()
+      return sonKurlar.find((k) => k.dovizKodu === dovizCinsi && k.satisKuru != null)?.satisKuru ?? null
+    } catch {
+      return null
+    }
+  }, [])
+
+  const dovizKuruUygula = useCallback((rowKey: string, dovizCinsi: string) => {
+    if (!dovizCinsi) return
+    void kurGetir(dovizCinsi, tarihRef.current).then((kur) => {
+      if (kur == null) {
+        message.warning(`${dovizCinsi} için kur bulunamadı`)
+        return
+      }
+      setRows((prev) =>
+        prev.map((row) => {
+          if (row.key !== rowKey || row.dovizCinsi !== dovizCinsi) return row
+          const f = parseSayi(row.dovizFiyat)
+          const m = parseSayi(row.miktar)
+          if (f <= 0) return { ...row, dovizKuru: String(kur) }
+          const tlFiyat = f * kur
+          return {
+            ...row,
+            dovizKuru: String(kur),
+            fiyat: formatFiyat4(tlFiyat),
+            tutar: m > 0 ? (tlFiyat * m).toFixed(2) : '',
+          }
+        }),
+      )
+      setIsDirty(true)
+    })
+  }, [kurGetir, message])
 
   const modelColumns = useMemo<ColDef<ModelRow>[]>(
     () => [
@@ -472,10 +546,15 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
                   if (aktifFiyat) {
                     dovizCinsi = aktifFiyat.dovizCinsi ?? ''
                     dovizFiyat = aktifFiyat.fiyat?.toString() ?? ''
-                    dovizKuru = aktifFiyat.dovizKuru?.toString() ?? ''
+                    let kur = aktifFiyat.dovizKuru ?? null
+                    if (dovizCinsi && kur == null) {
+                      kur = await kurGetir(dovizCinsi, tarihRef.current)
+                      if (kur == null) message.warning(`${dovizCinsi} için kur bulunamadı`)
+                    }
+                    if (kur == null && !dovizCinsi) kur = 1
+                    dovizKuru = kur != null ? String(kur) : ''
                     const f = aktifFiyat.fiyat ?? 0
-                    const kur = aktifFiyat.dovizKuru ?? 1
-                    fiyat = (f * kur).toFixed(2)
+                    fiyat = f > 0 && kur != null ? formatFiyat4(f * kur) : ''
                   }
                 } catch (err) {
                   console.error('Fiyat yüklenirken hata:', err)
@@ -489,6 +568,8 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
                         malzemeId: rec?.id,
                         modelKod: kod,
                         modelAd: rec?.ad ?? '',
+                        aciklama: row.aciklama || rec?.aciklama || '',
+                        ozelKod: row.ozelKod || rec?.ozelKod || '',
                         dovizCinsi,
                         dovizFiyat,
                         dovizKuru,
@@ -504,6 +585,8 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
                 malzemeId: rec?.id,
                 modelKod: kod,
                 modelAd: rec?.ad ?? '',
+                aciklama: p.data.aciklama || rec?.aciklama || '',
+                ozelKod: p.data.ozelKod || rec?.ozelKod || '',
                 dovizCinsi,
                 dovizFiyat,
                 dovizKuru,
@@ -528,27 +611,10 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
                 ),
               )
               setIsDirty(true)
-              const tarih = tarihRef.current
-              if (tarih && val) {
-                dovizApi.getKurlar(tarih).then((kurlar) => {
-                  const kur = kurlar.find((k) => k.dovizKodu === val && k.satisKuru != null)?.satisKuru
-                  if (kur == null) return
-                  setRows((prev) =>
-                    prev.map((row) => {
-                      if (row.key !== p.data.key || row.dovizCinsi !== val) return row
-                      const f = parseFloat(row.dovizFiyat) || 0
-                      const m = parseFloat(row.miktar) || 0
-                      const fiyat = f > 0 ? formatFiyat4(f * kur) : ''
-                      return {
-                        ...row,
-                        dovizKuru: String(kur),
-                        fiyat,
-                        tutar: f > 0 && m > 0 ? (f * m).toFixed(2) : '',
-                      }
-                    }),
-                  )
-                }).catch(() => {})
-              }
+              dovizKuruUygula(p.data.key, val)
+            }}
+            onSelect={(val) => {
+              if (val === p.data.dovizCinsi) dovizKuruUygula(p.data.key, val)
             }}
             variant="borderless"
             className="!w-full !h-full !text-[12px]"
@@ -559,6 +625,18 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
       },
       { headerName: 'Döviz Fiyat', field: 'dovizFiyat', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric', valueFormatter: (p) => formatFiyat4(p.value) },
       { headerName: 'Döviz Kuru', field: 'dovizKuru', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric' },
+      { headerName: 'Döviz Tutar', colId: 'dovizTutar', width: 110, minWidth: 90, sortable: false, filter: false, cellClass: '!text-right !font-medium',
+        valueGetter: (p) => {
+          const kod = (p.data?.dovizCinsi ?? '').trim()
+          if (!kod || kod === 'TL' || kod === 'TRY') return ''
+          const f = parseSayi(p.data?.dovizFiyat)
+          const m = parseSayi(p.data?.miktar)
+          if (f > 0 && m > 0) return `${(f * m).toFixed(2)} ${kod}`
+          const tl = parseSayi(p.data?.tutar)
+          const kur = parseSayi(p.data?.dovizKuru)
+          return tl > 0 && kur > 0 ? `${(tl / kur).toFixed(2)} ${kod}` : ''
+        },
+      },
       { headerName: 'Fiyat (TL)', field: 'fiyat', width: 100, editable: true, minWidth: 80, cellDataType: 'numeric', valueFormatter: (p) => formatFiyat4(p.value) },
       { headerName: 'Miktar', field: 'miktar', width: 100, minWidth: 80, cellClass: '!text-right !font-medium', cellRenderer: (p: { data: ModelRow }) => (
         <span className="!text-[12px] !text-[#f57c00]">{p.data.miktar || ''}</span>
@@ -567,7 +645,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
         valueFormatter: (p: { value: string }) => p.value || '',
       },
     ],
-    [],
+    [dovizOptions, dovizKuruUygula],
   )
 
   const renkBedenColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
@@ -612,6 +690,11 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
     editable: true,
     singleClickEdit: true,
     cellDataType: 'numeric',
+    valueGetter: (p) => p.data?.miktarlar?.[b.bedenId] ?? '',
+    valueSetter: (p) => {
+      p.data.miktarlar[b.bedenId] = String(p.newValue ?? '')
+      return true
+    },
   }))
 
     return [
@@ -650,6 +733,11 @@ const fiyatColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     singleClickEdit: true,
     cellDataType: 'numeric',
     valueFormatter: (p) => formatFiyat4(p.value),
+    valueGetter: (p) => p.data?.fiyatlar?.[b.bedenId] ?? '',
+    valueSetter: (p) => {
+      p.data.fiyatlar[b.bedenId] = String(p.newValue ?? '')
+      return true
+    },
   }))
 
   return [
@@ -685,6 +773,12 @@ const renkBedenAciklamaColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     width: 90,
     minWidth: 70,
     editable: true,
+    singleClickEdit: true,
+    valueGetter: (p) => p.data?.aciklamalar?.[b.bedenId] ?? '',
+    valueSetter: (p) => {
+      p.data.aciklamalar[b.bedenId] = String(p.newValue ?? '')
+      return true
+    },
   }))
 
   return [
@@ -720,6 +814,12 @@ const renkBedenBarkodColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     width: 90,
     minWidth: 70,
     editable: true,
+    singleClickEdit: true,
+    valueGetter: (p) => p.data?.barkodlar?.[b.bedenId] ?? '',
+    valueSetter: (p) => {
+      p.data.barkodlar[b.bedenId] = String(p.newValue ?? '')
+      return true
+    },
   }))
 
   return [
@@ -817,7 +917,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     setModelBedenler([])
     setKumasGruplari([])
     setAciklamaTip('genel')
-    setAciklamaMetin('')
+    setAciklamalarMetin({})
     setIsDirty(false)
   }
 
@@ -889,7 +989,9 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         tamamlandi: tamamlandi,
         cariHesapId: form.cariHesapId ?? null,
         kalemler: buildKalemler(),
-        aciklamalar: [{ tip: aciklamaTip, metin: aciklamaMetin || null }],
+        aciklamalar: Object.entries(aciklamalarMetin)
+          .map(([tip, metin]) => ({ tip, metin: metin.trim() ? metin : null }))
+          .filter((a) => a.metin),
       }
       let savedId: number | null = null
       if (aktifId) {
@@ -985,8 +1087,8 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         if (row.key !== e.data.key) return row
         const updated = { ...row, [field]: e.newValue ?? '' }
         if ((field === 'dovizFiyat' || field === 'dovizKuru') && updated.dovizFiyat && updated.dovizKuru) {
-          const f = parseFloat(updated.dovizFiyat) || 0
-          const k = parseFloat(updated.dovizKuru) || 0
+          const f = parseSayi(updated.dovizFiyat)
+          const k = parseSayi(updated.dovizKuru)
           updated.fiyat = formatFiyat4(f * k)
         }
         if (field === 'fiyat') {
@@ -1000,8 +1102,8 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   }
 
   const hesaplaTutar = (fiyatTl: string, miktar: string): string => {
-    const f = parseFloat(fiyatTl) || 0
-    const m = parseFloat(miktar) || 0
+    const f = parseSayi(fiyatTl)
+    const m = parseSayi(miktar)
     return f > 0 && m > 0 ? (f * m).toFixed(2) : ''
   }
 
@@ -1013,7 +1115,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       let toplamAdet = 0
       for (const satir of satirlar) {
         for (const [, v] of Object.entries(satir.miktarlar)) {
-          const n = parseFloat(v)
+          const n = parseSayi(v)
           if (Number.isFinite(n)) toplamAdet += n
         }
       }
@@ -1032,6 +1134,24 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     }
   }, [renkBedenCache])
 
+  useEffect(() => {
+    if (!selectedModelKey) return
+    let toplamAdet = 0
+    for (const satir of renkBedenRows) {
+      for (const [, v] of Object.entries(satir.miktarlar)) {
+        const n = parseSayi(v)
+        if (Number.isFinite(n)) toplamAdet += n
+      }
+    }
+    const miktar = toplamAdet > 0 ? String(toplamAdet) : ''
+    setRows((prev) => {
+      const model = prev.find((r) => r.key === selectedModelKey)
+      if (!model || model.miktar === miktar) return prev
+      return prev.map((r) => (r.key === selectedModelKey ? { ...r, miktar } : r))
+    })
+    setRenkBedenCache((prev) => ({ ...prev, [selectedModelKey]: renkBedenRows }))
+  }, [selectedModelKey, renkBedenRows])
+
   const handleModelSelect = (row: ModelRow | null, rowsOverride?: Record<string, RenkBedenRow[]>) => {
     if (!row) {
       setSelectedModelKey(null)
@@ -1042,7 +1162,11 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       lastLoadedRef.current = null
       return
     }
-    if (row.key === selectedModelKey && lastLoadedRef.current?.malzemeId === row.malzemeId) return
+    if (
+      row.key === selectedModelKey &&
+      lastLoadedRef.current?.key === row.key &&
+      lastLoadedRef.current?.malzemeId === row.malzemeId
+    ) return
     setSelectedModelKey(row.key)
     setStickerModal(null)
     setModelBedenler([])
@@ -1054,8 +1178,10 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       : cachedRows?.length
         ? cachedRows
         : []
+    if (initialRows.length > 0) {
+      setRenkBedenRows(initialRows)
+    }
     if (!row.malzemeId) {
-      setRenkBedenRows(initialRows.length ? initialRows : [emptyRenkBedenRow([], [])])
       lastLoadedRef.current = { key: row.key, malzemeId: undefined }
       return
     }
@@ -1067,12 +1193,16 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       .then(([bedenler, gruplar]) => {
         setModelBedenler(bedenler)
         setKumasGruplari(gruplar)
-        setRenkBedenRows(initialRows.length ? initialRows : [emptyRenkBedenRow(gruplar, bedenler)])
+        if (!initialRows.length) {
+          setRenkBedenRows([emptyRenkBedenRow(gruplar, bedenler)])
+        }
         lastLoadedRef.current = { key: row.key, malzemeId: row.malzemeId }
       })
       .catch(() => {
         message.warning('Model varyant/beden bilgileri yüklenemedi')
-        setRenkBedenRows(initialRows.length ? initialRows : [emptyRenkBedenRow([], [])])
+        if (!initialRows.length) {
+          setRenkBedenRows([emptyRenkBedenRow([], [])])
+        }
         lastLoadedRef.current = { key: row.key, malzemeId: row.malzemeId }
       })
       .finally(() => setLoading(false))
@@ -1100,12 +1230,14 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   const handleRenkBedenCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
     const field = e.colDef.field
     if (!field || !field.startsWith('miktarlar.')) return
+    const bedenId = Number(field.split('.')[1])
     const row = e.data
+    const miktarlar = { ...row.miktarlar, [bedenId]: String(e.value ?? '') }
     const toplam = modelBedenler.reduce((sum, b) => {
-      const v = parseFloat(row.miktarlar[b.bedenId] ?? '')
+      const v = parseSayi(miktarlar[b.bedenId])
       return sum + (Number.isFinite(v) ? v : 0)
     }, 0)
-    updateRenkBedenRow(row.key, { genelToplam: toplam > 0 ? String(toplam) : '' })
+    updateRenkBedenRow(row.key, { miktarlar, genelToplam: toplam > 0 ? String(toplam) : '' })
   }
 
   const handleFiyatCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
@@ -1113,11 +1245,10 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     if (!field || !field.startsWith('fiyatlar.')) return
     const bedenId = Number(field.split('.')[1])
     if (!Number.isFinite(bedenId)) return
-    const row = e.data
-    const formatted = formatFiyat4(row.fiyatlar[bedenId])
+    const formatted = formatFiyat4(e.value)
     setRenkBedenRows((prev) =>
       prev.map((r) =>
-        r.key === row.key ? { ...r, fiyatlar: { ...r.fiyatlar, [bedenId]: formatted } } : r,
+        r.key === e.data.key ? { ...r, fiyatlar: { ...r.fiyatlar, [bedenId]: formatted } } : r,
       ),
     )
   }
@@ -1125,15 +1256,15 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
   const handleAciklamaCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
     const field = e.colDef.field
     if (!field || !field.startsWith('aciklamalar.')) return
-    const row = e.data
-    updateRenkBedenRow(row.key, { aciklamalar: { ...row.aciklamalar } })
+    const bedenId = Number(field.split('.')[1])
+    updateRenkBedenRow(e.data.key, { aciklamalar: { ...e.data.aciklamalar, [bedenId]: String(e.value ?? '') } })
   }
 
   const handleBarkodCellValueChanged = (e: CellValueChangedEvent<RenkBedenRow>) => {
     const field = e.colDef.field
     if (!field || !field.startsWith('barkodlar.')) return
-    const row = e.data
-    updateRenkBedenRow(row.key, { barkodlar: { ...row.barkodlar } })
+    const bedenId = Number(field.split('.')[1])
+    updateRenkBedenRow(e.data.key, { barkodlar: { ...e.data.barkodlar, [bedenId]: String(e.value ?? '') } })
   }
 
   const handleStickerCellDoubleClicked = (e: CellDoubleClickedEvent<RenkBedenRow>) => {
@@ -1274,9 +1405,10 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                         <label className="!text-[10px] !font-semibold !uppercase !w-19 !text-left !shrink-0">Toplam Tutar</label>
                         <Input
                           size="small"
-                          value={form.toplamTutar ? `${form.toplamTutar} TL` : ''}
+                          value={toplamTutarGosterim}
                           readOnly
-                          className="!w-32 !text-[11px] !font-semibold !text-red-600 !bg-gray-50"
+                          title={toplamTutarGosterim}
+                          className="!w-52 !text-[11px] !font-semibold !text-red-600 !bg-gray-50"
                         />
                       </div>
                     </div>
@@ -1393,8 +1525,11 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                       <div className="!h-2" />
                       <Input.TextArea
                         rows={4}
-                        value={aciklamaMetin}
-                        onChange={(e) => setAciklamaMetin(e.target.value)}
+                        value={aciklamalarMetin[aciklamaTip] ?? ''}
+                        onChange={(e) => {
+                          const metin = e.target.value
+                          setAciklamalarMetin((prev) => ({ ...prev, [aciklamaTip]: metin }))
+                        }}
                         className="!text-[11px]"
                       />
                     </div>

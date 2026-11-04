@@ -12,6 +12,7 @@ import { exportGridToExcel } from '@/lib/grid-excel-export'
 import { useAuth } from '@/context/AuthContext'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { applyKolonDurumu } from '@/lib/kolon-durumu'
+import { parseSayiGirdi } from '@/lib/sayi'
 
 const kolonLayoutKey = (ekranAdi: string, kullaniciId?: number | null) =>
   `kolon_layout_${kullaniciId ?? 'anonim'}_${ekranAdi}`
@@ -77,6 +78,7 @@ function DataGridInner<T>(
     enableRowSelection = false,
     rowSelection,
     suppressCellFocus = true,
+    stopEditingWhenCellsLoseFocus = false,
     ...rest
   }: DataGridProps<T>,
   ref: React.Ref<DataGridHandle>,
@@ -96,6 +98,17 @@ function DataGridInner<T>(
           hide: (c as any).hide === true,
         }))
         .filter((c) => c.id && c.label),
+    [columnDefs],
+  )
+
+  // Sayısal hücrelerde Türkçe ondalık ayracı (virgül) kabul et; "7,9" -> 7.9
+  const colsWithSayiParser = useMemo(
+    () =>
+      columnDefs.map((c) =>
+        c.cellDataType === 'numeric' && !c.valueParser
+          ? { ...c, valueParser: (p: { newValue: unknown }) => parseSayiGirdi(p.newValue) }
+          : c,
+      ),
     [columnDefs],
   )
 
@@ -284,7 +297,7 @@ function DataGridInner<T>(
           {...rest}
           theme={antGridTheme}
           localeText={agGridLocaleTR}
-          columnDefs={columnDefs}
+          columnDefs={colsWithSayiParser}
           rowData={rowData}
           headerHeight={headerHeight}
           rowHeight={rowHeight}
@@ -300,6 +313,7 @@ function DataGridInner<T>(
           defaultColDef={mergedDefaultColDef}
           rowSelection={resolvedRowSelection}
           suppressCellFocus={suppressCellFocus}
+          stopEditingWhenCellsLoseFocus={stopEditingWhenCellsLoseFocus}
         />
       </div>
     </div>
