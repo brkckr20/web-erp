@@ -15,9 +15,14 @@ interface SiparisRow {
   tarih: string
   cariKod: string
   cariAd: string
-  modelKod: string
-  modelAd: string
+  musteriOrderNo: string
+  toplamMiktar: number
+  toplamTutarDoviz: string
+  toplamTutarTL: number
+  durum: string
   aciklama: string
+  kayitTarihi: string
+  kayitYapan: string
 }
 
 interface SiparisGirisiProps {
@@ -40,8 +45,33 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
   }
 
   const toRow = (s: Siparis): SiparisRow => {
-    const ilkKalem = s.kalemler?.[0]
+    const kalemler = s.kalemler ?? []
     const genel = s.aciklamalar?.find((a) => a.tip === 'genel')?.metin ?? ''
+    const hasToplamTutar = s.toplamTutar != null
+    const dovizMap = new Map<string, number>()
+    let tlToplam = 0
+
+    for (const k of kalemler) {
+      const dovizCinsi = k.dovizCinsi
+      const dovizFiyat = Number(k.dovizFiyati) || 0
+      const miktar = Number(k.miktar) || 0
+      const kur = Number(k.dovizKuru) || 0
+      let tutar = dovizFiyat > 0 && miktar > 0 ? dovizFiyat * miktar : 0
+      if (tutar <= 0) {
+        const tl = Number(k.tutar) || 0
+        if (tl > 0 && kur > 0) tutar = tl / kur
+      }
+      if (!hasToplamTutar && (!dovizCinsi || dovizCinsi === 'TL' || dovizCinsi === 'TRY')) {
+        tlToplam += tutar
+      } else if (dovizCinsi && dovizCinsi !== 'TL' && dovizCinsi !== 'TRY' && tutar > 0) {
+        dovizMap.set(dovizCinsi, (dovizMap.get(dovizCinsi) ?? 0) + tutar)
+      }
+    }
+
+    const dovizGosterim = Array.from(dovizMap.entries())
+      .map(([kod, tutar]) => `${tutar.toFixed(2)} ${kod}`)
+      .join(' | ')
+
     return {
       key: String(s.id),
       id: s.id,
@@ -49,9 +79,14 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
       tarih: formatTarih(s.tarih),
       cariKod: s.cariHesap?.kod ?? '',
       cariAd: s.cariHesap?.ad ?? '',
-      modelKod: ilkKalem?.malzeme?.kod ?? '',
-      modelAd: ilkKalem?.malzeme?.ad ?? '',
+      musteriOrderNo: s.musteriOrderNo ?? '',
+      toplamMiktar: kalemler.reduce((a, k) => a + (Number(k.miktar) || 0), 0),
+      toplamTutarDoviz: dovizGosterim,
+      toplamTutarTL: hasToplamTutar ? Number(s.toplamTutar) || 0 : tlToplam,
+      durum: s.durum ?? '',
       aciklama: genel,
+      kayitTarihi: formatTarih(s.kayitTarihi),
+      kayitYapan: s.kayitYapan ?? '',
     }
   }
 
@@ -134,9 +169,14 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
       { headerName: 'Tarih', field: 'tarih', width: 100 },
       { headerName: 'Cari Kod', field: 'cariKod', width: 100 },
       { headerName: 'Cari Adı', field: 'cariAd', flex: 1, minWidth: 150 },
-      { headerName: 'Model Kod', field: 'modelKod', width: 100 },
-      { headerName: 'Model Adı', field: 'modelAd', flex: 1, minWidth: 150 },
+      { headerName: 'Müşteri Order No', field: 'musteriOrderNo', width: 130 },
+      { headerName: 'Toplam Miktar', field: 'toplamMiktar', width: 110 },
+      { headerName: 'Toplam Tutar (Döviz)', field: 'toplamTutarDoviz', flex: 1, minWidth: 150 },
+      { headerName: 'Toplam Tutar (TL)', field: 'toplamTutarTL', width: 120, valueFormatter: (p) => `${Number(p.value ?? 0).toFixed(2)} TL` },
+      { headerName: 'Durum', field: 'durum', width: 100 },
       { headerName: 'Açıklama', field: 'aciklama', flex: 1, minWidth: 120 },
+      { headerName: 'Kayıt Tarihi', field: 'kayitTarihi', width: 110 },
+      { headerName: 'Kayıt Eden', field: 'kayitYapan', width: 110 },
     ],
     [],
   )
