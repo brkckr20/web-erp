@@ -150,6 +150,34 @@ export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]):
   }
   return [...gruplar.values()]
 }
+/**
+ * Aynı kumaş koduna sahip başlangıç kalemlerini tek satırda kümüler (ham satın alma
+ * için). Anahtar: malzemeKod + birim. Miktarlar toplanır, kaynaklar tahsis listesinde
+ * saklanır.
+ */
+export function baslangicKalemleriKumule(kalemler: IrsaliyeBaslangicKalem[]): IrsaliyeBaslangicKalem[] {
+  const gruplar = new Map<string, IrsaliyeBaslangicKalem>()
+  for (const k of kalemler) {
+    const anahtar = `${k.malzemeKod}||${k.birim}`
+    const mevcut = gruplar.get(anahtar)
+    if (!mevcut) {
+      gruplar.set(anahtar, { ...k, tahsis: [...(k.tahsis ?? [])] })
+      continue
+    }
+    mevcut.miktar = (Number(mevcut.miktar) || 0) + (Number(k.miktar) || 0)
+    mevcut.tahsis = [...(mevcut.tahsis ?? []), ...(k.tahsis ?? [])]
+    const parcalar = [...(mevcut.aciklama ?? '').split(' + '), ...(k.aciklama ?? '').split(' + ')].filter(Boolean)
+    mevcut.aciklama = [...new Set(parcalar)].join(' + ')
+    if (mevcut.siparisKalemId !== k.siparisKalemId) mevcut.siparisKalemId = null
+    if (mevcut.kaynakKalemId !== k.kaynakKalemId) mevcut.kaynakKalemId = null
+    for (const p of k.prosesler ?? []) {
+      if (!(mevcut.prosesler ?? []).some((x) => x.islemId === p.islemId)) {
+        mevcut.prosesler = [...(mevcut.prosesler ?? []), { ...p }]
+      }
+    }
+  }
+  return [...gruplar.values()]
+}
 
 interface KalemRow {
   key: string
@@ -421,8 +449,27 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         })
       : [],
   )
-  const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
+  const baslangicUygulandiRef = useRef(false)
+  useEffect(() => {
+    if (id || baslangicUygulandiRef.current) return
+    if (!baslangicKalemler || baslangicKalemler.length === 0) return
+    setKalemler((prev) => {
+      if (prev.length > 0) return prev
+      baslangicUygulandiRef.current = true
+      return baslangicKalemler.map((b) => {
+        const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', partiNo: b.partiNo ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, kaynakKalemId: b.kaynakKalemId ?? null, istenenGram: b.istenenGram ?? 0, ebat: b.ebat ?? '', topSayisi: b.topSayisi ?? 0, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [], prosesler: b.prosesler ?? [] }
+        const val = b.miktar || 0
+        if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
+        else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
+        else { row.mt = val; row.hesapBirimi = 'mt' }
+        return row
+      })
+    })
+    if (baslangicKalemler[0]?.cariHesapKod && !cariKod) setCariKod(baslangicKalemler[0].cariHesapKod)
+    if (baslangicKalemler[0]?.depoKod && !depoKod) setDepoKod(baslangicKalemler[0].depoKod)
+  }, [baslangicKalemler])
 
+  const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
   // Kaydedilmemiş değişiklik: irsaliyeNo readonly, talimatId'yi yalnızca sunucu yazar.
   const { kirli, temizle } = useKirli([
     cariKod,

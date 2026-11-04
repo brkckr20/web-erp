@@ -239,6 +239,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     '139': '139-Alınan Hizmet İadesi',
     '192': '192-Serbest Meslek Makbuzu',
     '201': '201-Satın Alma Siparişi',
+    '202': '202-Fason Talimatı',
   }
 
   const openYeniIrsaliye = useCallback(
@@ -249,6 +250,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         setSatinalmaBaslangicKalemler(baslangicKalemler ?? [])
       }
       const label = irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi'
+      // Sekme başlığında fiş tipi açıkça görünür: "Yeni Fason Talimatı (202)".
+      const fisAdi = label.replace(/^\d+-/, '')
+      const tabLabel = `Yeni ${fisAdi} (${irsaliyeTipi})`
       const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
       // Yeni ekranda da rapor şablonları bulunsun diye listedeki ekranAdi aynen taşınır.
       // Tip 1 (Mal Alım) satın alma irsaliyeleri ekranına aittir; 201/202/134 sipariş ekranında kalır.
@@ -258,7 +262,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ? 'satinalma-siparis'
           : undefined
       setTabs((prev) => {
-        const tab: Tab = { key, label: 'Yeni ' + label, moduleKey: 'satis', isForm: true, ekranAdi }
+        const tab: Tab = { key, label: tabLabel, moduleKey: 'satis', isForm: true, ekranAdi }
         const exists = prev.find((t) => t.key === key)
         if (!exists) return [...prev, tab]
         return prev
@@ -288,6 +292,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Kumaş/İplik planlamadan Fason Talimatı (202) açar. Alt tip seçilen fason tipiyle gelir.
   const openFasonTalimat = useCallback(
     (fasonTipiId: number, kalemler: IrsaliyeBaslangicKalem[]) => {
+      setSatinalmaSiparisKey((k) => k + 1)
       openYeniIrsaliye('202', fasonTipiId, kalemler)
     },
     [openYeniIrsaliye],
