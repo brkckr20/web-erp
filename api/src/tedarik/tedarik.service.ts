@@ -434,11 +434,11 @@ export class TedarikService {
       LEFT JOIN recete_kalem rk ON rk.id = ti.recete_kalem_id
       OUTER APPLY (
         SELECT
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(NULLIF(ik2.brut_agirlik, 0), ik2.net_agirlik, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(NULLIF(ik2.brut_agirlik, 0), ik2.net_agirlik, 0)
                    ELSE 0 END) AS kg,
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_metre, ik2.net_metre, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_metre, ik2.net_metre, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(NULLIF(ik2.brut_metre, 0), ik2.net_metre, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(NULLIF(ik2.brut_metre, 0), ik2.net_metre, 0)
                    ELSE 0 END) AS mt,
           SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.adet, 0)
                    WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.adet, 0)
@@ -453,11 +453,11 @@ export class TedarikService {
       ) rs
       OUTER APPLY (
         SELECT
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_agirlik, ik2.net_agirlik, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(NULLIF(ik2.brut_agirlik, 0), ik2.net_agirlik, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(NULLIF(ik2.brut_agirlik, 0), ik2.net_agirlik, 0)
                    ELSE 0 END) AS kg,
-          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(ik2.brut_metre, ik2.net_metre, 0)
-                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(ik2.brut_metre, ik2.net_metre, 0)
+          SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(NULLIF(ik2.brut_metre, 0), ik2.net_metre, 0)
+                   WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -COALESCE(NULLIF(ik2.brut_metre, 0), ik2.net_metre, 0)
                    ELSE 0 END) AS mt,
           SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.adet, 0)
                    WHEN i2.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik2.adet, 0)
@@ -481,8 +481,60 @@ export class TedarikService {
       ORDER BY s.siparis_no, mm.kod, ti.malzeme_kod, ti.renk_kod
     `)
 
+    // 134-Fasona Çıkış kalemleri: boyaya gönderilen miktar + sipariş kalemi tahsisi.
+    // Çıkış miktarı brütten okunur (giden fişte brüt = depodan çıkan fiziksel miktar).
+    const cikisKalemleri = await this.prisma.$queryRawUnsafe<
+      {
+        kalemId: number
+        malzemeId: number
+        varyant1RenkId: number | null
+        miktar: unknown
+        tahsisSiparisKalemId: number | null
+        tahsisMiktar: unknown
+      }[]
+    >(
+      `
+      SELECT
+        ik.id       AS kalemId,
+        ik.malzeme_id AS malzemeId,
+        ik.varyant1_renk_id AS varyant1RenkId,
+        COALESCE(NULLIF(ik.brut_metre, 0), NULLIF(ik.net_metre, 0), ik.miktar, 0) AS miktar,
+        t.siparis_kalem_id AS tahsisSiparisKalemId,
+        t.miktar   AS tahsisMiktar
+      FROM irsaliye_kalem ik
+      JOIN irsaliye i ON i.id = ik.irsaliye_id
+      LEFT JOIN irsaliye_kalem_tahsis t ON t.irsaliye_kalem_id = ik.id
+      WHERE i.irsaliye_tipi = '134' AND i.tamamlandi = 1
+    `,
+    )
+
     const yuvarla = (v: number) => Math.round(v * 1e4) / 1e4
-    return rows.map((r) => {
+    const sayi = (v: unknown) => Number(v) || 0
+
+    type PlanSatir = {
+      siparisNo: string
+      siparisId: number | null
+      siparisKalemId: number | null
+      modelKod: string | null
+      modelAd: string | null
+      siparisMiktar: number
+      musteriAd: string | null
+      malzemeKod: string
+      malzemeAd: string
+      malzemeId: number | null
+      islem: string | null
+      varyant1: string
+      varyant1Aciklama: string
+      varyant1RenkId: number | null
+      brutMiktar: number
+      gereken: number
+      guncelMi: boolean
+      birim: string
+      renkliStok: number
+      hamStok: number
+    }
+
+    const satirlar: PlanSatir[] = rows.map((r) => {
       const birim = (r.birim || '').toLowerCase()
       const birimeGore = (kg: unknown, mt: unknown, adet: unknown) =>
         birim.includes('kg')
@@ -490,12 +542,6 @@ export class TedarikService {
           : birim.includes('adet')
             ? Number(adet) || 0
             : Number(mt) || 0
-      const renkliStok = yuvarla(birimeGore(r.renkliStokKg, r.renkliStokMt, r.renkliStokAdet))
-      const hamStok = yuvarla(birimeGore(r.hamStokKg, r.hamStokMt, r.hamStokAdet))
-      const gereken = yuvarla(Number(r.gerekenMiktar) || 0)
-      const acikMiktar = yuvarla(Math.max(0, gereken - renkliStok - hamStok))
-      const oneri: 'STOK' | 'HAM_BOYA' | 'TEMIN' =
-        renkliStok >= gereken ? 'STOK' : renkliStok + hamStok >= gereken ? 'HAM_BOYA' : 'TEMIN'
       return {
         siparisNo: r.siparisNo,
         siparisId: r.siparisId ?? null,
@@ -506,16 +552,148 @@ export class TedarikService {
         musteriAd: r.musteriAd,
         malzemeKod: r.malzemeKod,
         malzemeAd: r.malzemeAd,
+        malzemeId: r.malzemeId ?? null,
         islem: r.islem,
         varyant1: r.varyant1,
         varyant1Aciklama: r.varyant1Aciklama,
         varyant1RenkId: r.varyant1RenkId,
         brutMiktar: Number(r.brutMiktar) || 0,
-        gerekenMiktar: gereken,
+        gereken: yuvarla(Number(r.gerekenMiktar) || 0),
         guncelMi: Number(r.bayat ?? 0) === 0,
         birim: r.birim,
-        renkliStok,
-        hamStok,
+        renkliStok: yuvarla(birimeGore(r.renkliStokKg, r.renkliStokMt, r.renkliStokAdet)),
+        hamStok: yuvarla(birimeGore(r.hamStokKg, r.hamStokMt, r.hamStokAdet)),
+      }
+    })
+
+    // --- Ham stok havuzu: malzeme seviyesindedir, aynı malzemenin renk ihtiyacı olan
+    // satırları arasında GEREKEN oranıyla paylaştırılır (aksi halde her satıra tam
+    // stok yazılır ve "Açık" hesabı yanıltıcı olur).
+    const malzemeSatirlari = new Map<number, PlanSatir[]>()
+    for (const s of satirlar) {
+      if (s.malzemeId == null) continue
+      const list = malzemeSatirlari.get(s.malzemeId) ?? []
+      list.push(s)
+      malzemeSatirlari.set(s.malzemeId, list)
+    }
+    const havuzGereken = new Map<number, number>()
+    const havuzStok = new Map<number, number>()
+    for (const [malzemeId, list] of malzemeSatirlari) {
+      let gerekenToplam = 0
+      let stok = 0
+      for (const s of list) {
+        if (s.varyant1RenkId == null) continue
+        gerekenToplam += s.gereken
+        stok = Math.max(stok, s.hamStok)
+      }
+      havuzGereken.set(malzemeId, gerekenToplam)
+      havuzStok.set(malzemeId, stok)
+    }
+    const hamPay = new Map<PlanSatir, number>()
+    for (const [malzemeId, list] of malzemeSatirlari) {
+      const toplamGereken = havuzGereken.get(malzemeId) ?? 0
+      const stok = havuzStok.get(malzemeId) ?? 0
+      if (toplamGereken <= 0) continue
+      for (const s of list) {
+        if (s.varyant1RenkId == null) continue
+        hamPay.set(s, yuvarla((stok * s.gereken) / toplamGereken))
+      }
+    }
+
+    // --- Boyaya giden miktar: 134 çıkışları kalem bazında toplanır, tahsis (sipariş
+    // kalemi) ağırlıklarına göre satıra dağıtılır. Tahsis yoksa (elle oluşturulmuş
+    // 134) aynı malzeme/renk grubunda gereken oranı kullanılır.
+    const cikisMap = new Map<
+      number,
+      { malzemeId: number; varyant1RenkId: number | null; miktar: number; tahsis: { siparisKalemId: number; miktar: number }[] }
+    >()
+    for (const c of cikisKalemleri) {
+      let g = cikisMap.get(c.kalemId)
+      if (!g) {
+        g = { malzemeId: c.malzemeId, varyant1RenkId: c.varyant1RenkId, miktar: 0, tahsis: [] }
+        cikisMap.set(c.kalemId, g)
+      }
+      g.miktar = sayi(c.miktar)
+      if (c.tahsisSiparisKalemId != null && sayi(c.tahsisMiktar) > 0) {
+        g.tahsis.push({ siparisKalemId: c.tahsisSiparisKalemId, miktar: sayi(c.tahsisMiktar) })
+      }
+    }
+    const siparisKalemIndex = new Map<number, PlanSatir[]>()
+    for (const s of satirlar) {
+      if (s.siparisKalemId == null) continue
+      const list = siparisKalemIndex.get(s.siparisKalemId) ?? []
+      list.push(s)
+      siparisKalemIndex.set(s.siparisKalemId, list)
+    }
+    const boyaGiden = new Map<PlanSatir, number>()
+    for (const g of cikisMap.values()) {
+      if (g.miktar <= 0) continue
+      const hedefler: { satir: PlanSatir; agirlik: number }[] = []
+      for (const t of g.tahsis) {
+        const ilgili = (siparisKalemIndex.get(t.siparisKalemId) ?? []).filter(
+          (s) => s.malzemeId == null || s.malzemeId === g.malzemeId,
+        )
+        if (ilgili.length === 0) continue
+        const ilgiliGereken = ilgili.reduce((s, r) => s + r.gereken, 0)
+        for (const r of ilgili) {
+          const agirlik = ilgiliGereken > 0 ? t.miktar * (r.gereken / ilgiliGereken) : t.miktar / ilgili.length
+          hedefler.push({ satir: r, agirlik })
+        }
+      }
+      if (hedefler.length === 0) {
+        for (const r of malzemeSatirlari.get(g.malzemeId) ?? []) {
+          if (r.varyant1RenkId == null) continue
+          if (g.varyant1RenkId != null && r.varyant1RenkId !== g.varyant1RenkId) continue
+          hedefler.push({ satir: r, agirlik: r.gereken })
+        }
+      }
+      if (hedefler.length === 0) continue
+      const toplamAgirlik = hedefler.reduce((s, h) => s + h.agirlik, 0)
+      if (toplamAgirlik <= 0) continue
+      let kalan = g.miktar
+      hedefler.forEach((h, idx) => {
+        const pay = idx === hedefler.length - 1 ? kalan : yuvarla((g.miktar * h.agirlik) / toplamAgirlik)
+        boyaGiden.set(h.satir, yuvarla((boyaGiden.get(h.satir) ?? 0) + pay))
+        kalan = yuvarla(kalan - pay)
+      })
+    }
+
+    return satirlar.map((s) => {
+      const boyaGidenMiktar = boyaGiden.get(s) ?? 0
+      const hamPayMiktar = hamPay.get(s) ?? 0
+      const acikMiktar = yuvarla(Math.max(0, s.gereken - s.renkliStok - boyaGidenMiktar - hamPayMiktar))
+      const oneri: 'STOK' | 'BOYADA' | 'HAM_BOYA' | 'TEMIN' =
+        s.renkliStok >= s.gereken
+          ? 'STOK'
+          : acikMiktar > 0
+            ? 'TEMIN'
+            : boyaGidenMiktar > 0
+              ? 'BOYADA'
+              : 'HAM_BOYA'
+      return {
+        siparisNo: s.siparisNo,
+        siparisId: s.siparisId,
+        siparisKalemId: s.siparisKalemId,
+        modelKod: s.modelKod,
+        modelAd: s.modelAd,
+        siparisMiktar: s.siparisMiktar,
+        musteriAd: s.musteriAd,
+        malzemeKod: s.malzemeKod,
+        malzemeAd: s.malzemeAd,
+        islem: s.islem,
+        varyant1: s.varyant1,
+        varyant1Aciklama: s.varyant1Aciklama,
+        varyant1RenkId: s.varyant1RenkId,
+        brutMiktar: s.brutMiktar,
+        gerekenMiktar: s.gereken,
+        guncelMi: s.guncelMi,
+        birim: s.birim,
+        renkliStok: s.renkliStok,
+        hamStok: s.hamStok,
+        // Satıra düşen ham stok payı (malzeme havuzundan gereken oranıyla).
+        hamPay: hamPayMiktar,
+        // Boyaya gönderilmiş miktar (134 çıkışından tahsis oranıyla paylaştırılmış).
+        boyaGiden: boyaGidenMiktar,
         acikMiktar,
         oneri,
       }

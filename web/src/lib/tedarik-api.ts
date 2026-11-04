@@ -50,7 +50,7 @@ export interface TedarikIhtiyac {
   guncellemeTarihi: string | null
 }
 
-export type KarsilamaOneri = 'STOK' | 'HAM_BOYA' | 'TEMIN'
+export type KarsilamaOneri = 'STOK' | 'BOYADA' | 'HAM_BOYA' | 'TEMIN'
 
 export interface KumasPlanlamaSatir {
   siparisNo: string
@@ -76,9 +76,13 @@ export interface KumasPlanlamaSatir {
   renkliStok: number
   /** Serbest ham stok (aynı malzeme, renksiz) — boyanabilir. */
   hamStok: number
-  /** gereken - renkli - ham (0 altı 0). */
+  /** Satıra düşen ham stok payı (malzeme havuzundan gereken oranıyla paylaştırılır). */
+  hamPay?: number
+  /** Boyaya gönderilmiş miktar (134-Fasona Çıkış, tahsis oranıyla satıra paylaştırılmış). */
+  boyaGiden?: number
+  /** gereken - renkli - boyaGiden - hamPay (0 altı 0). */
   acikMiktar: number
-  /** STOK=stoktan karşıla, HAM_BOYA=hamı boyaya gönder, TEMIN=satın al/dokuma/fason gerekli. */
+  /** STOK=stoktan karşıla, BOYADA=boyada bekliyor, HAM_BOYA=hamı boyaya gönder, TEMIN=satın al/dokuma gerekli. */
   oneri: KarsilamaOneri
 }
 

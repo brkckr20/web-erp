@@ -21,7 +21,7 @@ import DataGrid, { DataGridHandle } from '@/components/shared/DataGrid'
 import { tedarikApi, type KumasPlanlamaSatir, type KumasHareketSatiri, type KarsilamaDepoSatir } from '@/lib/tedarik-api'
 import { fasonTipiApi, parseKategoriler, type FasonTipi } from '@/lib/fason-tipi-api'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
-import { baslangicKalemleriBirlestir } from '@/components/pages/IrsaliyeKarti'
+import { baslangicKalemleriBirlestir, baslangicKalemleriKumule } from '@/components/pages/IrsaliyeKarti'
 
 const fisTipiAdlari: Record<string, string> = {
   '1': 'Mal Alım İrsaliyesi',
@@ -261,6 +261,17 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       resizable: true,
       valueFormatter: (p) =>
         Number(p.value).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+      cellStyle: (p) => (Number(p.value) < 0 ? { backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 600 } : undefined),
+    },
+    {
+      headerName: 'Boya Giden',
+      field: 'boyaGiden',
+      width: 110,
+      type: 'rightAligned',
+      resizable: true,
+      valueFormatter: (p) =>
+        Number(p.value || 0).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+      cellStyle: (p) => (Number(p.value || 0) > 0 ? { backgroundColor: '#ede9fe', color: '#5b21b6', fontWeight: 600 } : undefined),
     },
     {
       headerName: 'Açık',
@@ -278,11 +289,14 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       valueGetter: (p) =>
         p.data?.oneri === 'STOK'
           ? 'Stoktan Karşıla'
-          : p.data?.oneri === 'HAM_BOYA'
-            ? 'Hamı Boyaya Gönder'
-            : 'Temin Gerekli',
+          : p.data?.oneri === 'BOYADA'
+            ? 'Boyada Bekliyor'
+            : p.data?.oneri === 'HAM_BOYA'
+              ? 'Hamı Boyaya Gönder'
+              : 'Temin Gerekli',
       cellStyle: (p) => {
         if (p.data?.oneri === 'STOK') return { backgroundColor: '#dcfce7', color: '#166534', fontWeight: 600 }
+        if (p.data?.oneri === 'BOYADA') return { backgroundColor: '#ede9fe', color: '#5b21b6', fontWeight: 600 }
         if (p.data?.oneri === 'HAM_BOYA') return { backgroundColor: '#ffedd5', color: '#9a3412', fontWeight: 600 }
         return { backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 600 }
       },
@@ -291,8 +305,15 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   const sorguMetni = arama.trim() ? ` - "${arama.trim()}"` : ''
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'satinalma-talimat', label: 'Satın Alma Siparişi Oluştur', icon: <ShoppingCartOutlined /> },
-    { key: 'satinalma-talimat-birlesik', label: 'Satın Alma Siparişi Oluştur (Birleştirilmiş)', icon: <ShoppingCartOutlined /> },
+    {
+      key: 'satinalma',
+      label: 'Satın Alma Siparişi Oluştur',
+      icon: <ShoppingCartOutlined />,
+      children: [
+        { key: 'satinalma:satir', label: 'Satır Satır' },
+        { key: 'satinalma:birlesik', label: 'Birleştirilmiş' },
+      ],
+    },
     { key: 'ham-satinalma-talimat', label: 'Ham Satın Alma Siparişi Oluştur', icon: <ShoppingCartOutlined /> },
     { key: 'mal-alim-irsaliye', label: 'Mal Alım İrsaliyesi Oluştur', icon: <InboxOutlined /> },
     {
@@ -301,7 +322,14 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       icon: <ApartmentOutlined />,
       children: fasonTipleri
         .filter((f) => parseKategoriler(f.kategoriler).includes('kumas'))
-        .map((f) => ({ key: `fason:${f.id}`, label: f.ad })),
+        .map((f) => ({
+          key: `fason:${f.id}`,
+          label: f.ad,
+          children: [
+            { key: `fason:${f.id}:satir`, label: 'Satır Satır' },
+            { key: `fason:${f.id}:birlesik`, label: 'Birleştirilmiş' },
+          ],
+        })),
     },
     { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
     { key: 'depo-stok', label: 'Depo Stok Kırılımı (Renkli/Ham)', icon: <BankOutlined /> },
@@ -318,18 +346,16 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   const satirlariKalemeCevir = (satirlar: KumasPlanlamaSatir[]): IrsaliyeBaslangicKalem[] => {
     const kalemler = satirlar.map((r) => {
       const renkliStok = Number(r.renkliStok) || 0
-      const hamStok = Number(r.hamStok) || 0
+      const boyaGiden = Number(r.boyaGiden) || 0
+      // Satıra düşen ham stok payı (malzeme havuzundan gereken oranıyla).
+      const hamPay = Number(r.hamPay ?? r.hamStok) || 0
       const gereken = Number(r.gerekenMiktar) || 0
-      // Fason'a gönderilecek miktar: ham stoktan boyanacak kısım.
-      // HAM_BOYA: ham stoktan (gereken - renkli) kadar, yani ham stok gap'i kapatır.
-      // TEMIN: mevcut ham stok tamamı (gerisi satın alma / temin ile tamamlanır).
-      // STOK: fason gerekmez (0).
-      let miktar = 0
-      if (r.oneri === 'HAM_BOYA') {
-        miktar = Math.min(hamStok, Math.max(0, gereken - renkliStok))
-      } else if (r.oneri === 'TEMIN') {
-        miktar = hamStok
-      }
+      // Fason'a gönderilecek miktar: satırın ihtiyacından HENÜZ BOYAYA GÖNDERILMEMIŞ
+      // kısım, depodaki ham stok payıyla sınırlı.
+      //   kalanBoya = gereken - renkliStok - boyaGiden (stoktan karşılanan + boyada olan)
+      //   miktar     = min(kalanBoya, hamPay) → depoda ham yoksa 0 (satın alma gerekir)
+      const kalanBoya = Math.max(0, gereken - renkliStok - boyaGiden)
+      const miktar = Math.min(hamPay, kalanBoya)
       if (miktar <= 0) return null
       return {
         malzemeKod: r.malzemeKod,
@@ -355,40 +381,69 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   }
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    if (key === 'satinalma-talimat' || key === 'ham-satinalma-talimat' || key === 'satinalma-talimat-birlesik') {
+    if (key === 'satinalma:satir' || key === 'satinalma:birlesik' || key === 'ham-satinalma-talimat') {
       const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
       if (!secili || secili.length === 0) {
         message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
         return
       }
       const ham = key === 'ham-satinalma-talimat'
-      let kalemler: IrsaliyeBaslangicKalem[] = secili.map((r) => {
-        const miktar = Number(r.gerekenMiktar) || 0
-        const kalem: IrsaliyeBaslangicKalem = {
-          malzemeKod: r.malzemeKod,
-          malzemeAd: r.malzemeAd,
-          miktar,
-          birim: r.birim || 'mt',
-          aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
-          siparisKalemId: r.siparisKalemId ?? null,
-          tahsis: [
-            {
-              siparisKalemId: r.siparisKalemId ?? null,
-              siparisNo: r.siparisNo ?? '',
-              modelKod: r.modelKod ?? '',
-              miktar,
-            },
-          ],
-        }
-        if (!ham) {
+      let kalemler: IrsaliyeBaslangicKalem[]
+      // Satın alma miktarı = AÇIK ihtiyaç (gereken - renkli - boyaGiden - hamPay).
+      // Ham/renkli stokta veya boyada olan miktar tekrar siparişe dönmez.
+      const satirlar = secili.filter((r) => (Number(r.acikMiktar) || 0) > 0)
+      if (satirlar.length === 0) {
+        message.warning('Seçili satırlarda satın alınacak açık ihtiyaç yok')
+        return
+      }
+      if (ham) {
+        kalemler = satirlar.map((r) => {
+          const miktar = Number(r.acikMiktar) || 0
+          const kalem: IrsaliyeBaslangicKalem = {
+            malzemeKod: r.malzemeKod,
+            malzemeAd: r.malzemeAd,
+            miktar,
+            birim: r.birim || 'mt',
+            aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+            siparisKalemId: r.siparisKalemId ?? null,
+            tahsis: [
+              {
+                siparisKalemId: r.siparisKalemId ?? null,
+                siparisNo: r.siparisNo ?? '',
+                modelKod: r.modelKod ?? '',
+                miktar,
+              },
+            ],
+          }
+          return kalem
+        })
+        kalemler = baslangicKalemleriKumule(kalemler)
+      } else {
+        kalemler = satirlar.map((r) => {
+          const miktar = Number(r.acikMiktar) || 0
+          const kalem: IrsaliyeBaslangicKalem = {
+            malzemeKod: r.malzemeKod,
+            malzemeAd: r.malzemeAd,
+            miktar,
+            birim: r.birim || 'mt',
+            aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+            siparisKalemId: r.siparisKalemId ?? null,
+            tahsis: [
+              {
+                siparisKalemId: r.siparisKalemId ?? null,
+                siparisNo: r.siparisNo ?? '',
+                modelKod: r.modelKod ?? '',
+                miktar,
+              },
+            ],
+          }
           kalem.varyant1RenkId = r.varyant1RenkId ?? null
           kalem.varyant1RenkKod = r.varyant1 || null
           kalem.varyant1RenkAd = r.varyant1Aciklama || null
-        }
-        return kalem
-      })
-      // Birleştirilmiş seçenek: aynı kumaş+renk tek satırda toplanır (tahsis detayı korunur).
-      if (key === 'satinalma-talimat-birlesik') kalemler = baslangicKalemleriBirlestir(kalemler)
+          return kalem
+        })
+        if (key === 'satinalma:birlesik') kalemler = baslangicKalemleriBirlestir(kalemler)
+      }
       const olustur = () => onYeniSatinalmaSiparis?.(kalemler)
       const bayatSayisi = secili.filter((r) => r.guncelMi === false).length
       if (bayatSayisi > 0) {
@@ -435,7 +490,10 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       return
     }
     if (key.startsWith('fason:')) {
-      const fasonId = Number(key.slice('fason:'.length))
+      const rest = key.slice('fason:'.length)
+      const parts = rest.split(':')
+      const fasonId = Number(parts[0])
+      const mode = parts[1] || 'satir'
       const fason = fasonTipleri.find((f) => f.id === fasonId)
       if (!fason) return
       const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
@@ -444,7 +502,13 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         return
       }
       // Fason Talimatı (202): fiş alt tipi seçilen fason tipiyle (readonly) gelir.
-      onFasonTalimat?.(fasonId, satirlariKalemeCevir(secili))
+      let kalemler = satirlariKalemeCevir(secili)
+      if (mode === 'birlesik') kalemler = baslangicKalemleriBirlestir(kalemler)
+      if (kalemler.length === 0) {
+        message.warning('Seçili satırlarda fasona gönderilecek ham stok yok')
+        return
+      }
+      onFasonTalimat?.(fasonId, kalemler)
       return
     }
   }
