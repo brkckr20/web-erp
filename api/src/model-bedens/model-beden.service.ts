@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateModelBedenDto } from './dto/create-model-beden.dto'
 
@@ -15,6 +15,23 @@ export class ModelBedenService {
   }
 
   async add(dto: CreateModelBedenDto) {
+    if (!dto.malzemeId) {
+      throw new BadRequestException('Malzeme kaydedilmeden beden eklenemez')
+    }
+    const malzeme = await this.prisma.malzeme.findUnique({
+      where: { id: dto.malzemeId },
+      select: { id: true },
+    })
+    if (!malzeme) {
+      throw new NotFoundException('Malzeme bulunamadı, önce modeli kaydedin')
+    }
+    const beden = await this.prisma.beden.findUnique({
+      where: { id: dto.bedenId },
+      select: { id: true },
+    })
+    if (!beden) {
+      throw new NotFoundException('Beden bulunamadı')
+    }
     const exists = await this.prisma.malzemeBeden.findUnique({
       where: { malzemeId_bedenId: { malzemeId: dto.malzemeId, bedenId: dto.bedenId } },
     })

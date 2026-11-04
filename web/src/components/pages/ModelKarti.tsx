@@ -401,6 +401,10 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
 
   const handleBedenEkle = async (bedenId: number) => {
     if (!model) return
+    if (!model.id) {
+      message.warning('Önce modeli kaydedin')
+      return
+    }
     try {
       const added = await modelBedenApi.add({ malzemeId: model.id, bedenId })
       setBedenler((prev) => [...prev, added])
@@ -411,6 +415,10 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
 
   const handleBedenSil = async (bedenId: number) => {
     if (!model) return
+    if (!model.id) {
+      message.warning('Önce modeli kaydedin')
+      return
+    }
     try {
       await modelBedenApi.remove(model.id, bedenId)
       setBedenler((prev) => prev.filter((b) => b.bedenId !== bedenId))
@@ -633,6 +641,10 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
 
   const handleKumasGrupEkle = async (kumasGrupId: number) => {
     if (!model) return
+    if (!model.id) {
+      message.warning('Önce modeli kaydedin')
+      return
+    }
     try {
       const added = await modelKumasGrupApi.add({ malzemeId: model.id, kumasGrupId })
       setKumasGruplari((prev) => [...prev, added])
@@ -643,11 +655,15 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
 
   const handleKumasGrupSil = async (kumasGrupId: number) => {
     if (!model) return
+    if (!model.id) {
+      message.warning('Önce modeli kaydedin')
+      return
+    }
     try {
       await modelKumasGrupApi.remove(model.id, kumasGrupId)
       setKumasGruplari((prev) => prev.filter((g) => g.kumasGrupId !== kumasGrupId))
     } catch (err: unknown) {
-          message.error(err instanceof Error ? err.message : 'Varyant grubu silinirken hata oluştu')
+      message.error(err instanceof Error ? err.message : 'Varyant grubu silinirken hata oluştu')
     }
   }
 
