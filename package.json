@@ -5,5 +5,12 @@
     "api",
     "web",
     "packages/*"
-  ]
+  ],
+  "devDependencies": {
+    "@swc/cli": "^0.8.2",
+    "@swc/core": "^1.16.21"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.9"
+  }
 }

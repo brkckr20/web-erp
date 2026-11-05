@@ -74,6 +74,8 @@ export interface IrsaliyeBaslangicKalem {
   malzemeKod: string
   malzemeAd: string
   miktar: number
+  /** Kaynaktaki brüt miktar (miktar = net). Yoksa hedefte net ile eşitlenir. */
+  brutMiktar?: number | null
   birim: string
   birimFiyat?: number
   cariHesapKod?: string
@@ -140,7 +142,6 @@ export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]):
     const parcalar = [...(mevcut.aciklama ?? '').split(' + '), ...(k.aciklama ?? '').split(' + ')].filter(Boolean)
     mevcut.aciklama = [...new Set(parcalar)].join(' + ')
     if (mevcut.siparisKalemId !== k.siparisKalemId) mevcut.siparisKalemId = null
-    if (mevcut.kaynakKalemId !== k.kaynakKalemId) mevcut.kaynakKalemId = null
     // Prosesler birleşir (aynı proses teklenir, ilk görülen sıra korunur).
     for (const p of k.prosesler ?? []) {
       if (!(mevcut.prosesler ?? []).some((x) => x.islemId === p.islemId)) {
@@ -169,7 +170,6 @@ export function baslangicKalemleriKumule(kalemler: IrsaliyeBaslangicKalem[]): Ir
     const parcalar = [...(mevcut.aciklama ?? '').split(' + '), ...(k.aciklama ?? '').split(' + ')].filter(Boolean)
     mevcut.aciklama = [...new Set(parcalar)].join(' + ')
     if (mevcut.siparisKalemId !== k.siparisKalemId) mevcut.siparisKalemId = null
-    if (mevcut.kaynakKalemId !== k.kaynakKalemId) mevcut.kaynakKalemId = null
     for (const p of k.prosesler ?? []) {
       if (!(mevcut.prosesler ?? []).some((x) => x.islemId === p.islemId)) {
         mevcut.prosesler = [...(mevcut.prosesler ?? []), { ...p }]
@@ -268,6 +268,46 @@ const emptyKalem = (): KalemRow => ({
   topSayisi: 0,
   prosesler: [],
 })
+
+/** Başlangıç kalemini grid satırına çevirir. Miktar net, brüt ayrı taşınır. */
+const baslangicKalemToRow = (b: IrsaliyeBaslangicKalem): KalemRow => {
+  const row: KalemRow = {
+    ...emptyKalem(),
+    malzemeKod: b.malzemeKod,
+    malzemeAd: b.malzemeAd,
+    hesapBirimi: 'mt',
+    aciklama: b.aciklama ?? '',
+    partiNo: b.partiNo ?? '',
+    birimFiyat: b.birimFiyat ?? 0,
+    siparisKalemId: b.siparisKalemId ?? null,
+    kaynakKalemId: b.kaynakKalemId ?? null,
+    istenenGram: b.istenenGram ?? 0,
+    ebat: b.ebat ?? '',
+    topSayisi: b.topSayisi ?? 0,
+    boyahaneRenkId: b.boyahaneRenkId ?? null,
+    boyahaneRenkKod: b.boyahaneRenkKod ?? '',
+    boyahaneRenkAd: b.boyahaneRenkAd ?? '',
+    varyant1RenkId: b.varyant1RenkId ?? null,
+    varyant1RenkKod: b.varyant1RenkKod ?? '',
+    varyant1RenkAd: b.varyant1RenkAd ?? '',
+    tahsis: b.tahsis ?? [],
+    prosesler: b.prosesler ?? [],
+  }
+  const val = b.miktar || 0
+  if (b.birim === 'kg') {
+    row.kg = val
+    row.brutKg = b.brutMiktar ?? val
+    row.hesapBirimi = 'kg'
+  } else if (b.birim === 'adet') {
+    row.adet = val
+    row.hesapBirimi = 'adet'
+  } else {
+    row.mt = val
+    row.brutMt = b.brutMiktar ?? val
+    row.hesapBirimi = 'mt'
+  }
+  return row
+}
 
 const irsaliyeTipiMap: Record<string, string> = {
   '2': '2-Perakende Satış İade İrsaliyesi',
@@ -439,14 +479,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [tamamlandi, setTamamlandi] = useState(false)
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
-      ? baslangicKalemler.map((b) => {
-          const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', partiNo: b.partiNo ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, kaynakKalemId: b.kaynakKalemId ?? null, istenenGram: b.istenenGram ?? 0, ebat: b.ebat ?? '', topSayisi: b.topSayisi ?? 0, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [], prosesler: b.prosesler ?? [] }
-          const val = b.miktar || 0
-          if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
-          else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
-          else { row.mt = val; row.hesapBirimi = 'mt' }
-          return row
-        })
+      ? baslangicKalemler.map(baslangicKalemToRow)
       : [],
   )
   const baslangicUygulandiRef = useRef(false)
@@ -456,14 +489,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     setKalemler((prev) => {
       if (prev.length > 0) return prev
       baslangicUygulandiRef.current = true
-      return baslangicKalemler.map((b) => {
-        const row = { ...emptyKalem(), malzemeKod: b.malzemeKod, malzemeAd: b.malzemeAd, hesapBirimi: 'mt', aciklama: b.aciklama ?? '', partiNo: b.partiNo ?? '', birimFiyat: b.birimFiyat ?? 0, siparisKalemId: b.siparisKalemId ?? null, kaynakKalemId: b.kaynakKalemId ?? null, istenenGram: b.istenenGram ?? 0, ebat: b.ebat ?? '', topSayisi: b.topSayisi ?? 0, boyahaneRenkId: b.boyahaneRenkId ?? null, boyahaneRenkKod: b.boyahaneRenkKod ?? '', boyahaneRenkAd: b.boyahaneRenkAd ?? '', varyant1RenkId: b.varyant1RenkId ?? null, varyant1RenkKod: b.varyant1RenkKod ?? '', varyant1RenkAd: b.varyant1RenkAd ?? '', tahsis: b.tahsis ?? [], prosesler: b.prosesler ?? [] }
-        const val = b.miktar || 0
-        if (b.birim === 'kg') { row.kg = val; row.hesapBirimi = 'kg' }
-        else if (b.birim === 'adet') { row.adet = val; row.hesapBirimi = 'adet' }
-        else { row.mt = val; row.hesapBirimi = 'mt' }
-        return row
-      })
+      return baslangicKalemler.map(baslangicKalemToRow)
     })
     if (baslangicKalemler[0]?.cariHesapKod && !cariKod) setCariKod(baslangicKalemler[0].cariHesapKod)
     if (baslangicKalemler[0]?.depoKod && !depoKod) setDepoKod(baslangicKalemler[0].depoKod)
@@ -911,6 +937,25 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         kalemler: kalemPayload,
       } as IrsaliyeFormData & { kalemler: IrsaliyeKalem[] })
       setLocalId(created.id)
+      // Oluşan kalem id'lerini forma geri yaz: aynı formdan açılan sonraki fişte
+      // kaynakKalemId bu id'lerle yazılır (aksi halde kaynak bağlantısı boş kalır).
+      const createdKalemler = created.kalemler ?? []
+      if (createdKalemler.length > 0) {
+        const idByUuid = new Map<string, number>()
+        for (const ck of createdKalemler) if (ck.uuid && ck.id) idByUuid.set(ck.uuid, ck.id)
+        const siraByKey = new Map<string, number>()
+        gecerliKalemler.forEach((k, i) => siraByKey.set(k.key, i))
+        setKalemler((prev) =>
+          prev.map((k) => {
+            const sira = siraByKey.get(k.key)
+            if (sira === undefined) return k
+            const ck = createdKalemler[sira]
+            const yeniId = (k.uuid ? idByUuid.get(k.uuid) : undefined) ?? ck?.id
+            if (!yeniId) return k
+            return { ...k, kalemId: yeniId, uuid: k.uuid ?? ck?.uuid ?? null }
+          }),
+        )
+      }
       // 134 yeni kaydedildiyse talimat rozeti hemen görünsün.
       if (irsaliyeTipi === '134' && baslangicTalimatId) {
         setTalimatId(baslangicTalimatId)
@@ -1534,12 +1579,17 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         message.error(`${k.malzemeKod} ${k.malzemeAd} için miktar girilmemiş`)
         return
       }
+      // Brüt miktar da taşınır (miktar = net). Kaynakta brüt yoksa hedefte nete eşitlenir,
+      // böylece fire hesaplanırken negatif fire oluşmaz.
+      const brutMiktar =
+        birim === 'kg' ? (k.brutKg || null) : birim === 'mt' ? (k.brutMt || null) : null
       // 202-Fason Talimatı -> 134-Fasona Çıkış: varyant (sipariş rengi) DÜŞÜRÜLÜR.
       // Çıkış ham kumaştır; boyahane kartı dönüşte (11-Fasondan Giriş) seçilir.
       kalemlerOut.push({
         malzemeKod: k.malzemeKod,
         malzemeAd: k.malzemeAd,
         miktar,
+        brutMiktar,
         birim,
         birimFiyat: k.birimFiyat || undefined,
         cariHesapKod: cariKod || undefined,
@@ -1866,13 +1916,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   )
 
   const acikTalimatlariSatirlar = useMemo(() => {
-    const brutMiktar = (k: IrsaliyeKalem): number => {
-      const b = String(k.olcuBirimi ?? '').toLowerCase().replace(/[\s_-]/g, '')
-      if (b === 'brutkg' || b === 'kg') return Number(k.brutAgirlik) || Number(k.netAgirlik) || 0
-      if (b === 'brutmt' || b === 'mt') return Number(k.brutMetre) || Number(k.netMetre) || 0
-      if (b === 'adet') return Number(k.adet) || 0
-      return 0
-    }
+    // 202-Fason Talimatı kalemi: brüt mt (fallback: net mt). olcuBirimi yok sayılır.
+    const brutMt = (k: IrsaliyeKalem): number => Number(k.brutMetre) || Number(k.netMetre) || 0
 
     // 134 çıkış kalemlerinden daha önce aktarılan miktarı topla (kaynakKalemId → 202 kalem id).
     const aktarilan = new Map<string, number>()
@@ -1880,17 +1925,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       for (const k of cikis.kalemler ?? []) {
         if (k.kaynakKalemId == null) continue
         const key = String(k.kaynakKalemId)
-        aktarilan.set(key, (aktarilan.get(key) ?? 0) + brutMiktar(k))
+        aktarilan.set(key, (aktarilan.get(key) ?? 0) + (Number(k.netMetre) || 0)) // 134 net metre
       }
     }
     // Grid'e girilmemiş ama henüz kaydedilmemiş 134 kalemlerini de say (mevcut form).
     for (const k of kalemler) {
       if (k.kaynakKalemId == null) continue
-      const m = k.hesapBirimi === 'brutKg' || k.hesapBirimi === 'kg' ? k.brutKg
-        : k.hesapBirimi === 'brutMt' || k.hesapBirimi === 'mt' ? k.brutMt
-        : k.adet
       const key = String(k.kaynakKalemId)
-      aktarilan.set(key, (aktarilan.get(key) ?? 0) + (Number(m) || 0))
+      aktarilan.set(key, (aktarilan.get(key) ?? 0) + (Number(k.mt) || 0)) // mevcut form, mt
     }
 
     const rows: (IrsaliyeKalem & {
@@ -1903,7 +1945,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     for (const talimat of acikTalimatlariFiltreli) {
       for (const k of talimat.kalemler ?? []) {
         const idStr = k.id != null ? String(k.id) : null
-        const kalan = brutMiktar(k) - (idStr ? (aktarilan.get(idStr) ?? 0) : 0)
+        const kalan = brutMt(k) - (idStr ? (aktarilan.get(idStr) ?? 0) : 0)
         if (idStr && kalan <= 0) continue
         rows.push({
           ...(k as IrsaliyeKalem),
@@ -1983,7 +2025,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const kalemSayisi = kalemler.length
 
   return (
-    <Spin spinning={loading} className="!h-full">
+    <Spin spinning={loading} classNames={{ root: '!h-full [&_.ant-spin-container]:!h-full' }}>
       <div className="!px-3 !flex !flex-col !h-full !overflow-hidden">
         <div style={{ marginLeft: -12, marginRight: -12 }}>
           <CardToolbar
@@ -2144,7 +2186,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                 </Button>
               </div>
             </div>
-            <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
+            <div style={{ width: '100%' }} className="kalemler-grid !h-full">
               <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
                 <div style={{ height: '100%', width: '100%' }}>
                     <AgGridReact

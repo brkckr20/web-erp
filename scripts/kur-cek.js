@@ -1,3 +1,5 @@
+require("dotenv").config();
+process.env.DATABASE_URL = process.env.DATABASE_URL || "sqlserver://localhost:1433;database=NakosanERP;integratedSecurity=true;trustServerCertificate=true;encrypt=true";
 const { PrismaClient } = require("@prisma/client");
 
 const TCMB_URL = "https://www.tcmb.gov.tr/kurlar/today.xml";

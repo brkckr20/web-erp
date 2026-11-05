@@ -102,7 +102,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [yeniSiparisKey, setYeniSiparisKey] = useState(0)
   const [satinalmaBaslangicKalemler, setSatinalmaBaslangicKalemler] = useState<IrsaliyeBaslangicKalem[]>([])
   const [baslangicTalimatId, setBaslangicTalimatId] = useState<number | null>(null)
-  const [satinalmaSiparisKey, setSatinalmaSiparisKey] = useState(0)
+  // Her "yeni" irsaliye sekmesinin kendi remount sayacı: yeni belge açıldığında yalnızca
+  // O sekme yeniden mount edilir; kaynak sekmenin (örn. 202) form durumu korunur.
+  const [irsaliyeYeniVersiyon, setIrsaliyeYeniVersiyon] = useState<Record<string, number>>({})
   const { modal } = App.useApp()
   /** Sekme anahtarı -> kaydedilmemiş değişiklik var mı? */
   const [kirliSekmeler, setKirliSekmeler] = useState<Record<string, boolean>>({})
@@ -254,6 +256,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const fisAdi = label.replace(/^\d+-/, '')
       const tabLabel = `Yeni ${fisAdi} (${irsaliyeTipi})`
       const key = 'satis-irsaliye-yeni-' + irsaliyeTipi + (fasonTipiId ? '-ft' + fasonTipiId : '')
+      // Kalem aktarımı varsa hedef sekmeyi yeniden mount et (yeni kalemler uygulanır).
+      // Kaynak sekmeler etkilenmez (yalnızca bu sekmenin sayacı artar).
+      if (baslangicKalemler !== undefined) {
+        setIrsaliyeYeniVersiyon((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }))
+      }
       // Yeni ekranda da rapor şablonları bulunsun diye listedeki ekranAdi aynen taşınır.
       // Tip 1 (Mal Alım) satın alma irsaliyeleri ekranına aittir; 201/202/134 sipariş ekranında kalır.
       const ekranAdi = irsaliyeTipi === '1'
@@ -274,7 +281,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const openYeniSatinalmaSiparis = useCallback(
     (kalemler: IrsaliyeBaslangicKalem[]) => {
-      setSatinalmaSiparisKey((k) => k + 1)
       openYeniIrsaliye('201', null, kalemler)
     },
     [openYeniIrsaliye],
@@ -282,7 +288,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleCreateIrsaliye = useCallback(
     (irsaliyeTipi: string, kalemler: IrsaliyeBaslangicKalem[], fasonTipiId?: number | null, talimatId?: number | null) => {
-      setSatinalmaSiparisKey((k) => k + 1)
       setBaslangicTalimatId(talimatId ?? null)
       openYeniIrsaliye(irsaliyeTipi, fasonTipiId ?? null, kalemler)
     },
@@ -292,7 +297,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Kumaş/İplik planlamadan Fason Talimatı (202) açar. Alt tip seçilen fason tipiyle gelir.
   const openFasonTalimat = useCallback(
     (fasonTipiId: number, kalemler: IrsaliyeBaslangicKalem[]) => {
-      setSatinalmaSiparisKey((k) => k + 1)
       openYeniIrsaliye('202', fasonTipiId, kalemler)
     },
     [openYeniIrsaliye],
@@ -1397,7 +1401,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
        const isYeniSatinalma = irsaliyeTipi === '201' || irsaliyeTipi === '1' || irsaliyeTipi === '202' || irsaliyeTipi === '134'
       return (
         <IrsaliyeKarti
-          key={isYeniSatinalma ? `yeni201-${satinalmaSiparisKey}` : undefined}
+          key={isYeniSatinalma ? `yeni201-${irsaliyeYeniVersiyon[tab.key] ?? 0}` : undefined}
           irsaliyeTipi={irsaliyeTipi}
           fasonTipiId={fasonTipiId}
           ekranAdi={tab.ekranAdi}

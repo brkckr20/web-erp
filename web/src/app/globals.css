@@ -222,6 +222,17 @@ body {
   color: #999 !important;
 }
 
+/* ===== Malzeme Yönetim Fişleri (Stok Hareket Fişi) ===== */
+/* Grid, kalan yüksekliği doldursun: Spin -> Tabs -> tabpanel zinciri boyunca
+   height:100% aktarılır. */
+.stok-hareket-fisi-karti .ant-spin-container,
+.stok-hareket-fisi-karti .ant-tabs-body,
+.stok-hareket-fisi-karti .ant-tabs-body-top,
+.stok-hareket-fisi-karti [role="tabpanel"],
+.stok-hareket-fisi-karti .kalemler-grid {
+  height: 100% !important;
+}
+
 @keyframes slideInLeft {
   from { transform: translateX(-100%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }

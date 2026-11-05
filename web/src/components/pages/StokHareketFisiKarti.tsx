@@ -868,9 +868,9 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   const toplamAdet = kalemler.reduce((acc, k) => acc + (k.adet || 0), 0)
 
   return (
-    <Spin spinning={loading} className="!h-full">
+    <Spin spinning={loading} classNames={{ root: 'stok-hareket-fisi-karti !h-full [&_.ant-spin-container]:!h-full' }}>
       <div className="!px-3 !flex !flex-col !h-full !min-h-0 !overflow-hidden">
-        <div className="!flex-1 !min-h-0 !overflow-auto" style={{ marginLeft: -12, marginRight: -12 }}>
+        <div className="!flex-shrink-0" style={{ marginLeft: -12, marginRight: -12 }}>
           <CardToolbar
             buttons={createToolbarButtons({
               onSave: handleKaydet,
@@ -990,7 +990,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                         </Button>
                       </div>
                     </div>
-                    <div style={{ height: 'calc(100vh - 500px)', minHeight: 300, width: '100%' }} className="kalemler-grid">
+                    <div className="kalemler-grid !flex-1 !min-h-0">
                       {isCikis || isGiris ? (
                         <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
                           <div style={{ height: '100%', width: '100%' }}>
