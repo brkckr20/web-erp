@@ -124,14 +124,16 @@ export function prosesAdlariGetir(prosesler: KalemProses[] | undefined): string 
 
 /**
  * Aynı kumaş + renk + partideki başlangıç kalemlerini tek satırda birleştirir (anahtar:
- * malzemeKod + varyant1RenkId + birim + partiNo), miktarları toplar, kaynakları tahsis
- * listesinde saklar. Tahsis salt-okunurdur; satır miktarı sonradan değişirse
- * Tahsis Detayları modalı farkı uyarı olarak gösterir.
+ * malzemeKod + varyant1RenkId + birim + partiNo + kaynakKalemId), miktarları toplar,
+ * kaynakları tahsis listesinde saklar. kaynakKalemId anahtara dahildir: farklı
+ * kaynaklardan gelen satırlar birleşmez, böylece 202 → 134 kalan takibi bozulmaz.
+ * Tahsis salt-okunurdur; satır miktarı sonradan değişirse Tahsis Detayları modalı
+ * farkı uyarı olarak gösterir.
  */
 export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]): IrsaliyeBaslangicKalem[] {
   const gruplar = new Map<string, IrsaliyeBaslangicKalem>()
   for (const k of kalemler) {
-    const anahtar = `${k.malzemeKod}||${k.varyant1RenkId ?? ''}||${k.birim}||${k.partiNo ?? ''}`
+    const anahtar = `${k.malzemeKod}||${k.varyant1RenkId ?? ''}||${k.birim}||${k.partiNo ?? ''}||${k.kaynakKalemId ?? ''}`
     const mevcut = gruplar.get(anahtar)
     if (!mevcut) {
       gruplar.set(anahtar, { ...k, tahsis: [...(k.tahsis ?? [])] })
@@ -153,13 +155,13 @@ export function baslangicKalemleriBirlestir(kalemler: IrsaliyeBaslangicKalem[]):
 }
 /**
  * Aynı kumaş koduna sahip başlangıç kalemlerini tek satırda kümüler (ham satın alma
- * için). Anahtar: malzemeKod + birim. Miktarlar toplanır, kaynaklar tahsis listesinde
- * saklanır.
+ * için). Anahtar: malzemeKod + birim + kaynakKalemId. Kaynak anahtara dahildir:
+ * farklı 202/planlama satırları birleşmez, kaynak takibi korunur.
  */
 export function baslangicKalemleriKumule(kalemler: IrsaliyeBaslangicKalem[]): IrsaliyeBaslangicKalem[] {
   const gruplar = new Map<string, IrsaliyeBaslangicKalem>()
   for (const k of kalemler) {
-    const anahtar = `${k.malzemeKod}||${k.birim}`
+    const anahtar = `${k.malzemeKod}||${k.birim}||${k.kaynakKalemId ?? ''}`
     const mevcut = gruplar.get(anahtar)
     if (!mevcut) {
       gruplar.set(anahtar, { ...k, tahsis: [...(k.tahsis ?? [])] })
@@ -1038,7 +1040,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }
 
   const focusNextCell = (currentColId: string, rowIndex: number) => {
-    const editableCols = colDefs.map((c) => c.field as string).filter((f) => f && f !== 'key' && f !== 'malzemeAd' && f !== 'varyant1RenkAd')
+    const editableCols = colDefs.map((c) => c.field as string).filter((f) => f && f !== 'key' && f !== 'malzemeAd' && f !== 'varyant1RenkAd' && f !== 'kaynakKalemId')
     const idx = editableCols.indexOf(currentColId)
     if (idx === -1) return
     if (idx < editableCols.length - 1) {
@@ -1116,6 +1118,16 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       ),
     },
     { headerName: 'Malzeme Adı', field: 'malzemeAd', flex: 1, minWidth: 120 },
+    // 134-Fasona Çıkış: satırın kaynaklandığı 202 talimat kaleminin id'si.
+    // Aktarım sırasında görünür; kalan hesabı bu bağ üzerinden yürür (salt-okunur).
+    ...(irsaliyeTipi === '134'
+      ? [
+          {
+            headerName: 'Kaynak Kalem Id', field: 'kaynakKalemId', width: 130,
+            valueFormatter: (p) => (p.value != null ? String(p.value) : '-'),
+          } as ColDef<KalemRow>,
+        ]
+      : []),
     {
       headerName: 'Varyant 1', field: 'varyant1RenkId', width: 130, cellClass: '!p-0',
       cellRenderer: (p: { data: KalemRow }) => (
@@ -1511,7 +1523,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const fasonGidenGridRef = useRef<GridApi>(null)
 
   // 134-Fasona Çıkış: açık 202 talimatlarını listeler, seçilen kalemleri içe aktarır.
-  // Kalan hesap: 202 kalem brüt − (134 kalemlerinde kaynakKalemId ile toplanan aktarılan).
+  // Kalan hesap: 202 brüt mt − (134 kalemlerinde kaynakKalemId ile toplanan 134 brüt mt).
   const [acikTalimatlariOpen, setAcikTalimatlariOpen] = useState(false)
   const [acikTalimatlariData, setAcikTalimatlariData] = useState<Irsaliye[]>([])
   const [acikTalimatlariCikisData, setAcikTalimatlariCikisData] = useState<Irsaliye[]>([])
@@ -1546,7 +1558,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         // Açık talimatlar: tüm 202-Fason Talimatları. Kalan <= 0 olanlar listeden düşer
         // (tamamen 134'e çıkış yapılmışsa). tamamlandi filtresi YOK: kalan hesabı yeterli.
         setAcikTalimatlariData(res.filter((i) => String(i.irsaliyeTipi) === '202'))
-        // Kalan hesap için 134 çıkışları: kaynakKalemId ile daha önce aktarılan miktar toplanır.
+        // Kalan hesap için 134 çıkışları: kaynakKalemId ile daha önce aktarılan brüt mt toplanır.
         setAcikTalimatlariCikisData(res.filter((i) => String(i.irsaliyeTipi) === '134'))
       })
       .catch(() => {
@@ -1607,8 +1619,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         boyahaneRenkId: k.boyahaneRenkId ?? null,
         boyahaneRenkKod: k.boyahaneRenkKod || undefined,
         boyahaneRenkAd: k.boyahaneRenkAd || undefined,
-        // varyant1 (sipariş rengi) 202'den 134'e taşınmaz: çıkış ham kumaştır.
-        varyant1RenkId: irsaliyeTipi === '202' ? null : (k.varyant1RenkId ?? null),
+        // 202 talimatındaki sipariş rengi 134'e ve ardından 11'e taşınır.
+        varyant1RenkId: k.varyant1RenkId ?? null,
         // Birleşmiş satırın tahsis dağılımı sonraki fişe de taşınır (salt-okunur detay).
         tahsis: k.tahsis ?? [],
         // Satıra seçilen prosesler sonraki fişe de taşınır (134'te düzenlenebilir).
@@ -1776,10 +1788,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         boyahaneRenkId: k.boyahaneRenkId ?? k.boyahaneRenk?.id ?? null,
         boyahaneRenkKod: k.boyahaneRenk?.kod ?? '',
         boyahaneRenkAd: k.boyahaneRenk?.ad ?? '',
-        // 202 → 134: varyant1 (sipariş rengi) DÜŞER — çıkış ham kumaştır.
-        varyant1RenkId: null,
-        varyant1RenkKod: '',
-        varyant1RenkAd: '',
+        // 202 talimatındaki sipariş rengi 134'e ve ardından 11'e taşınır.
+        varyant1RenkId: k.varyant1RenkId ?? null,
+        varyant1RenkKod: k.varyant1Renk?.kod ?? '',
+        varyant1RenkAd: k.varyant1Renk?.ad ?? '',
         fire: null,
         tahsis: (k.tahsisler ?? []).map((t) => ({
           siparisKalemId: t.siparisKalemId ?? null,
@@ -1833,7 +1845,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
 
     // Kaydedilmiş diğer 11 (Fasondan Giriş) fişleri — birden fazla geliş birikir.
     // Eşleştirme: kaynakKalemId (FK) varsa o, yoksa takipNo (eski kayıtlarda 134 kalem id'si).
+    // Açık olan 11 fişinin kendisi HARİÇ: onun kalemleri aşağıda formdan sayılır (mükerrer düşmesin).
     for (const giris of fasonGidenGirislerData) {
+      if (id != null && giris.id === id) continue
       for (const k of giris.kalemler ?? []) {
         const kaynakId = kaynakIdBul(k)
         if (kaynakId == null || !Number.isFinite(kaynakId)) continue
@@ -1904,7 +1918,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       }
     }
     return rows
-  }, [fasonGidenlerData, fasonGidenlerFiltreli, fasonGidenGirislerData, kalemler, fasonGidenArama])
+  }, [fasonGidenlerData, fasonGidenlerFiltreli, fasonGidenGirislerData, kalemler, fasonGidenArama, id])
 
   // Açık 202 talimatlarının kalemleri (134 formunda içe aktarma listesi).
   const acikTalimatlariFiltreli = acikTalimatlariData.filter(
@@ -1916,23 +1930,28 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   )
 
   const acikTalimatlariSatirlar = useMemo(() => {
-    // 202-Fason Talimatı kalemi: brüt mt (fallback: net mt). olcuBirimi yok sayılır.
-    const brutMt = (k: IrsaliyeKalem): number => Number(k.brutMetre) || Number(k.netMetre) || 0
+    // Kalan hesabı brüt-brüttür: 202 brüt mt − Σ 134 brüt mt. Eski kayıtlarda brüt
+    // boşsa net mt'ye düşülür (her iki tarafta aynı kural).
+    const metre = (k: IrsaliyeKalem): number => Number(k.brutMetre) || Number(k.netMetre) || 0
 
-    // 134 çıkış kalemlerinden daha önce aktarılan miktarı topla (kaynakKalemId → 202 kalem id).
+    // 134 çıkış kalemlerinden daha önce aktarılan brüt metreleri topla
+    // (kaynakKalemId → 202 kalem id). Açık olan 134 fişinin kendisi HARİÇ: o fişin
+    // kalemleri aşağıda formdan (kalemler) sayılır. İkisini birden sayarsak mükerrer
+    // düşülür ve kalan yanlışlıkla 0'ın altına inip satır listeden kaybolur.
     const aktarilan = new Map<string, number>()
     for (const cikis of acikTalimatlariCikisData) {
+      if (id != null && cikis.id === id) continue
       for (const k of cikis.kalemler ?? []) {
         if (k.kaynakKalemId == null) continue
         const key = String(k.kaynakKalemId)
-        aktarilan.set(key, (aktarilan.get(key) ?? 0) + (Number(k.netMetre) || 0)) // 134 net metre
+        aktarilan.set(key, (aktarilan.get(key) ?? 0) + metre(k)) // 134 brüt metre
       }
     }
-    // Grid'e girilmemiş ama henüz kaydedilmemiş 134 kalemlerini de say (mevcut form).
+    // Açık formdaki (kaydedilmiş veya henüz kaydedilmemiş) 134 kalemlerini de say.
     for (const k of kalemler) {
       if (k.kaynakKalemId == null) continue
       const key = String(k.kaynakKalemId)
-      aktarilan.set(key, (aktarilan.get(key) ?? 0) + (Number(k.mt) || 0)) // mevcut form, mt
+      aktarilan.set(key, (aktarilan.get(key) ?? 0) + (Number(k.brutMt) || Number(k.mt) || 0)) // brüt mt
     }
 
     const rows: (IrsaliyeKalem & {
@@ -1945,7 +1964,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     for (const talimat of acikTalimatlariFiltreli) {
       for (const k of talimat.kalemler ?? []) {
         const idStr = k.id != null ? String(k.id) : null
-        const kalan = brutMt(k) - (idStr ? (aktarilan.get(idStr) ?? 0) : 0)
+        const kalan = metre(k) - (idStr ? (aktarilan.get(idStr) ?? 0) : 0)
         if (idStr && kalan <= 0) continue
         rows.push({
           ...(k as IrsaliyeKalem),
@@ -1958,11 +1977,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       }
     }
     return rows
-  }, [acikTalimatlariFiltreli, acikTalimatlariCikisData, kalemler])
+  }, [acikTalimatlariFiltreli, acikTalimatlariCikisData, kalemler, id])
 
   const acikTalimatlariKolonlar = useMemo<ColDef<any>[]>(
     () => [
       { headerName: 'Talimat No', field: 'talimatNo', width: 110, cellClass: '!text-[#f57c00] !font-medium' },
+      // Seçilen 202 kaleminin id'si; 134'e aktarılırken kaynakKalemId olarak yazılır.
+      { headerName: 'Kaynak Kalem Id', field: 'id', width: 130, type: 'rightAligned', valueFormatter: (p) => (p.value != null ? String(p.value) : '-') },
       { headerName: 'Tarih', field: 'tarih', width: 100, valueFormatter: (p) => formatTarih(p.value) },
       { headerName: 'Cari Hesap', field: 'cariAd', flex: 1, minWidth: 140, valueFormatter: (p) => p.value || '-' },
       { headerName: 'Fason Alt Tipi', field: 'fasonTipiAd', width: 140, valueFormatter: (p) => p.value || '-' },

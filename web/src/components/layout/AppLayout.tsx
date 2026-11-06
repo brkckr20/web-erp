@@ -245,7 +245,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const openYeniIrsaliye = useCallback(
-    (irsaliyeTipi: string, fasonTipiId?: number | null, baslangicKalemler?: IrsaliyeBaslangicKalem[]) => {
+    (
+      irsaliyeTipi: string,
+      fasonTipiId?: number | null,
+      baslangicKalemler?: IrsaliyeBaslangicKalem[],
+      ekranAdiParam?: string,
+    ) => {
       // 201/1 Satın Alma Siparişi -> Satın Alma İrsaliyesi, 202/134 fason: planlamadan
       // doldurulmuş kalemlerle açılan fişler. Bu tipler dışında kalem taşınmaz.
       if (irsaliyeTipi === '201' || irsaliyeTipi === '1' || irsaliyeTipi === '202' || irsaliyeTipi === '134') {
@@ -262,12 +267,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         setIrsaliyeYeniVersiyon((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }))
       }
       // Yeni ekranda da rapor şablonları bulunsun diye listedeki ekranAdi aynen taşınır.
-      // Tip 1 (Mal Alım) satın alma irsaliyeleri ekranına aittir; 201/202/134 sipariş ekranında kalır.
-      const ekranAdi = irsaliyeTipi === '1'
-        ? 'satinalma-irsaliyeleri'
-        : (irsaliyeTipi === '201' || irsaliyeTipi === '202' || irsaliyeTipi === '134')
-          ? 'satinalma-siparis'
-          : undefined
+      // Çağıran liste parametreyle ekranAdi verebilir; verilmezse fiş tipine göre düşülür.
+      // Tip 1 (Mal Alım) satın alma irsaliyeleri; 201/202 sipariş; 134 ise satış
+      // irsaliyeleri listesinde görünür (Boya Talimatı / Çıkış Formu şablonları oradadır).
+      const ekranAdi =
+        ekranAdiParam ??
+        (irsaliyeTipi === '1'
+          ? 'satinalma-irsaliyeleri'
+          : irsaliyeTipi === '134'
+            ? 'satis-irsaliyeleri'
+            : irsaliyeTipi === '201' || irsaliyeTipi === '202'
+              ? 'satinalma-siparis'
+              : undefined)
       setTabs((prev) => {
         const tab: Tab = { key, label: tabLabel, moduleKey: 'satis', isForm: true, ekranAdi }
         const exists = prev.find((t) => t.key === key)
@@ -1382,10 +1393,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <IadeTalepleri onIrsaliyeAc={openIrsaliyeKarti} />
     }
     if (tab.key === 'satis-irsaliyeleri') {
-      return <IrsaliyeListesi onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} onCreateFatura={(info) => openYeniFatura(info.faturaTipi, null, info.irsaliyeIds)} />
+      return <IrsaliyeListesi onNew={(tip, ft) => openYeniIrsaliye(tip, ft, undefined, 'satis-irsaliyeleri')} onSelect={openIrsaliyeKarti} onCreateFatura={(info) => openYeniFatura(info.faturaTipi, null, info.irsaliyeIds)} />
     }
     if (tab.key === 'satinalma-irsaliyeleri') {
-      return <IrsaliyeListesi mod="satinalma" onNew={openYeniIrsaliye} onSelect={openIrsaliyeKarti} onCreateFatura={(info) => openYeniFatura(info.faturaTipi, null, info.irsaliyeIds)} />
+      return <IrsaliyeListesi mod="satinalma" onNew={(tip, ft) => openYeniIrsaliye(tip, ft, undefined, 'satinalma-irsaliyeleri')} onSelect={openIrsaliyeKarti} onCreateFatura={(info) => openYeniFatura(info.faturaTipi, null, info.irsaliyeIds)} />
     }
     if (tab.key === 'satinalma-siparis') {
       return <IrsaliyeListesi mod="satinalma-siparis" onNew={() => openYeniSatinalmaSiparis([])} onSelect={openIrsaliyeKarti} />
