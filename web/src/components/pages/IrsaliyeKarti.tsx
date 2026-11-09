@@ -225,6 +225,16 @@ interface KalemRow {
   fire: number | null
   /** Kalite kontrol gerekmez mi? (11-Fasondan Giriş). true ise kalem "Kalite Bekleyen" listesine girmez. */
   kaliteYapilmayacak: boolean
+  /** 11-Fasondan Giriş kaleminin kendi DB id'si (KK barkod detaylarını çekmek için). */
+  kalemDbId?: number | null
+  /** KK barkod bu kaleme bağlı mı? true ise sanal alanlar KK toplamından, false ise kullanıcı girişinden gelir. */
+  kkBarkodVar: boolean
+  /** Sanal/readonly karşılaştırma: KK barkod yoksa ilk giriş, varsa KK toplamı. Stoğu etkilemez. */
+  sanalKg?: number
+  sanalMt?: number
+  sanalAdet?: number
+  /** Sanal/readonly top sayısı: KK barkod yoksa ilk giriş değeri, varsa bağlı barkod sayısı. Stoğu etkilemez. */
+  sanalTopSayisi?: number
   /** Birleşmiş satırın sipariş/model dağılımı (salt-okunur tahsis detayı). */
   tahsis: KalemTahsis[]
   /** Satıra seçilen prosesler (sıralı). */
@@ -262,6 +272,12 @@ const emptyKalem = (): KalemRow => ({
   varyant1RenkAd: '',
   fire: null,
   kaliteYapilmayacak: false,
+  kalemDbId: null,
+  kkBarkodVar: false,
+  sanalKg: 0,
+  sanalMt: 0,
+  sanalAdet: 0,
+  sanalTopSayisi: 0,
   tahsis: [],
   kalemId: null,
   kaynakKalemId: null,
@@ -308,6 +324,11 @@ const baslangicKalemToRow = (b: IrsaliyeBaslangicKalem): KalemRow => {
     row.brutMt = b.brutMiktar ?? val
     row.hesapBirimi = 'mt'
   }
+  // 11-Fasondan Giriş: sanal karşılaştırma alanları ilk giriş değerinden başlar.
+  row.sanalKg = row.kg
+  row.sanalMt = row.mt
+  row.sanalAdet = row.adet
+  row.sanalTopSayisi = row.topSayisi
   return row
 }
 
@@ -725,6 +746,12 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             varyant1RenkAd: (k as IrsaliyeKalem).varyant1Renk?.ad ?? '',
             fire: (k as IrsaliyeKalem).fire != null ? Number((k as IrsaliyeKalem).fire) : null,
             kaliteYapilmayacak: !!(k as IrsaliyeKalem).kaliteYapilmayacak,
+            kalemDbId: k.id ?? null,
+            kkBarkodVar: false,
+            sanalKg: Number((k as IrsaliyeKalem).netAgirlik) || 0,
+            sanalMt: Number((k as IrsaliyeKalem).netMetre) || 0,
+            sanalAdet: Number((k as IrsaliyeKalem).adet) || 0,
+            sanalTopSayisi: Number((k as IrsaliyeKalem).topSayisi) || 0,
             tahsis: ((k as IrsaliyeKalem).tahsisler ?? []).map((t) => ({
               siparisKalemId: t.siparisKalemId ?? null,
               siparisNo: t.siparisNo ?? '',
@@ -778,6 +805,38 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       .catch(() => setFasonTipleri([]))
   }, [irsaliyeTipi])
 
+  const kkYuklendiRef = useRef<Set<string>>(new Set())
+
+  // 11-Fasondan Giriş: KK barkod detaylarını çekip sanal karşılaştırma alanlarını doldur.
+  // Sadece ilk yüklemede çalışır; kullanıcı girişinden sonraki kalemler değişikliklerinde tekrar çalışmaz.
+  useEffect(() => {
+    if (irsaliyeTipi !== '11') return
+    const fetchSanal = async () => {
+      for (const k of kalemler) {
+        if (!k.kalemDbId || kkYuklendiRef.current.has(k.key)) continue
+        try {
+          const detaylar = await kaliteKontrolApi.irsaliyeKalemDetay(k.kalemDbId)
+          if (detaylar.length > 0) {
+            let kg = 0, mt = 0, adet = 0
+            for (const d of detaylar) {
+              const nk = Number(d.netAgirlik) || 0
+              const nm = Number(d.netMetre) || 0
+              const na = Number(d.adet) || 0
+              if (nk > 0) kg += nk
+              else if (nm > 0) mt += nm
+              else adet += na
+            }
+            setKalemler((prev) => prev.map((r) => r.key === k.key ? { ...r, kkBarkodVar: true, sanalKg: kg, sanalMt: mt, sanalAdet: adet, sanalTopSayisi: detaylar.length } : r))
+          }
+          kkYuklendiRef.current.add(k.key)
+        } catch {
+          kkYuklendiRef.current.add(k.key)
+        }
+      }
+    }
+    fetchSanal()
+  }, [irsaliyeTipi, kalemler])
+
   const hesapMiktariGetir = (k: KalemRow): number => {
     // Kartlardan büyük/küçük harf karışık gelebilir ('Adet' vs 'adet') → normalize et.
     switch (String(k.hesapBirimi ?? '').toLowerCase()) {
@@ -802,6 +861,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         } else if ('iskontoTutari' in patch && !('iskontoOrani' in patch)) {
           const brutMatrah = hesapMiktariGetir(next) * (next.birimFiyat || 0)
           next.iskontoOrani = brutMatrah > 0 ? (next.iskontoTutari || 0) / brutMatrah * 100 : 0
+        }
+        // 11-Fasondan Giriş: KK barkod bağlı değilse sanal alanlar gerçek değerleri takip eder.
+        if (!next.kkBarkodVar) {
+          if ('kg' in patch) next.sanalKg = next.kg
+          if ('mt' in patch) next.sanalMt = next.mt
+          if ('adet' in patch) next.sanalAdet = next.adet
+          if ('topSayisi' in patch) next.sanalTopSayisi = next.topSayisi
         }
         next.satirTutari = satirHesapla(next).satirTutari
         return next
@@ -1298,6 +1364,27 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         />
       ),
     },
+    // 11-Fasondan Giriş: salt-okunur karşılaştırma alanları. KK barkod varsa toplamı, yoksa ilk giriş değeri gösterilir. Stoğu etkilemez.
+    ...(irsaliyeTipi === '11'
+      ? [
+          {
+            headerName: 'Sanal Kg', field: 'sanalKg', width: 100, cellClass: '!p-0 !text-[#6b7280]', type: 'rightAligned',
+            valueFormatter: (p: { value: number | null | undefined }) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }),
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'Sanal Mt', field: 'sanalMt', width: 100, cellClass: '!p-0 !text-[#6b7280]', type: 'rightAligned',
+            valueFormatter: (p: { value: number | null | undefined }) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }),
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'Sanal Adet', field: 'sanalAdet', width: 100, cellClass: '!p-0 !text-[#6b7280]', type: 'rightAligned',
+            valueFormatter: (p: { value: number | null | undefined }) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }),
+          } as ColDef<KalemRow>,
+          {
+            headerName: 'Sanal Top', field: 'sanalTopSayisi', width: 100, cellClass: '!p-0 !text-[#6b7280]', type: 'rightAligned',
+            valueFormatter: (p: { value: number | null | undefined }) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 }),
+          } as ColDef<KalemRow>,
+        ]
+      : []),
     {
       headerName: 'Hesap Birimi', field: 'hesapBirimi', width: 110, cellClass: '!p-0',
       cellRenderer: (p: { data: KalemRow }) => (
@@ -1678,6 +1765,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       key: Math.random().toString(36).slice(2),
       uuid: null,
       kaliteYapilmayacak: false,
+      kalemDbId: null,
+      kkBarkodVar: false,
       tip: k.tip ?? 'Malzeme',
       malzemeKod: k.malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
       malzemeAd: k.malzeme?.ad ?? '',
@@ -1695,6 +1784,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         k.olcuBirimi === 'brutMt' || k.olcuBirimi === 'mt' ? Number(k.kalan) || 0 : 0,
       mt: 0,
       adet: k.olcuBirimi === 'adet' ? Number(k.kalan) || 0 : 0,
+      sanalKg: 0,
+      sanalMt: 0,
+      sanalAdet: 0,
+      sanalTopSayisi: 0,
       hesapBirimi: k.olcuBirimi || 'kg',
       birimFiyat: Number(k.birimFiyat) || 0,
       doviz: k.doviz || 'TL',
@@ -1759,6 +1852,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         key: Math.random().toString(36).slice(2),
         uuid: null,
         kaliteYapilmayacak: false,
+        kalemDbId: null,
+        kkBarkodVar: false,
         tip: k.tip ?? 'Malzeme',
         malzemeKod: k.malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
         malzemeAd: k.malzeme?.ad ?? '',

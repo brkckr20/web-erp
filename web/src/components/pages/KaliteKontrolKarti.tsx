@@ -1,13 +1,13 @@
 'use client'
 
-import { Input, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Dropdown, Modal } from 'antd'
+import { Input, DatePicker, Button, App, Tooltip, Popconfirm, Spin, Dropdown, Modal, Popover, Checkbox } from 'antd'
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { toSVG } from '@bwip-js/browser'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi, CellFocusedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
-import { PlusOutlined, DeleteOutlined, InboxOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, InboxOutlined, SettingOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
@@ -15,7 +15,6 @@ import SearchableIsEmriSelect from '@/components/shared/SearchableIsEmriSelect'
 import { kaliteKontrolApi } from '@/lib/kalite-kontrol-api'
 import { useKirli } from '@/lib/kirli'
 import { irsaliyeApi } from '@/lib/irsaliye-api'
-import { kalemMiktari } from '@/lib/miktar'
 import { isEmriApi } from '@/lib/is-emri-api'
 import { type Malzeme } from '@/lib/malzeme-api'
 import HataModal from '@/components/shared/HataModal'
@@ -26,6 +25,8 @@ import DataGrid from '@/components/shared/DataGrid'
 import { incrementBarkod } from '@/lib/barkod'
 import { sablonApi, type Sablon } from '@/lib/sablon-api'
 import { useAuth } from '@/context/AuthContext'
+import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
+import { applyKolonDurumu } from '@/lib/kolon-durumu'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -99,9 +100,9 @@ interface BekleyenRow {
   malzemeKod: string
   malzemeAd: string
   olcuBirimi: string
-  miktar: number
-  kkGiren: number
-  bekleyen: number
+  kg: number
+  mt: number
+  adet: number
 }
 
 const emptyKalem = (): KalemRow => ({
@@ -199,6 +200,10 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
   const [bekleyenRows, setBekleyenRows] = useState<BekleyenRow[]>([])
   const [bekleyenSecili, setBekleyenSecili] = useState<BekleyenRow[]>([])
   const [aktariliyor, setAktariliyor] = useState(false)
+  /** Grid'de odaklı satırın key'i — satır silme/eklemede index kaymasından etkilenmez. */
+  const [seciliSatirKey, setSeciliSatirKey] = useState<string | null>(null)
+  /** 11 kalemId → (brutAgirlik, brutMetre). Alt şeritteki "Brüt" bunu okur. */
+  const [brutMap, setBrutMap] = useState<Map<number, { kg: number; mt: number }>>(new Map())
 
   // Kaydedilmemiş değişiklik: fisNo/cariAd/depoKod/siparisNo salt-okunur veya türev.
   const { kirli, temizle } = useKirli([fisTarihi, cariHesapId, depoKod, depoId, isEmriId, belgeAdi, aciklama, kalemler])
@@ -216,7 +221,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
         .get(propId)
         .then((f: any) => {
           setFisNo(f.fisNo)
-          setStokFisId(f.stokFisId ?? null)
+          setStokFisId(f.irsaliyeId ?? null)
           if (f.fisTarihi) setFisTarihi(dayjs(f.fisTarihi))
           setAciklama(f.aciklama ?? '')
           setBelgeAdi(f.belgeAdi ?? '')
@@ -382,17 +387,24 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
     setBekleyenYukleniyor(true)
     try {
       const [irsaliyeler, kkList] = await Promise.all([irsaliyeApi.list(), kaliteKontrolApi.list()])
-      const kkGiren = new Map<number, number>()
+      // 11 kalemi → kaç KK satırı bağlanmış? (brüt eşleşmesi: satır olan çıkılır)
+      const kkSayi = new Map<number, number>()
       for (const f of kkList) {
         for (const k of f.kalemler ?? []) {
           if (k.irsaliyeKalemId == null) continue
-          const onceki = kkGiren.get(k.irsaliyeKalemId) ?? 0
-          const m = Number(k.netAgirlik) > 0 ? Number(k.netAgirlik)
-            : Number(k.netMetre) > 0 ? Number(k.netMetre)
-            : k.adet || 0
-          kkGiren.set(k.irsaliyeKalemId, onceki + m)
+          kkSayi.set(k.irsaliyeKalemId, (kkSayi.get(k.irsaliyeKalemId) ?? 0) + 1)
         }
       }
+      // Alt şerit için 11 brütleri tazeler (kart açılışındakini günceller).
+      const brut: Map<number, { kg: number; mt: number }> = new Map()
+      for (const i of irsaliyeler) {
+        if (String(i.irsaliyeTipi) !== '11') continue
+        for (const k of i.kalemler ?? []) {
+          if (k.id == null) continue
+          brut.set(k.id, { kg: Number(k.brutAgirlik) || 0, mt: Number(k.brutMetre) || 0 })
+        }
+      }
+      setBrutMap(brut)
       const rows: BekleyenRow[] = []
       for (const i of irsaliyeler) {
         if (String(i.irsaliyeTipi) !== '11') continue
@@ -400,18 +412,21 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
         for (const k of i.kalemler ?? []) {
           if (k.id == null) continue
           if (k.kaliteYapilmayacak) continue
-          const miktar = kalemMiktari(
-            k.olcuBirimi,
-            Number(k.brutAgirlik) || 0,
-            Number(k.netAgirlik) || 0,
-            Number(k.brutMetre) || 0,
-            Number(k.netMetre) || 0,
-            Number(k.adet) || 0,
-          )
-          if (miktar <= 0) continue
-          const giren = kkGiren.get(k.id) ?? 0
-          const bekleyen = miktar - giren
-          if (bekleyen <= 0) continue
+          // 11 brütü ile KK brütü eşleşmişse (yani bu 11 kalemi zaten KK'ye satır
+          // almışsa) liste artık onu beklemez.
+          if ((kkSayi.get(k.id) ?? 0) > 0) continue
+          // Beklenen: 11 kaleminde girilen BRÜT (fasoncudan dönen brüt). Brüt yoksa
+          // net'e düşülür. Net artık KK toplamını (girilen) taşıdığı için beklenen
+          // brütten okunur — aksi halde kayıt sonrası bekleyen hep 0 olurdu.
+          const brutKg = Number(k.brutAgirlik) || 0
+          const brutMt = Number(k.brutMetre) || 0
+          const netKg = Number(k.netAgirlik) || 0
+          const netMt = Number(k.netMetre) || 0
+          const adet = Number(k.adet) || 0
+          const beklenenKg = brutKg > 0 ? brutKg : netKg
+          const beklenenMt = brutMt > 0 ? brutMt : netMt
+          const beklenenAdet = adet
+          if (beklenenKg <= 0 && beklenenMt <= 0 && beklenenAdet <= 0) continue
           rows.push({
             key: `${i.id}-${k.id}`,
             irsaliyeKalemId: k.id,
@@ -425,9 +440,9 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
             malzemeKod: k.malzeme?.kod ?? '',
             malzemeAd: k.malzeme?.ad ?? '',
             olcuBirimi: k.olcuBirimi ?? 'kg',
-            miktar,
-            kkGiren: giren,
-            bekleyen,
+            kg: beklenenKg,
+            mt: beklenenMt,
+            adet: beklenenAdet,
           })
         }
       }
@@ -438,6 +453,27 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
     } finally {
       setBekleyenYukleniyor(false)
     }
+  }, [])
+
+  // Alt şeritteki "Brüt": 11 kalemlerinden brüt değerleri (bir kez çekilir).
+  useEffect(() => {
+    let iptal = false
+    irsaliyeApi
+      .list()
+      .then((irsaliyeler) => {
+        if (iptal) return
+        const m = new Map<number, { kg: number; mt: number }>()
+        for (const i of irsaliyeler) {
+          if (String(i.irsaliyeTipi) !== '11') continue
+          for (const k of i.kalemler ?? []) {
+            if (k.id == null) continue
+            m.set(k.id, { kg: Number(k.brutAgirlik) || 0, mt: Number(k.brutMetre) || 0 })
+          }
+        }
+        setBrutMap(m)
+      })
+      .catch(() => { /* sessiz */ })
+    return () => { iptal = true }
   }, [])
 
   const handleBekleyenAc = useCallback(() => {
@@ -468,9 +504,9 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
         row.malzemeId = r.malzemeId
         row.malzemeKod = r.malzemeKod
         row.malzemeAd = r.malzemeAd
-        if (birim === 'kg' || birim === 'brutkg') row.kg = r.bekleyen
-        else if (birim === 'mt' || birim === 'brutmt') row.mt = r.bekleyen
-        else if (birim === 'adet') row.adet = r.bekleyen
+        if (birim === 'kg' || birim === 'brutkg') row.kg = r.kg
+        else if (birim === 'mt' || birim === 'brutmt') row.mt = r.mt
+        else if (birim === 'adet') row.adet = r.adet
         existing.add(barkod)
         barkod = incrementBarkod(barkod)
         yeni.push(row)
@@ -493,9 +529,9 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
     { headerName: 'Malzeme Kodu', field: 'malzemeKod', width: 110, valueFormatter: (p) => p.value || '-' },
     { headerName: 'Malzeme Adı', field: 'malzemeAd', flex: 1, minWidth: 150, valueFormatter: (p) => p.value || '-' },
     { headerName: 'Birim', field: 'olcuBirimi', width: 80, valueFormatter: (p) => p.value || '-' },
-    { headerName: 'Miktar', field: 'miktar', width: 100, type: 'rightAligned', valueFormatter: (p) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
-    { headerName: "KK'dan Giren", field: 'kkGiren', width: 110, type: 'rightAligned', valueFormatter: (p) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
-    { headerName: 'Bekleyen', field: 'bekleyen', width: 110, type: 'rightAligned', cellClass: '!font-semibold !text-[#f57c00]', valueFormatter: (p) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
+    { headerName: 'Kg', field: 'kg', width: 100, type: 'rightAligned', valueFormatter: (p) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
+    { headerName: 'Mt', field: 'mt', width: 100, type: 'rightAligned', valueFormatter: (p) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
+    { headerName: 'Adet', field: 'adet', width: 100, type: 'rightAligned', valueFormatter: (p) => (Number(p.value) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
   ], [])
 
   const updateKalem = (key: string, patch: Partial<KalemRow>) => {
@@ -572,6 +608,9 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
           }),
         )
       }
+      // 11-Fasondan Giriş bağlantısı sunucu tarafında kayıtta kurulur → ayrı
+      // "Stoğa Al" adımı gerekmez, operatör sadece Kaydet'e basar.
+      if (guncel?.irsaliyeId) setStokFisId(guncel.irsaliyeId)
       // Senkron bittikten sonra temizle (kalemler referansı değişmiş olur).
       temizle()
       return kaydedilenId as number
@@ -880,6 +919,96 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
 
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
 
+  const kolonStorageKey = 'kaliteKontrolKarti'
+  const kolonLayoutKey = useCallback(
+    () => `kolon_layout_${kullanici?.id ?? 'anonim'}_${kolonStorageKey}`,
+    [kullanici?.id],
+  )
+  const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const kayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+      return new Set(kayitlar.filter((k) => k.gizli).map((k) => k.kolonAdi))
+    } catch { return new Set() }
+  })
+
+  const syncHiddenFromGrid = useCallback(() => {
+    const api = gridApiRef.current
+    if (!api) return
+    const states = api.getColumnState()
+    if (!states) return
+    setHiddenCols(new Set(states.filter((s) => s.hide).map((s) => s.colId)))
+  }, [])
+
+  // Kayıtlı kolon durumunu (localStorage) grid'e uygular; firstDataRendered'da
+  // tekrar çağrılır çünkü AG Grid ilk veri işleminde sıralamayı sıfırlayabiliyor.
+  const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
+    try {
+      const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+    } catch { /* sessiz */ }
+  }, [kolonLayoutKey])
+
+  const tryLoadKolonFromDb = useCallback((api: GridApi<KalemRow>) => {
+    let lsKayitlar: KolonKaydi[] = []
+    try {
+      lsKayitlar = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
+    } catch { lsKayitlar = [] }
+    if (lsKayitlar.length > 0) {
+      applyKolonDurumu(api, lsKayitlar)
+      syncHiddenFromGrid()
+      return
+    }
+    kolonSecimiApi.get(kolonStorageKey)
+      .then((dbKayitlar) => {
+        if (dbKayitlar.length > 0) applyKolonDurumu(api, dbKayitlar)
+        syncHiddenFromGrid()
+      })
+      .catch(() => { /* sessiz */ })
+  }, [kolonLayoutKey, syncHiddenFromGrid])
+
+  const persistKolonlar = useCallback((): boolean => {
+    const api = gridApiRef.current
+    if (!api) return false
+    const states = api.getColumnState()
+    if (!states) return false
+    const kolonlar: KolonKaydi[] = states.map((s, idx) => ({
+      kolonAdi: s.colId,
+      gizli: s.hide ?? false,
+      genislik: s.width ?? null,
+      sira: idx,
+      siralamaYon: s.sort ?? null,
+    }))
+    try {
+      localStorage.setItem(kolonLayoutKey(), JSON.stringify(kolonlar))
+    } catch {
+      return false
+    }
+    if (kullanici?.id) {
+      kolonSecimiApi.save(kolonStorageKey, kolonlar)
+        .catch(() => message.error('Kolon durumu sunucuya kaydedilemedi'))
+    }
+    return true
+  }, [kullanici?.id, kolonLayoutKey, message])
+
+  const toggleKolon = (id: string, visible: boolean) => {
+    setHiddenCols((prev) => {
+      const next = new Set(prev)
+      if (visible) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    gridApiRef.current?.setColumnsVisible([id], visible)
+    persistKolonlar()
+  }
+
+  const saveKolonlar = useCallback(() => {
+    if (persistKolonlar()) message.success('Kolon durumu kaydedildi')
+    else message.error('Kolon durumu kaydedilemedi')
+    setKolonChooserOpen(false)
+  }, [persistKolonlar, message])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Kısayollar yalnızca bu kartın sekmesi aktifken çalışsın (diğer sekmelerde sussun).
@@ -1123,10 +1252,61 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
     },
   ], [kalemler])
 
+  const chooserCols = useMemo(
+    () =>
+      kolonDefs
+        .map((c) => ({
+          id: (c.colId ?? (c.field as string)) || '',
+          label: c.headerName ?? (c.field as string) ?? '',
+        }))
+        .filter((c) => c.id && c.id !== 'key'),
+    [kolonDefs],
+  )
+
+  const kolonChooserContent = (
+    <div className="!flex !flex-col !gap-1 !max-h-80 !overflow-auto !min-w-40">
+      {chooserCols.map((c) => (
+        <Checkbox
+          key={c.id}
+          checked={!hiddenCols.has(c.id)}
+          onChange={(e) => toggleKolon(c.id, e.target.checked)}
+          className="!text-[12px]"
+        >
+          {c.label}
+        </Checkbox>
+      ))}
+    </div>
+  )
+
   const toplamKg = useMemo(() => kalemler.reduce((s, k) => s + (k.kg || 0), 0), [kalemler])
   const toplamMt = useMemo(() => kalemler.reduce((s, k) => s + (k.mt || 0), 0), [kalemler])
   const toplamAdet = useMemo(() => kalemler.reduce((s, k) => s + (k.adet || 0), 0), [kalemler])
   const kalemSayisi = useMemo(() => kalemler.filter((k) => k.malzemeKod).length, [kalemler])
+
+  // Odaklı satırın ait olduğu 11 kalem özeti: Brüt (11'den) | Net (gruptaki KK
+  // satırlarının toplamı) | Fire. Birden çok 11 satırı eklendiğinde o satırın
+  // grubu gösterilir; odak yoksa boş kalır.
+  const seciliGrup = useMemo(() => {
+    const s = seciliSatirKey ? kalemler.find((k) => k.key === seciliSatirKey) : null
+    if (!s || s.irsaliyeKalemId == null) return null
+    const brut = brutMap.get(s.irsaliyeKalemId)
+    const grup = kalemler.filter((k) => k.irsaliyeKalemId === s.irsaliyeKalemId)
+    const netKg = grup.reduce((a, k) => a + (k.kg || 0), 0)
+    const netMt = grup.reduce((a, k) => a + (k.mt || 0), 0)
+    const brutKg = brut?.kg ?? null
+    const brutMt = brut?.mt ?? null
+    return {
+      irsaliyeNo: s.irsaliyeNo,
+      malzemeAd: s.malzemeAd,
+      topSayisi: grup.length,
+      brutKg,
+      brutMt,
+      netKg,
+      netMt,
+      fireKg: brutKg && brutKg > 0 ? brutKg - netKg : null,
+      fireMt: brutMt && brutMt > 0 ? brutMt - netMt : null,
+    }
+  }, [seciliSatirKey, kalemler, brutMap])
 
   if (loading) {
     return <div className="!p-6"><Spin /></div>
@@ -1226,6 +1406,25 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
           <div className="!flex !items-center !justify-between !px-3 !pt-2 !pb-1 !flex-shrink-0">
             <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Satır Detayları</div>
             <div className="!flex !items-center !gap-1">
+              <Popover
+                content={kolonChooserContent}
+                title={<span className="!text-[12px] !font-semibold">Sütunlar</span>}
+                trigger="click"
+                placement="bottomRight"
+                open={kolonChooserOpen}
+                onOpenChange={(open) => {
+                  setKolonChooserOpen(open)
+                  if (!open) persistKolonlar()
+                }}
+              >
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<SettingOutlined />}
+                  className="!h-[28px] !w-[28px] !text-[#6b7280]"
+                  title="Sütunları göster/gizle"
+                />
+              </Popover>
               <Button size="small" type="default" icon={<InboxOutlined />} onClick={handleBekleyenAc} className="!text-[12px]">
                 Kalite Bekleyen
               </Button>
@@ -1238,6 +1437,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
             <Dropdown
               menu={{
                 items: [
+                  { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
+                  { type: 'divider' },
                   {
                     key: 'yazdir',
                     label: 'Barkod Yazdır (F10)',
@@ -1273,7 +1474,11 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                   getRowId={(p) => p.data.key}
                   localeText={agGridLocaleTR}
                   defaultColDef={{ resizable: true, sortable: true }}
-                  onGridReady={(e) => { gridApiRef.current = e.api }}
+                  onGridReady={(e) => {
+                    gridApiRef.current = e.api
+                    tryLoadKolonFromDb(e.api)
+                    e.api.addEventListener('firstDataRendered', () => applyLocalKolonlar(e.api))
+                  }}
                   onCellContextMenu={(e: CellContextMenuEvent<KalemRow>) => {
                     if (e.data && e.node?.rowIndex != null) {
                       focusedRowIndexRef.current = e.node.rowIndex
@@ -1317,7 +1522,11 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                   }}
                   onCellFocused={(e: CellFocusedEvent) => {
                     const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
-                    if (e.rowIndex != null) focusedRowIndexRef.current = e.rowIndex
+                    if (e.rowIndex != null) {
+                      focusedRowIndexRef.current = e.rowIndex
+                      const s = kalemler[e.rowIndex]
+                      if (s) setSeciliSatirKey(s.key)
+                    }
                     if (colId && colId !== 'key' && colId !== 'malzemeAd' && colId !== 'isEmriNo' && colId !== 'isEmriKg' && e.rowIndex != null) {
                       focusCellEditor(colId, e.rowIndex)
                     }
@@ -1326,7 +1535,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
               </div>
             </Dropdown>
           </div>
-          <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
+          <div className="!flex !items-center !justify-between !gap-4 !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
             <div className="!flex !items-center !gap-4">
               <span className="!text-[11px] !font-bold !text-[#6b7280] !uppercase !tracking-wide">Toplamlar</span>
               <div className="!flex !items-center !gap-3 !text-[12px] !text-[#333]">
@@ -1347,6 +1556,49 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                 </span>
               </div>
             </div>
+            {seciliGrup && (
+              <div className="!flex !flex-wrap !items-center !justify-end !gap-x-3 !gap-y-1 !text-[12px] !text-[#333]">
+                <span className="!text-[10px] !font-bold !text-[#9ca3af] !uppercase !tracking-wide">Seçili</span>
+                {seciliGrup.irsaliyeNo && (
+                  <span className="!font-medium !text-[#f57c00]">{seciliGrup.irsaliyeNo}</span>
+                )}
+                <span className="!text-[#d1d5db]">|</span>
+                <span>
+                  <span className="!text-[#6b7280]">Brüt Kg</span>{' '}
+                  <span className="!font-semibold !tabular-nums">
+                    {seciliGrup.brutKg != null ? numberFormat(seciliGrup.brutKg) : '—'}
+                  </span>
+                  <span className="!text-[#d1d5db]"> / </span>
+                  <span className="!text-[#6b7280]">Net</span>{' '}
+                  <span className="!font-semibold !tabular-nums">{numberFormat(seciliGrup.netKg)}</span>
+                  <span className="!text-[#d1d5db]"> / </span>
+                  <span className="!text-[#6b7280]">Fire</span>{' '}
+                  <span className={`!font-semibold !tabular-nums ${seciliGrup.fireKg ? '!text-[#dc2626]' : ''}`}>
+                    {seciliGrup.fireKg != null ? numberFormat(seciliGrup.fireKg) : '—'}
+                  </span>
+                </span>
+                <span className="!text-[#d1d5db]">|</span>
+                <span>
+                  <span className="!text-[#6b7280]">Brüt Mt</span>{' '}
+                  <span className="!font-semibold !tabular-nums">
+                    {seciliGrup.brutMt != null ? numberFormat(seciliGrup.brutMt) : '—'}
+                  </span>
+                  <span className="!text-[#d1d5db]"> / </span>
+                  <span className="!text-[#6b7280]">Net</span>{' '}
+                  <span className="!font-semibold !tabular-nums">{numberFormat(seciliGrup.netMt)}</span>
+                  <span className="!text-[#d1d5db]"> / </span>
+                  <span className="!text-[#6b7280]">Fire</span>{' '}
+                  <span className={`!font-semibold !tabular-nums ${seciliGrup.fireMt ? '!text-[#dc2626]' : ''}`}>
+                    {seciliGrup.fireMt != null ? numberFormat(seciliGrup.fireMt) : '—'}
+                  </span>
+                </span>
+                <span className="!text-[#d1d5db]">|</span>
+                <span>
+                  <span className="!text-[#6b7280]">Top</span>{' '}
+                  <span className="!font-semibold !tabular-nums">{seciliGrup.topSayisi}</span>
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

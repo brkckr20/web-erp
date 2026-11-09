@@ -29,6 +29,8 @@ export interface KaliteKontrol {
   cariHesap?: { id: number; kod: string; ad: string } | null
   depoId: number | null
   depo?: { id: number; kod: string; ad: string } | null
+  /** 11-Fasondan Giriş bağlantısı: fiş bu 11 irsaliyesine bağlıysa dolu gelir. */
+  irsaliyeId?: number | null
   /** Kalite bekleyen listesi için: hangi 11 kalemleri KK'ya girmiş? */
   kalemler?: KaliteKontrolKalem[]
 }

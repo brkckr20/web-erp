@@ -170,6 +170,43 @@ export class KaliteKontrolService {
     return (son?.topNo ?? 0) + 1
   }
 
+  /**
+   * 11-Fasondan Giriş kaynağı bir irsaliye kalemini KK toplamıyla eşitler.
+   * netAgirlik/netMetre/adet = Σ(bağlı KK kalemleri); BRÜT alanlarına dokunulmaz
+   * (beklenen brüt olarak okunur). Bir alana hiç KK değeri girilmemişse (toplam
+   * null) o alan boş bırakılır, elle girilen değer silinmez. Hiç KK kalemi
+   * kalmadıysa üç alan da 0'a çekilir. Fişin irsaliyeId bağlantısını kurar.
+   */
+  private async kaynakIrsaliyeKaleminiGuncelle(
+    tx: Prisma.TransactionClient,
+    irsaliyeKalemId: number,
+  ): Promise<number | null> {
+    const kaynak = await tx.irsaliyeKalem.findUnique({
+      where: { id: irsaliyeKalemId },
+      select: { id: true, irsaliyeId: true },
+    })
+    if (!kaynak) return null
+    const toplam = await tx.kaliteKontrolKalem.aggregate({
+      where: { irsaliyeKalemId },
+      _count: { _all: true },
+      _sum: { netAgirlik: true, netMetre: true, adet: true },
+    })
+    const data: any = {}
+    if (toplam._count._all === 0) {
+      data.netAgirlik = 0
+      data.netMetre = 0
+      data.adet = 0
+    } else {
+      if (toplam._sum.netAgirlik != null) data.netAgirlik = toplam._sum.netAgirlik
+      if (toplam._sum.netMetre != null) data.netMetre = toplam._sum.netMetre
+      if (toplam._sum.adet != null) data.adet = toplam._sum.adet
+    }
+    if (Object.keys(data).length > 0) {
+      await tx.irsaliyeKalem.update({ where: { id: irsaliyeKalemId }, data })
+    }
+    return kaynak.irsaliyeId
+  }
+
   async create(dto: CreateKaliteKontrolDto) {
     const data: any = { ...dto }
     if (dto.fisTarihi) data.fisTarihi = new Date(dto.fisTarihi)
@@ -182,13 +219,17 @@ export class KaliteKontrolService {
       const fis = await tx.kaliteKontrol.create({ data })
       if (Array.isArray(kalemler) && kalemler.length > 0) {
         const topNoBekleyen: { id: number; irsaliyeKalemId: number }[] = []
+        const guncellenecekIrsaliyeKalemIds = new Set<number>()
         for (const k of kalemler) {
           const { hatalar: hataArr, id: _id, malzeme, fis: _fis, ...kalemData } = k as any
           const kalem = await tx.kaliteKontrolKalem.create({
             data: { ...kalemData, fisId: fis.id } as any,
           })
-          if (kalemData.topNo == null && kalemData.irsaliyeKalemId != null) {
-            topNoBekleyen.push({ id: kalem.id, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+          if (kalemData.irsaliyeKalemId != null) {
+            guncellenecekIrsaliyeKalemIds.add(Number(kalemData.irsaliyeKalemId))
+            if (kalemData.topNo == null) {
+              topNoBekleyen.push({ id: kalem.id, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+            }
           }
           if (Array.isArray(hataArr) && hataArr.length > 0) {
             for (const h of hataArr) {
@@ -205,6 +246,17 @@ export class KaliteKontrolService {
             await tx.kaliteKontrolKalem.update({ where: { id: b.id }, data: { topNo } })
           }
         }
+        // 11-Fasondan Giriş bağlantıları: KK kalemleri toplamı, kaynak 11 kalemine yazılır
+        // (netAgirlik/netMetre/adet). Fiş seviyesinde irsaliyeId de bağlanır.
+        for (const irsaliyeKalemId of guncellenecekIrsaliyeKalemIds) {
+          const irsaliyeId = await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
+          if (irsaliyeId != null) {
+            await tx.kaliteKontrol.update({
+              where: { id: fis.id },
+              data: { irsaliyeId },
+            })
+          }
+        }
       }
       const created = await tx.kaliteKontrol.findUnique({
         where: { id: fis.id },
@@ -217,7 +269,7 @@ export class KaliteKontrolService {
   }
 
   async update(id: number, dto: UpdateKaliteKontrolDto) {
-    await this.findOne(id)
+    const oncesi = await this.findOne(id)
     const data: any = { ...dto }
     if (dto.fisTarihi) data.fisTarihi = new Date(dto.fisTarihi)
     if (dto.kayitTarihi) data.kayitTarihi = new Date(dto.kayitTarihi)
@@ -225,8 +277,17 @@ export class KaliteKontrolService {
     const kalemler = data.kalemler
     delete data.kalemler
 
+    // Eski bağlantıları topla (silinip/güncellenecek kalemler için yeniden hesap gerekir).
+    const eskiBaglantilar = new Set<number>(
+      (oncesi.kalemler ?? [])
+        .map((k: any) => k.irsaliyeKalemId)
+        .filter((x: any) => x != null)
+        .map(Number),
+    )
+
     return this.prisma.$transaction(async (tx) => {
       await tx.kaliteKontrol.update({ where: { id }, data })
+      const yeniBaglantilar = new Set<number>()
       if (Array.isArray(kalemler)) {
         const existing = await tx.kaliteKontrolKalem.findMany({
           where: { fisId: id },
@@ -265,8 +326,11 @@ export class KaliteKontrolService {
             })
             kalemId = kalem.id
           }
-          if (kalemData.topNo == null && kalemData.irsaliyeKalemId != null) {
-            topNoBekleyen.push({ id: kalemId, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+          if (kalemData.irsaliyeKalemId != null) {
+            yeniBaglantilar.add(Number(kalemData.irsaliyeKalemId))
+            if (kalemData.topNo == null) {
+              topNoBekleyen.push({ id: kalemId, irsaliyeKalemId: kalemData.irsaliyeKalemId })
+            }
           }
           for (const h of hataListe) {
             await tx.kaliteKontrolHata.create({
@@ -281,6 +345,14 @@ export class KaliteKontrolService {
           }
         }
       }
+      // Eski + yeni tüm 11 bağlantılarını yeniden hesapla (toplam değişmiş olabilir).
+      const tumBaglantilar = new Set<number>([...eskiBaglantilar, ...yeniBaglantilar])
+      for (const irsaliyeKalemId of tumBaglantilar) {
+        const irsaliyeId = await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
+        if (irsaliyeId != null) {
+          await tx.kaliteKontrol.update({ where: { id }, data: { irsaliyeId } })
+        }
+      }
       const updated = await tx.kaliteKontrol.findUnique({
         where: { id },
         include: { cariHesap: true, depo: true, isEmri: true, kalemler: { include: { malzeme: true, hatalar: true } } },
@@ -292,7 +364,14 @@ export class KaliteKontrolService {
   }
 
   async remove(id: number) {
-    await this.findOne(id)
+    const oncesi = await this.findOne(id)
+    const baglantiIds = new Set<number>(
+      (oncesi.kalemler ?? [])
+        .map((k: any) => k.irsaliyeKalemId)
+        .filter((x: any) => x != null)
+        .map(Number),
+    )
+
     return this.prisma.$transaction(async (tx) => {
       const kalemIds = await tx.kaliteKontrolKalem.findMany({
         where: { fisId: id },
@@ -304,7 +383,12 @@ export class KaliteKontrolService {
         })
       }
       await tx.kaliteKontrolKalem.deleteMany({ where: { fisId: id } })
-      return tx.kaliteKontrol.delete({ where: { id } })
+      const fis = await tx.kaliteKontrol.delete({ where: { id } })
+      // Silinen fişin bağlı olduğu 11 kalemlerinin toplamlarını yeniden hesapla.
+      for (const irsaliyeKalemId of baglantiIds) {
+        await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
+      }
+      return fis
     })
   }
 
@@ -325,7 +409,15 @@ export class KaliteKontrolService {
   async stogaAl(id: number) {
     const fis = await this.prisma.kaliteKontrol.findUnique({
       where: { id },
-      include: { kalemler: true },
+      include: {
+        kalemler: {
+          include: {
+            irsaliyeKalem: {
+              select: { id: true, irsaliyeId: true },
+            },
+          },
+        },
+      },
     })
     if (!fis) throw new NotFoundException('Fiş bulunamadı')
     if (fis.irsaliyeId) throw new Error('Bu fiş zaten stoğa alınmış')
@@ -333,6 +425,37 @@ export class KaliteKontrolService {
     const kalemler = fis.kalemler.filter((k) => k.malzemeId)
     if (kalemler.length === 0) throw new Error('Stoğa alınabilecek kalem bulunamadı (malzemeId gerekli)')
 
+    // 11-Fasondan Giriş kalemine bağlıysa: ayrı tip-10 üretim fişi OLUŞTURULMAMAKTAR.
+    // 11 fişi zaten GİRİŞ tipi + tamamlandı=true ile stoğa düşer. KK fis 11'e bağlanır.
+    const firsaliyeKalem = kalemler.find((k) => k.irsaliyeKalemId != null)
+    if (firsaliyeKalem?.irsaliyeKalem) {
+      const irsaliyeId = firsaliyeKalem.irsaliyeKalem.irsaliyeId
+      if (!irsaliyeId) throw new Error('11-Fişi bulunamadı')
+
+      return this.prisma.$transaction(async (tx) => {
+        await tx.kaliteKontrol.update({
+          where: { id },
+          data: { irsaliyeId },
+        })
+
+        // Kaynak 11 kalemlerinin toplamlarını KK toplamıyla eşitle (eski fişler için).
+        const kaynakKalemIds = [...new Set(
+          fis.kalemler
+            .filter((k) => k.irsaliyeKalemId != null)
+            .map((k) => Number(k.irsaliyeKalemId)),
+        )]
+        for (const irsaliyeKalemId of kaynakKalemIds) {
+          await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
+        }
+
+        return tx.irsaliye.findUnique({
+          where: { id: irsaliyeId },
+          include: { kalemler: { include: { malzeme: true } } },
+        })
+      })
+    }
+
+    // Diğer KK fişleri (iş emrine bağlı): mevcut tip-10 üretim fişi akışı.
     const { irsaliyeNo: nextNo } = await this.irsaliyeService.nextIrsaliyeNo('10')
 
     return this.prisma.$transaction(async (tx) => {
