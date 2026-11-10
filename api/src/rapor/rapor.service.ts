@@ -108,7 +108,6 @@ export class RaporService {
         renkAd: string | null;
         siparisNo: string | null;
         partiNo: string | null;
-        takipNo: string | null;
         brutKg: unknown;
         kg: unknown;
         brutMt: unknown;
@@ -141,7 +140,6 @@ export class RaporService {
               AND m2.kod = m.kod
               AND ISNULL(r2.kod, '') = ISNULL(r.kod, '')
               AND ISNULL(ik2.parti_no, '') = ISNULL(ik.parti_no, '')
-              AND ISNULL(ik2.takip_no, '') = ISNULL(ik.takip_no, '')
               AND s2.siparis_no IS NOT NULL
             UNION
             SELECT t.siparis_no AS no
@@ -156,12 +154,10 @@ export class RaporService {
               AND m2.kod = m.kod
               AND ISNULL(r2.kod, '') = ISNULL(r.kod, '')
               AND ISNULL(ik2.parti_no, '') = ISNULL(ik.parti_no, '')
-              AND ISNULL(ik2.takip_no, '') = ISNULL(ik.takip_no, '')
               AND t.siparis_no IS NOT NULL
           ) x
         ) AS siparisNo,
         ik.parti_no AS partiNo,
-        ik.takip_no AS takipNo,
         SUM(
           CASE
             WHEN i.irsaliye_tipi IN ${GIRIS}
@@ -214,7 +210,7 @@ export class RaporService {
       LEFT JOIN renk r  ON r.id = ik.varyant1_renk_id
       WHERE i.tamamlandi = 1
         AND d.kod IS NOT NULL
-      GROUP BY d.kod, d.ad, m.kod, m.ad, r.kod, r.ad, ik.parti_no, ik.takip_no
+      GROUP BY d.kod, d.ad, m.kod, m.ad, r.kod, r.ad, ik.parti_no
       ORDER BY d.kod, m.kod, r.kod, ik.parti_no
     `)
 
@@ -227,7 +223,6 @@ export class RaporService {
       renkAd: r.renkAd,
       siparisNo: r.siparisNo,
       partiNo: r.partiNo,
-      takipNo: r.takipNo,
       brutKg: Number(r.brutKg) || 0,
       kg: Number(r.kg) || 0,
       brutMt: Number(r.brutMt) || 0,
@@ -315,5 +310,110 @@ export class RaporService {
         miktar,
       };
     });
+  }
+
+  async depoBarkodStok(depoKod: string) {
+    const GIRIS = `('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101')`
+    const CIKIS = `('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140')`
+    const rows = await this.prisma.$queryRawUnsafe<
+      {
+        depoKod: string;
+        depoAd: string;
+        malzemeKod: string;
+        malzemeAd: string;
+        renkKod: string | null;
+        renkAd: string | null;
+        partiNo: string | null;
+        barkod: string | null;
+        topNo: number | null;
+        netKg: number | null;
+        netMt: number | null;
+        adet: number | null;
+        fisNo: string;
+      }[]
+    >(`
+      WITH stok_kalan AS (
+        SELECT
+          d.kod AS depoKod,
+          m.kod AS malzemeKod,
+          r.kod AS renkKod,
+          ik.parti_no AS partiNo,
+          SUM(
+            CASE
+              WHEN i.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik.net_metre,0)
+              WHEN i.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik.net_metre,0)
+              ELSE 0
+            END
+          ) AS netMt
+        FROM irsaliye_kalem ik
+        JOIN irsaliye i ON i.id = ik.irsaliye_id
+        JOIN depo d ON d.id = i.depo_id
+        JOIN malzeme m ON m.id = ik.malzeme_id
+        LEFT JOIN renk r ON r.id = ik.varyant1_renk_id
+        WHERE i.tamamlandi = 1 AND d.kod = '${depoKod}'
+        GROUP BY d.kod, m.kod, r.kod, ik.parti_no
+        HAVING SUM(
+          CASE
+            WHEN i.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik.net_metre,0)
+            WHEN i.irsaliye_tipi IN ${CIKIS} THEN -ISNULL(ik.net_metre,0)
+            ELSE 0
+          END
+        ) > 0
+      )
+      SELECT
+        d.kod AS depoKod,
+        d.ad AS depoAd,
+        m.kod AS malzemeKod,
+        m.ad AS malzemeAd,
+        r.kod AS renkKod,
+        r.ad AS renkAd,
+        ik.parti_no AS partiNo,
+        kk.barkod AS barkod,
+        kk.top_no AS topNo,
+        kk.net_agirlik AS netKg,
+        kk.net_metre AS netMt,
+        kk.adet AS adet,
+        k.fis_no AS fisNo
+      FROM kalite_kontrol_kalem kk
+      JOIN kalite_kontrol k ON k.id = kk.fis_id
+      JOIN irsaliye_kalem ik ON ik.id = kk.irsaliye_kalem_id
+      JOIN irsaliye i ON i.id = ik.irsaliye_id
+      JOIN depo d ON d.id = i.depo_id
+      JOIN malzeme m ON m.id = ik.malzeme_id
+      LEFT JOIN renk r ON r.id = ik.varyant1_renk_id
+      JOIN stok_kalan s ON s.depoKod = d.kod
+        AND s.malzemeKod = m.kod
+        AND ISNULL(s.renkKod,'') = ISNULL(r.kod,'')
+        AND ISNULL(s.partiNo,'') = ISNULL(ik.parti_no,'')
+      WHERE d.kod = '${depoKod}'
+        AND i.tamamlandi = 1
+        AND kk.aktarildi = 1
+        AND kk.barkod IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM irsaliye_kalem ik2
+          JOIN irsaliye i2 ON i2.id = ik2.irsaliye_id
+          JOIN depo d2 ON d2.id = i2.depo_id
+          WHERE d2.kod = '${depoKod}'
+            AND i2.tamamlandi = 1
+            AND i2.irsaliye_tipi IN ${CIKIS}
+            AND ik2.takip_no = kk.barkod
+        )
+      ORDER BY m.kod, r.kod, ik.parti_no, kk.top_no
+    `);
+    return rows.map(r => ({
+      depoKod: r.depoKod,
+      depoAd: r.depoAd,
+      malzemeKod: r.malzemeKod,
+      malzemeAd: r.malzemeAd,
+      renkKod: r.renkKod,
+      renkAd: r.renkAd,
+      partiNo: r.partiNo,
+      barkod: r.barkod,
+      topNo: r.topNo,
+      kg: Number(r.netKg) || 0,
+      mt: Number(r.netMt) || 0,
+      adet: Number(r.adet) || 0,
+      fisNo: r.fisNo,
+    }));
   }
 }

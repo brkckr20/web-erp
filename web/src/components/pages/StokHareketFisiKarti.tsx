@@ -13,6 +13,7 @@ import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import StokSecimiModal from '@/components/shared/StokSecimiModal'
+import BarkodSecimiModal from '@/components/shared/BarkodSecimiModal'
 import KKSecimModal from '@/components/shared/KKSecimModal'
 import type { KKSelectRow } from '@/components/shared/KKSecimModal'
 import type { DepoBazliStokSatir } from '@/lib/depo-bazli-stok-api'
@@ -222,10 +223,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [stokSecimiModalAcik, setStokSecimiModalAcik] = useState(false)
+  const [barkodSecimiModalAcik, setBarkodSecimiModalAcik] = useState(false)
   const [kkSecimModalAcik, setKkSecimModalAcik] = useState(false)
   const [kayitliId, setKayitliId] = useState<number | null>(id ?? null)
-  const isCikis = cikisTipleri.has(fisTipi)
-  const isGiris = fisTipi === '10'
+  const [fisTipiState, setFisTipiState] = useState<string | undefined>(fisTipi)
+  const isCikis = cikisTipleri.has(fisTipiState ?? fisTipi ?? '')
+  const isGiris = (fisTipiState ?? fisTipi) === '10'
 
   // Kaydedilmemiş değişiklik: fisNo salt-okunur (otomatik).
   const { kirli, temizle } = useKirli([cariKod, depoKod, fisTarihi, sevkTarihi, kalemler])
@@ -241,6 +244,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
         .get(id)
         .then((f) => {
           setFisNo(f.irsaliyeNo)
+          setFisTipiState(f.irsaliyeTipi)
           if (f.irsaliyeTarihi) setFisTarihi(dayjs(f.irsaliyeTarihi))
           if (f.sevkTarihi) setSevkTarihi(dayjs(f.sevkTarihi))
           setCariKod((f as any).cariHesap?.kod ?? String(f.cariHesapId ?? ''))
@@ -405,6 +409,14 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
     setStokSecimiModalAcik(true)
   }
 
+  const handleBarkodSecimi = () => {
+    if (!depoKod) {
+      message.warning('Lütfen önce depo seçiniz')
+      return
+    }
+    setBarkodSecimiModalAcik(true)
+  }
+
   const handleStokSecimiEkle = (secimler: DepoBazliStokSatir[]) => {
     const yeniKalemler: KalemRow[] = secimler.map((s) => ({
       ...emptyKalem(),
@@ -423,6 +435,29 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       return
     }
     setKalemler((prev) => [...prev, ...eklenecek])
+  }
+
+  const handleBarkodSecimiEkle = (secimler: any[]) => {
+    const yeniKalemler: KalemRow[] = secimler.map(s => ({
+      ...emptyKalem(),
+      malzemeKod: s.malzemeKod,
+      malzemeAd: s.malzemeAd,
+      renkKod: s.renkKod,
+      partiNo: s.partiNo,
+      barkod: s.barkod,
+      topNo: s.topNo,
+      kg: s.kg || 0,
+      mt: s.mt || 0,
+      adet: s.adet || 0,
+      aciklama: s.barkod ? `Barkod:${s.barkod} Top:${s.topNo ?? ''}` : undefined,
+    }))
+    const varOlan = new Set(kalemler.map(k => `${k.malzemeKod}|${k.barkod}`))
+    const eklenecek = yeniKalemler.filter(k => !varOlan.has(`${k.malzemeKod}|${k.barkod}`))
+    if (eklenecek.length === 0) {
+      message.info('Seçilen barkodlar zaten listede mevcut')
+      return
+    }
+    setKalemler(prev => [...prev, ...eklenecek])
   }
 
   const handleKKSecimiEkle = (secimler: KKSelectRow[]) => {
@@ -836,7 +871,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   }, [persistKolonlar, setKolonChooserOpen, message])
 
   const contextMenuItems: MenuProps['items'] = isCikis
-    ? [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }, { key: 'stok-secimi', label: 'Stok Seçimi', onClick: handleStokSecimi }]
+    ? [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }, { key: 'stok-secimi', label: 'Stok Seçimi', onClick: handleStokSecimi }, { key: 'barkod-secimi', label: 'Barkod Seçimi', onClick: handleBarkodSecimi }]
     : isGiris
     ? [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }, { key: 'kk-giris', label: 'Kalite Kontrol Girişleri', onClick: () => setKkSecimModalAcik(true) }]
     : [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }]
@@ -885,6 +920,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
             depoKod={depoKod}
             onClose={() => setStokSecimiModalAcik(false)}
             onSelect={handleStokSecimiEkle}
+          />
+          <BarkodSecimiModal
+            open={barkodSecimiModalAcik}
+            depoKod={depoKod}
+            onClose={() => setBarkodSecimiModalAcik(false)}
+            onSelect={handleBarkodSecimiEkle}
           />
           <KKSecimModal
             open={kkSecimModalAcik}

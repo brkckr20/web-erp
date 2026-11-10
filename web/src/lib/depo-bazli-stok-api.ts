@@ -23,9 +23,28 @@ export interface DepoStokDetaySatir extends DepoBazliStokSatir {
   renkAd: string | null
   siparisNo: string | null
   partiNo: string | null
-  takipNo: string | null
 }
 
 export const depoStokDetayApi = {
   list: () => api.get<DepoStokDetaySatir[]>('/rapor/depo-stok-detay'),
+}
+
+export interface DepoBarkodSatir {
+  depoKod: string
+  depoAd: string
+  malzemeKod: string
+  malzemeAd: string
+  renkKod: string | null
+  renkAd: string | null
+  partiNo: string | null
+  barkod: string | null
+  topNo: number | null
+  kg: number
+  mt: number
+  adet: number
+  fisNo: string
+}
+
+export const depoBarkodApi = {
+  list: (depoKod: string) => api.get<DepoBarkodSatir[]>(`/rapor/depo-barkod-stok/${encodeURIComponent(depoKod)}`),
 }

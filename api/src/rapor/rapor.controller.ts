@@ -15,6 +15,11 @@ export class RaporController {
     return this.raporService.depoStokDetay();
   }
 
+  @Get('depo-barkod-stok/:depoKod')
+  depoBarkodStok(@Param('depoKod') depoKod: string) {
+    return this.raporService.depoBarkodStok(depoKod);
+  }
+
   @Get('malzeme-stok-ekstresi/:malzemeKod')
   malzemeStokEkstresi(@Param('malzemeKod') malzemeKod: string) {
     return this.raporService.malzemeStokEkstresi(malzemeKod);
