@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, type ReactNode } from 'react'
-import { Input, Switch, App, Spin } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { Input, Switch, App, Spin, Tabs, Button, Row, Col } from 'antd'
+import { SearchOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
@@ -12,6 +12,7 @@ import { useKirli } from '@/lib/kirli'
 import { aksesuarApi, type AksesuarFormData } from '@/lib/aksesuar-api'
 import { aksesuarTipiApi, type AksesuarTipi } from '@/lib/aksesuar-tipi-api'
 import { numaratorApi, type Numarator } from '@/lib/numarator-api'
+import { malzemeEkApi, type MalzemeEk } from '@/lib/malzeme-ek-api'
 
 const emptyData: AksesuarFormData = {
   kod: '',
@@ -38,6 +39,15 @@ const emptyData: AksesuarFormData = {
   micron: null,
   model: null,
 }
+
+const tabClass =
+  '!px-3 !pt-2 !flex-1 !flex !flex-col !min-h-0 ' +
+  '[&_.ant-tabs-body-holder]:!flex [&_.ant-tabs-body-holder]:!flex-col [&_.ant-tabs-body-holder]:!flex-1 [&_.ant-tabs-body-holder]:!min-h-0 ' +
+  '[&_.ant-tabs-body]:!flex-1 [&_.ant-tabs-body]:!min-h-0 [&_.ant-tabs-tabpane]:!h-full ' +
+  '[&_.ant-tabs-nav]:!mb-2 [&_.ant-tabs-nav]:!border-b [&_.ant-tabs-nav]:!border-gray-200 [&_.ant-tabs-nav]:!flex-shrink-0 ' +
+  '[&_.ant-tabs-tab]:!text-[11px] [&_.ant-tabs-tab]:!px-2 [&_.ant-tabs-tab]:!py-1 [&_.ant-tabs-tab]:!bg-[#E0E0E0] [&_.ant-tabs-tab]:!border [&_.ant-tabs-tab]:!border-gray-200 [&_.ant-tabs-tab]:!text-[#333] ' +
+  '[&_.ant-tabs-tab-active]:!bg-white [&_.ant-tabs-tab-active]:!border-t-2 [&_.ant-tabs-tab-active]:!border-t-[#FF9933] [&_.ant-tabs-tab-active]:!text-[#FF9933] ' +
+  '[&_.ant-tabs-ink-bar]:!hidden'
 
 interface AksesuarKartiProps {
   isNew?: boolean
@@ -80,6 +90,47 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
   const [kapakModalOpen, setKapakModalOpen] = useState(false)
   const [micronModalOpen, setMicronModalOpen] = useState(false)
 
+  const [dosyalar, setDosyalar] = useState<File[]>([])
+  const [ekList, setEkList] = useState<MalzemeEk[]>([])
+  const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleDosyaSec = () => fileInputRef.current?.click()
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files)
+      setDosyalar((prev) => [...prev, ...newFiles])
+      setSelectedDosya({ type: 'pending', file: newFiles[0] })
+    }
+    e.target.value = ''
+  }
+
+  const removePendingDosya = (index: number) => {
+    setDosyalar((prev) => prev.filter((_, i) => i !== index))
+    setSelectedDosya((prev) => {
+      if (prev?.type === 'pending') {
+        const remaining = dosyalar.filter((_, i) => i !== index)
+        return remaining.length > 0 ? { type: 'pending', file: remaining[0] } : null
+      }
+      return prev
+    })
+  }
+
+  const removeExistingDosya = async (ekId: number) => {
+    try {
+      await malzemeEkApi.delete(ekId)
+      setEkList((prev) => prev.filter((e) => e.id !== ekId))
+      setSelectedDosya((prev) => {
+        if (prev?.type === 'existing' && prev.ek.id === ekId) return null
+        return prev
+      })
+    } catch {
+      message.error('Dosya silinirken hata oluştu')
+    }
+  }
+
   const { kirli, temizle } = useKirli([form])
   useEffect(() => {
     onKirliChange?.(kirli)
@@ -91,6 +142,9 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
     } else {
       setForm({ ...emptyData })
       setId(null)
+      setDosyalar([])
+      setEkList([])
+      setSelectedDosya(null)
     }
   }, [kod])
 
@@ -161,6 +215,15 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
           model: (data as any).model ?? null,
         })
         temizle()
+      let ekData: MalzemeEk[] = []
+      try {
+        ekData = await malzemeEkApi.list(data.id)
+        setEkList(ekData)
+      } catch {
+        setEkList([])
+      }
+      setDosyalar([])
+      setSelectedDosya(ekData.length > 0 ? { type: 'existing', ek: ekData[0] } : null)
     } catch {
       message.warning('Kod bulunamadı')
     } finally {
@@ -252,6 +315,9 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
     setKapakData(null)
     setMicronData(null)
     setMarkaAd('')
+    setDosyalar([])
+    setEkList([])
+    setSelectedDosya(null)
     temizle()
   }
 
@@ -259,6 +325,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
     if (!form.ad.trim()) { message.warning('Ad alanı zorunludur'); return }
     setSaving(true)
     try {
+      let currentId = id
       if (id) {
         await aksesuarApi.update(id, form)
         message.success('Aksesuar güncellendi')
@@ -270,7 +337,14 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
         }
         const created = await aksesuarApi.create(payload)
         setId(created.id)
+        currentId = created.id
         message.success('Aksesuar oluşturuldu')
+      }
+      if (dosyalar.length > 0 && currentId) {
+        const uploaded = await malzemeEkApi.upload(currentId, dosyalar)
+        setEkList((prev) => [...uploaded, ...prev])
+        setDosyalar([])
+        setSelectedDosya(uploaded.length > 0 ? { type: 'existing', ek: uploaded[0] } : null)
       }
     } catch {
       message.error('Kayıt sırasında hata oluştu')
@@ -457,30 +531,114 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
     ),
   }
 
+  const genelContent = (
+    <div className="!border !border-gray-200 !rounded-sm !p-4 !w-fit">
+      <div className="!flex !flex-col !gap-3 !max-w-xl">
+        <div className="!flex !items-center !gap-4 !flex-wrap">
+          <div className="!flex !items-center !gap-2">
+            <label className="!text-[10px] !font-semibold !uppercase !whitespace-nowrap">Kod</label>
+            <Input size="small" value={form.kod} disabled className="!w-28 !text-[11px]" />
+          </div>
+          <div className="!flex !items-center !gap-2 !flex-1">
+            <label className="!text-[10px] !font-semibold !uppercase !whitespace-nowrap">Adı</label>
+            <Input size="small" value={form.ad} onChange={(e) => set('ad', e.target.value)} className="!text-[11px]" />
+          </div>
+          <div className="!flex !items-center !gap-2">
+            <label className="!text-[10px] !font-semibold !uppercase !whitespace-nowrap">Kullanımda</label>
+            <Switch checked={form.kullanimda} onChange={(v) => set('kullanimda', v)} />
+          </div>
+        </div>
+        {fields.map((f) => alanSatirlari[f]).filter(Boolean)}
+      </div>
+    </div>
+  )
+
+  const eklerContent = (
+    <div className="!overflow-y-auto !overflow-x-hidden !h-full !max-h-[calc(100vh-140px)]">
+      <Row gutter={16} className="!h-full">
+        <Col span={6}>
+          <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !flex-col !gap-2">
+            <Button size="small" type="primary" icon={<UploadOutlined />} onClick={handleDosyaSec} className="!text-[11px]">
+              Döküman Seç
+            </Button>
+            <input ref={fileInputRef} type="file" multiple className="!hidden" onChange={handleFileChange} />
+            <div className="!flex-1 !overflow-y-auto !space-y-1.5">
+              {ekList.length === 0 && dosyalar.length === 0 ? (
+                <span className="!text-[11px] !text-gray-400">Henüz dosya seçilmedi</span>
+              ) : (
+                <>
+                  {ekList.map((ek) => (
+                    <div key={`ek-${ek.id}`} className={`!flex !items-center !gap-2 !border !rounded !p-1.5 !cursor-pointer ${selectedDosya?.type === 'existing' && selectedDosya.ek.id === ek.id ? '!border-blue-400 !bg-blue-50' : '!border-gray-100 !bg-gray-50 hover:!bg-gray-100'}`} onClick={() => setSelectedDosya({ type: 'existing', ek })}>
+                      {ek.mimetype.startsWith('image/') ? (
+                        <img src={malzemeEkApi.getDosyaUrl(ek.id)} alt={ek.dosyaAdi} className="!w-12 !h-12 !object-cover !rounded !shrink-0" />
+                      ) : (
+                        <div className="!w-12 !h-12 !flex !items-center !justify-center !text-[26px] !text-gray-300 !shrink-0">📄</div>
+                      )}
+                      <div className="!flex-1 !min-w-0">
+                        <span className="!text-[10px] !text-gray-600 !truncate !block">{ek.dosyaAdi}</span>
+                        <span className="!text-[9px] !text-gray-400">{(ek.boyut / 1024).toFixed(1)} KB</span>
+                      </div>
+                      <DeleteOutlined className="!text-[11px] !text-red-400 !cursor-pointer !shrink-0" onClick={(e) => { e.stopPropagation(); removeExistingDosya(ek.id) }} />
+                    </div>
+                  ))}
+                  {dosyalar.map((f, i) => (
+                    <div key={`pending-${i}`} className={`!flex !items-center !gap-2 !border !rounded !p-1.5 !cursor-pointer ${selectedDosya?.type === 'pending' && selectedDosya.file === f ? '!border-blue-400 !bg-blue-50' : '!border-gray-100 !bg-gray-50 hover:!bg-gray-100'}`} onClick={() => setSelectedDosya({ type: 'pending', file: f })}>
+                      {f.type.startsWith('image/') ? (
+                        <img src={URL.createObjectURL(f)} alt={f.name} className="!w-12 !h-12 !object-cover !rounded !shrink-0" />
+                      ) : (
+                        <div className="!w-12 !h-12 !flex !items-center !justify-center !text-[26px] !text-gray-300 !shrink-0">📄</div>
+                      )}
+                      <div className="!flex-1 !min-w-0">
+                        <span className="!text-[10px] !text-gray-600 !truncate !block">{f.name}</span>
+                        <span className="!text-[9px] !text-orange-400">Kaydedilmedi</span>
+                      </div>
+                      <DeleteOutlined className="!text-[11px] !text-red-400 !cursor-pointer !shrink-0" onClick={(e) => { e.stopPropagation(); removePendingDosya(i) }} />
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </Col>
+        <Col span={18}>
+          <div className="!border !border-gray-200 !rounded-sm !p-3 !h-full !flex !items-center !justify-center !overflow-hidden !min-h-0">
+            {selectedDosya ? (
+              selectedDosya.type === 'pending' && selectedDosya.file.type.startsWith('image/') ? (
+                <img src={URL.createObjectURL(selectedDosya.file)} alt={selectedDosya.file.name} className="!max-w-full !max-h-full !object-contain" />
+              ) : selectedDosya.type === 'existing' && selectedDosya.ek.mimetype.startsWith('image/') ? (
+                <img src={malzemeEkApi.getDosyaUrl(selectedDosya.ek.id)} alt={selectedDosya.ek.dosyaAdi} className="!max-w-full !max-h-full !object-contain" />
+              ) : (
+                <span className="!text-[11px] !text-gray-400">
+                  {selectedDosya.type === 'pending' ? selectedDosya.file.name : selectedDosya.ek.dosyaAdi}
+                </span>
+              )
+            ) : (
+              <span className="!text-[11px] !text-gray-400">Bir dosya seçin</span>
+            )}
+          </div>
+        </Col>
+      </Row>
+    </div>
+  )
+
   return (
     <div className="!h-full !flex !flex-col">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
         <CardToolbar buttons={toolbarButtons} />
-        <Spin spinning={loading}>
-          <div className="!p-4">
-            <div className="!max-w-xl !space-y-3">
-              <div className="!flex !items-center !gap-4">
-                <div className="!flex !items-center !gap-2">
-                  <label className="!text-[10px] !font-semibold !uppercase !whitespace-nowrap">Kod</label>
-                  <Input size="small" value={form.kod} disabled className="!w-28 !text-[11px]" />
-                </div>
-                <div className="!flex !items-center !gap-2 !flex-1">
-                  <label className="!text-[10px] !font-semibold !uppercase !whitespace-nowrap">Adı</label>
-                  <Input size="small" value={form.ad} onChange={(e) => set('ad', e.target.value)} className="!text-[11px]" />
-                </div>
-                <div className="!flex !items-center !gap-2">
-                  <label className="!text-[10px] !font-semibold !uppercase !whitespace-nowrap">Kullanımda</label>
-                  <Switch checked={form.kullanimda} onChange={(v) => set('kullanimda', v)} />
-                </div>
-              </div>
-              {fields.map((f) => alanSatirlari[f]).filter(Boolean)}
-            </div>
-          </div>
+        <Spin
+          spinning={loading}
+          className="!flex-1 !flex !flex-col !min-h-0 [&_.ant-spin-container]:!flex-1 [&_.ant-spin-container]:!flex [&_.ant-spin-container]:!flex-col [&_.ant-spin-container]:!min-h-0"
+        >
+          <Tabs
+            defaultActiveKey="genel"
+            size="small"
+            tabBarGutter={2}
+            className={tabClass}
+            items={[
+              { key: 'genel', label: 'Genel', children: genelContent },
+              { key: 'ekler', label: 'Ekler', children: eklerContent },
+            ]}
+          />
         </Spin>
       </div>
 

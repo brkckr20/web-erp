@@ -12,6 +12,7 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
+import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import StokSecimiModal from '@/components/shared/StokSecimiModal'
 import BarkodSecimiModal from '@/components/shared/BarkodSecimiModal'
 import KKSecimModal from '@/components/shared/KKSecimModal'
@@ -67,6 +68,12 @@ interface KalemRow {
   malzemeKod: string
   malzemeAd: string
   barkod: string
+  varyant1RenkId: number | null
+  varyant1RenkKod: string
+  varyant1RenkAd: string
+  varyant2RenkId: number | null
+  varyant2RenkKod: string
+  varyant2RenkAd: string
   brutKg: number
   kg: number
   brutMt: number
@@ -86,6 +93,12 @@ const emptyKalem = (): KalemRow => ({
   malzemeKod: '',
   malzemeAd: '',
   barkod: '',
+  varyant1RenkId: null,
+  varyant1RenkKod: '',
+  varyant1RenkAd: '',
+  varyant2RenkId: null,
+  varyant2RenkKod: '',
+  varyant2RenkAd: '',
   brutKg: 0,
   kg: 0,
   brutMt: 0,
@@ -255,6 +268,12 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
             malzemeKod: (k as any).malzeme?.kod ?? (k.malzemeId != null ? String(k.malzemeId) : ''),
             malzemeAd: (k as any).malzeme?.ad ?? '',
             barkod: (k as any).takipNo ?? (k as any).malzeme?.barkod ?? '',
+            varyant1RenkId: k.varyant1RenkId ?? k.varyant1Renk?.id ?? null,
+            varyant1RenkKod: k.varyant1Renk?.kod ?? '',
+            varyant1RenkAd: k.varyant1Renk?.ad ?? '',
+            varyant2RenkId: k.varyant2RenkId ?? k.varyant2Renk?.id ?? null,
+            varyant2RenkKod: k.varyant2Renk?.kod ?? '',
+            varyant2RenkAd: k.varyant2Renk?.ad ?? '',
             brutKg: Number(k.brutAgirlik) || 0,
             kg: Number(k.netAgirlik) || 0,
             brutMt: Number(k.brutMetre) || 0,
@@ -361,6 +380,8 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
             satirTutari: k.satirTutari,
             aciklama: k.aciklama || null,
             takipNo: k.barkod || null,
+            varyant1RenkId: k.varyant1RenkId ?? null,
+            varyant2RenkId: k.varyant2RenkId ?? null,
           }
         }),
       )
@@ -438,19 +459,22 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   }
 
   const handleBarkodSecimiEkle = (secimler: any[]) => {
-    const yeniKalemler: KalemRow[] = secimler.map(s => ({
-      ...emptyKalem(),
-      malzemeKod: s.malzemeKod,
-      malzemeAd: s.malzemeAd,
-      renkKod: s.renkKod,
-      partiNo: s.partiNo,
-      barkod: s.barkod,
-      topNo: s.topNo,
-      kg: s.kg || 0,
-      mt: s.mt || 0,
-      adet: s.adet || 0,
-      aciklama: s.barkod ? `Barkod:${s.barkod} Top:${s.topNo ?? ''}` : undefined,
-    }))
+    const yeniKalemler: KalemRow[] = secimler.map(s => {
+      // Kısmi kullanımda satıra barkodun tamamı değil KALAN miktar yazılır;
+      // aksi halde 50 mt'lik toptan 30 mt çıkıldıysa ikinci seçimde 50 gelirdi.
+      const birim = s.birim as 'mt' | 'kg' | 'adet' | undefined
+      const kalan = Number(s.kalan) || 0
+      return {
+        ...emptyKalem(),
+        malzemeKod: s.malzemeKod,
+        malzemeAd: s.malzemeAd,
+        barkod: s.barkod,
+        kg: birim === 'kg' ? kalan : (s.kg || 0),
+        mt: birim === 'mt' ? kalan : (s.mt || 0),
+        adet: birim === 'adet' ? kalan : (s.adet || 0),
+        aciklama: s.barkod ? `Barkod:${s.barkod} Top:${s.topNo ?? ''}` : '',
+      }
+    })
     const varOlan = new Set(kalemler.map(k => `${k.malzemeKod}|${k.barkod}`))
     const eklenecek = yeniKalemler.filter(k => !varOlan.has(`${k.malzemeKod}|${k.barkod}`))
     if (eklenecek.length === 0) {
@@ -563,9 +587,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
 
   // Enter/Tab ile bir sonraki (sağdaki) düzenlenebilir hücreye geç
   const focusNextCell = (currentColId: string, rowIndex: number) => {
-    const editableCols = minimalColDefs
-      .map((c) => c.field as string)
-      .filter((f) => f && f !== 'key' && f !== 'malzemeAd')
+    const editableCols = odaklanabilirKolonlar
     const idx = editableCols.indexOf(currentColId)
     if (idx === -1) return
     if (idx < editableCols.length - 1) {
@@ -650,6 +672,46 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
     },
     { headerName: 'Malzeme Adı', field: 'malzemeAd' },
     { headerName: 'Barkod', field: 'barkod', width: 120, valueFormatter: (p) => p.value ?? '-' },
+    {
+      headerName: 'Varyant 1 Kod', field: 'varyant1RenkKod', width: 130, cellClass: '!p-0',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <SearchableRenkSelect
+          value={p.data.varyant1RenkId}
+          adGoster={false}
+          widthClass="!w-full"
+          className="!w-full !h-full"
+          onChange={(id, rec) => updateKalem(p.data.key, {
+            varyant1RenkId: id ?? null,
+            varyant1RenkKod: rec?.kod ?? '',
+            varyant1RenkAd: rec?.ad ?? '',
+          })}
+        />
+      ),
+    },
+    {
+      headerName: 'Varyant 1 Ad', field: 'varyant1RenkAd', width: 150,
+      valueFormatter: (p) => p.value || '-',
+    },
+    {
+      headerName: 'Varyant 2 Kod', field: 'varyant2RenkKod', width: 130, cellClass: '!p-0',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <SearchableRenkSelect
+          value={p.data.varyant2RenkId}
+          adGoster={false}
+          widthClass="!w-full"
+          className="!w-full !h-full"
+          onChange={(id, rec) => updateKalem(p.data.key, {
+            varyant2RenkId: id ?? null,
+            varyant2RenkKod: rec?.kod ?? '',
+            varyant2RenkAd: rec?.ad ?? '',
+          })}
+        />
+      ),
+    },
+    {
+      headerName: 'Varyant 2 Ad', field: 'varyant2RenkAd', width: 150,
+      valueFormatter: (p) => p.value || '-',
+    },
     {
       headerName: 'Brüt Kg', field: 'brutKg', width: 90, cellClass: '!p-0', type: 'rightAligned',
       cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
@@ -759,6 +821,13 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       ),
     },
   ]
+
+  // Yalnızca kod sütunları düzenlenebilir; malzeme/varyant adları salt-okunur
+  // olduğundan Enter/Tab ve odak dolaşımında atlanır.
+  const odaklanabilirKolonlar = minimalColDefs
+    .map((c) => c.field as string)
+    .filter((f) => f && !['key', 'malzemeAd', 'varyant1RenkAd', 'varyant2RenkAd'].includes(f))
+  const odaklanabilir = (colId?: string) => !!colId && odaklanabilirKolonlar.includes(colId)
 
   const storageKey = `malzemeYonetimFisleriKarti`
   const kolonLayoutKey = useCallback(
@@ -1051,9 +1120,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                                 e.api.addEventListener('firstDataRendered', () => applyLocalKolonlar(e.api))
                               }}
                               tabToNextCell={(params) => {
-                                const editableCols = minimalColDefs
-                                  .map((c) => c.field as string)
-                                  .filter((f) => f && f !== 'key' && f !== 'malzemeAd')
+                                const editableCols = odaklanabilirKolonlar
                                 const prev = params.previousCellPosition
                                 if (!prev) return params.nextCellPosition ?? false
                                 const curCol = prev.column.getColId()
@@ -1075,7 +1142,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                               }}
                               onCellFocused={(e: CellFocusedEvent) => {
                                 const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
-                                if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
+                                if (colId && e.rowIndex != null && odaklanabilir(colId)) {
                                   focusCellEditor(colId, e.rowIndex)
                                 }
                               }}
@@ -1099,9 +1166,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                             e.api.addEventListener('firstDataRendered', () => applyLocalKolonlar(e.api))
                           }}
                           tabToNextCell={(params) => {
-                            const editableCols = minimalColDefs
-                              .map((c) => c.field as string)
-                              .filter((f) => f && f !== 'key' && f !== 'malzemeAd')
+                            const editableCols = odaklanabilirKolonlar
                             const prev = params.previousCellPosition
                             if (!prev) return params.nextCellPosition ?? false
                             const curCol = prev.column.getColId()
@@ -1123,7 +1188,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
                           }}
                           onCellFocused={(e: CellFocusedEvent) => {
                             const colId = typeof e.column === 'object' && e.column ? e.column.getColId() : undefined
-                            if (colId && colId !== 'key' && colId !== 'malzemeAd' && e.rowIndex != null) {
+                            if (colId && e.rowIndex != null && odaklanabilir(colId)) {
                               focusCellEditor(colId, e.rowIndex)
                             }
                           }}

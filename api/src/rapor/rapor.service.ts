@@ -108,9 +108,7 @@ export class RaporService {
         renkAd: string | null;
         siparisNo: string | null;
         partiNo: string | null;
-        brutKg: unknown;
         kg: unknown;
-        brutMt: unknown;
         mt: unknown;
         adet: unknown;
       }[]
@@ -161,30 +159,12 @@ export class RaporService {
         SUM(
           CASE
             WHEN i.irsaliye_tipi IN ${GIRIS}
-              THEN ISNULL(ik.brut_agirlik, 0)
-            WHEN i.irsaliye_tipi IN ${CIKIS}
-              THEN -ISNULL(ik.brut_agirlik, 0)
-            ELSE 0
-          END
-        ) AS brutKg,
-        SUM(
-          CASE
-            WHEN i.irsaliye_tipi IN ${GIRIS}
               THEN ISNULL(ik.net_agirlik, 0)
             WHEN i.irsaliye_tipi IN ${CIKIS}
               THEN -ISNULL(ik.net_agirlik, 0)
             ELSE 0
           END
         ) AS kg,
-        SUM(
-          CASE
-            WHEN i.irsaliye_tipi IN ${GIRIS}
-              THEN ISNULL(ik.brut_metre, 0)
-            WHEN i.irsaliye_tipi IN ${CIKIS}
-              THEN -ISNULL(ik.brut_metre, 0)
-            ELSE 0
-          END
-        ) AS brutMt,
         SUM(
           CASE
             WHEN i.irsaliye_tipi IN ${GIRIS}
@@ -223,9 +203,7 @@ export class RaporService {
       renkAd: r.renkAd,
       siparisNo: r.siparisNo,
       partiNo: r.partiNo,
-      brutKg: Number(r.brutKg) || 0,
       kg: Number(r.kg) || 0,
-      brutMt: Number(r.brutMt) || 0,
       mt: Number(r.mt) || 0,
       adet: Number(r.adet) || 0,
     }))
@@ -249,31 +227,47 @@ export class RaporService {
         satirTutari: unknown;
         aciklama: string | null;
         cariAd: string | null;
+        barkodSayisi: unknown;
       }[]
     >`
       SELECT
-        i.irsaliye_tarihi    AS tarih,
-        i.irsaliye_tipi      AS irsaliyeTipi,
-        i.irsaliye_no        AS irsaliyeNo,
-        d.kod                AS depoKod,
-        d.ad                 AS depoAd,
-        ik.brut_agirlik      AS brutAgirlik,
-        ik.net_agirlik       AS netAgirlik,
-        ik.brut_metre        AS brutMetre,
-        ik.net_metre         AS netMetre,
-        ik.adet              AS adet,
-        ik.olcu_birimi       AS olcuBirimi,
-        ik.birim_fiyat       AS birimFiyat,
-        ik.satir_tutari      AS satirTutari,
-        ik.aciklama          AS aciklama,
-        ch.ad                AS cariAd
+        i.irsaliye_tarihi   AS tarih,
+        i.irsaliye_tipi     AS irsaliyeTipi,
+        i.irsaliye_no       AS irsaliyeNo,
+        d.kod               AS depoKod,
+        d.ad                AS depoAd,
+        SUM(ik.brut_agirlik) AS brutAgirlik,
+        SUM(ik.net_agirlik)  AS netAgirlik,
+        SUM(ik.brut_metre)   AS brutMetre,
+        SUM(ik.net_metre)    AS netMetre,
+        SUM(ik.adet)         AS adet,
+        MAX(ik.olcu_birimi)  AS olcuBirimi,
+        CASE WHEN MIN(ik.birim_fiyat) = MAX(ik.birim_fiyat)
+             THEN MIN(ik.birim_fiyat) END AS birimFiyat,
+        SUM(ik.satir_tutari) AS satirTutari,
+        MAX(a.aciklamalar)   AS aciklama,
+        MAX(ch.ad)           AS cariAd,
+        COUNT(DISTINCT NULLIF(ik.takip_no, '')) AS barkodSayisi
       FROM irsaliye_kalem ik
       JOIN irsaliye i          ON i.id = ik.irsaliye_id
       JOIN malzeme m           ON m.id = ik.malzeme_id
       LEFT JOIN depo d         ON d.id = i.depo_id
       LEFT JOIN cari_hesap ch  ON ch.id = i.cari_hesap_id
+      LEFT JOIN (
+        SELECT d2.irsaliye_id, d2.malzeme_id,
+               STRING_AGG(d2.aciklama, ' | ') WITHIN GROUP (ORDER BY d2.aciklama) AS aciklamalar
+        FROM (
+          SELECT DISTINCT ik2.irsaliye_id, ik2.malzeme_id, ik2.aciklama
+          FROM irsaliye_kalem ik2
+          JOIN malzeme m2 ON m2.id = ik2.malzeme_id
+          WHERE m2.kod = ${malzemeKod}
+            AND ISNULL(ik2.aciklama, '') <> ''
+        ) d2
+        GROUP BY d2.irsaliye_id, d2.malzeme_id
+      ) a ON a.irsaliye_id = i.id AND a.malzeme_id = ik.malzeme_id
       WHERE m.kod = ${malzemeKod}
         AND i.tamamlandi = 1
+      GROUP BY i.id, i.irsaliye_tarihi, i.irsaliye_tipi, i.irsaliye_no, d.kod, d.ad, ch.ad
       ORDER BY i.irsaliye_tarihi DESC, i.irsaliye_no DESC
     `;
 
@@ -302,10 +296,11 @@ export class RaporService {
         mt: Number(r.netMetre) || 0,
         adet: Number(r.adet) || 0,
         olcuBirimi: r.olcuBirimi,
-        birimFiyat: Number(r.birimFiyat) || 0,
+        birimFiyat: r.birimFiyat == null ? null : Number(r.birimFiyat),
         satirTutari: Number(r.satirTutari) || 0,
         aciklama: r.aciklama,
         cariAd: r.cariAd,
+        barkodSayisi: Number(r.barkodSayisi) || 0,
         yon: girisTipleri.includes(r.irsaliyeTipi) ? 'Giriş' : 'Çıkış',
         miktar,
       };
@@ -330,6 +325,9 @@ export class RaporService {
         netMt: number | null;
         adet: number | null;
         fisNo: string;
+        birim: 'mt' | 'kg' | 'adet';
+        toplam: unknown;
+        kalan: unknown;
       }[]
     >(`
       WITH stok_kalan AS (
@@ -359,6 +357,23 @@ export class RaporService {
             ELSE 0
           END
         ) > 0
+      ),
+      -- Barkod bazında çıkışta kullanılan miktar. Kilit artık "bir kez kullanıldı"
+      -- değil: kalan miktar > 0 olduğu sürece barkod listede kalır (kısmi kullanım).
+      barkod_kullanim AS (
+        SELECT
+          ik2.takip_no AS takipNo,
+          SUM(ISNULL(ik2.net_metre, 0))   AS kullanilanMt,
+          SUM(ISNULL(ik2.net_agirlik, 0)) AS kullanilanKg,
+          SUM(ISNULL(ik2.adet, 0))        AS kullanilanAdet
+        FROM irsaliye_kalem ik2
+        JOIN irsaliye i2 ON i2.id = ik2.irsaliye_id
+        JOIN depo d2 ON d2.id = i2.depo_id
+        WHERE d2.kod = '${depoKod}'
+          AND i2.tamamlandi = 1
+          AND i2.irsaliye_tipi IN ${CIKIS}
+          AND ik2.takip_no IS NOT NULL
+        GROUP BY ik2.takip_no
       )
       SELECT
         d.kod AS depoKod,
@@ -373,7 +388,23 @@ export class RaporService {
         kk.net_agirlik AS netKg,
         kk.net_metre AS netMt,
         kk.adet AS adet,
-        k.fis_no AS fisNo
+        k.fis_no AS fisNo,
+        -- Ana birim: metraj varsa mt, yoksa kg, yoksa adet üzerinden kalan hesaplanır.
+        CASE
+          WHEN ISNULL(kk.net_metre, 0) > 0 THEN 'mt'
+          WHEN ISNULL(kk.net_agirlik, 0) > 0 THEN 'kg'
+          ELSE 'adet'
+        END AS birim,
+        CASE
+          WHEN ISNULL(kk.net_metre, 0) > 0 THEN kk.net_metre
+          WHEN ISNULL(kk.net_agirlik, 0) > 0 THEN kk.net_agirlik
+          ELSE ISNULL(kk.adet, 0)
+        END AS toplam,
+        CASE
+          WHEN ISNULL(kk.net_metre, 0) > 0 THEN kk.net_metre - ISNULL(bk.kullanilanMt, 0)
+          WHEN ISNULL(kk.net_agirlik, 0) > 0 THEN kk.net_agirlik - ISNULL(bk.kullanilanKg, 0)
+          ELSE ISNULL(kk.adet, 0) - ISNULL(bk.kullanilanAdet, 0)
+        END AS kalan
       FROM kalite_kontrol_kalem kk
       JOIN kalite_kontrol k ON k.id = kk.fis_id
       JOIN irsaliye_kalem ik ON ik.id = kk.irsaliye_kalem_id
@@ -381,6 +412,7 @@ export class RaporService {
       JOIN depo d ON d.id = i.depo_id
       JOIN malzeme m ON m.id = ik.malzeme_id
       LEFT JOIN renk r ON r.id = ik.varyant1_renk_id
+      LEFT JOIN barkod_kullanim bk ON bk.takipNo = kk.barkod
       JOIN stok_kalan s ON s.depoKod = d.kod
         AND s.malzemeKod = m.kod
         AND ISNULL(s.renkKod,'') = ISNULL(r.kod,'')
@@ -389,15 +421,13 @@ export class RaporService {
         AND i.tamamlandi = 1
         AND kk.aktarildi = 1
         AND kk.barkod IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM irsaliye_kalem ik2
-          JOIN irsaliye i2 ON i2.id = ik2.irsaliye_id
-          JOIN depo d2 ON d2.id = i2.depo_id
-          WHERE d2.kod = '${depoKod}'
-            AND i2.tamamlandi = 1
-            AND i2.irsaliye_tipi IN ${CIKIS}
-            AND ik2.takip_no = kk.barkod
-        )
+        AND (
+          CASE
+            WHEN ISNULL(kk.net_metre, 0) > 0 THEN kk.net_metre - ISNULL(bk.kullanilanMt, 0)
+            WHEN ISNULL(kk.net_agirlik, 0) > 0 THEN kk.net_agirlik - ISNULL(bk.kullanilanKg, 0)
+            ELSE ISNULL(kk.adet, 0) - ISNULL(bk.kullanilanAdet, 0)
+          END
+        ) > 0
       ORDER BY m.kod, r.kod, ik.parti_no, kk.top_no
     `);
     return rows.map(r => ({
@@ -414,6 +444,9 @@ export class RaporService {
       mt: Number(r.netMt) || 0,
       adet: Number(r.adet) || 0,
       fisNo: r.fisNo,
+      birim: r.birim,
+      toplam: Number(r.toplam) || 0,
+      kalan: Number(r.kalan) || 0,
     }));
   }
 }

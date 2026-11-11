@@ -30,6 +30,7 @@ import { gtipApi } from '@/lib/gtip-api'
 import { malzemeEkApi } from '@/lib/malzeme-ek-api'
 import type { MalzemeEk } from '@/lib/malzeme-ek-api'
 import { malzemeFiyatApi, type MalzemeFiyat, type UpdateMalzemeFiyat } from '@/lib/malzeme-fiyat-api'
+import { siparisApi, type SiparisModelOzet } from '@/lib/siparis-api'
 import { dovizApi, type Doviz } from '@/lib/doviz-api'
 import { useAuth } from '@/context/AuthContext'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
@@ -82,6 +83,14 @@ const antGridTheme = themeQuartz.withParams({
   wrapperBorderRadius: 2,
   rangeSelectionBorderColor: 'transparent',
 })
+
+function tarihMetni(t: string | Date | null | undefined): string {
+  if (!t) return ''
+  const d = new Date(t)
+  if (isNaN(d.getTime())) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`
+}
 
 interface KumasRow {
   key: string
@@ -168,6 +177,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   const [dosyalar, setDosyalar] = useState<File[]>([])
   const [ekList, setEkList] = useState<MalzemeEk[]>([])
   const [fiyatlar, setFiyatlar] = useState<MalzemeFiyat[]>([])
+  const [orderRows, setOrderRows] = useState<SiparisModelOzet[]>([])
+  const [orderLoading, setOrderLoading] = useState(false)
   const [dovizList, setDovizList] = useState<{ value: string; label: string }[]>([])
   const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -277,6 +288,19 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       setDovizList(list.filter((d) => d.kullanimda).map((d) => ({ value: d.kod, label: d.kod }))),
     ).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!model?.id) {
+      setOrderRows([])
+      return
+    }
+    setOrderLoading(true)
+    siparisApi
+      .listByModel(model.id)
+      .then(setOrderRows)
+      .catch(() => setOrderRows([]))
+      .finally(() => setOrderLoading(false))
+  }, [model?.id])
 
   const loadByKod = useCallback(async (kod: string) => {
     setLoading(true)
@@ -1487,8 +1511,44 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     </div>
   )
 
+  const orderColumns = useMemo<ColDef<SiparisModelOzet>[]>(
+    () => [
+      { headerName: 'Order No', field: 'siparisNo', width: 140, minWidth: 120 },
+      {
+        headerName: 'Tarihi',
+        field: 'tarih',
+        width: 100,
+        valueFormatter: (p) => tarihMetni(p.value as string),
+      },
+      { headerName: 'Müşteri', field: 'musteri', flex: 1, minWidth: 180 },
+      {
+        headerName: 'Miktar',
+        field: 'miktar',
+        width: 110,
+        type: 'rightAligned',
+        valueFormatter: (p) =>
+          Number(p.value ?? 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }),
+      },
+    ],
+    [],
+  )
+
   const orderContent = (
-    <div className="!flex !flex-col !h-full" />
+    <div className="!p-3">
+      <div style={{ height: 'calc(100vh - 280px)', minHeight: 240, width: '100%' }}>
+        <AgGridReact
+          rowData={orderRows}
+          columnDefs={orderColumns}
+          theme={antGridTheme}
+          localeText={agGridLocaleTR}
+          headerHeight={32}
+          rowHeight={30}
+          loading={orderLoading}
+          getRowId={(p) => String(p.data.id)}
+          defaultColDef={{ resizable: true, sortable: true }}
+        />
+      </div>
+    </div>
   )
 
   const fiyatColumns = useMemo<ColDef<MalzemeFiyat>[]>(

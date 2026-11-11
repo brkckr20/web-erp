@@ -18,7 +18,14 @@ export const depoBazliStokApi = {
   list: () => api.get<DepoBazliStokSatir[]>('/rapor/depo-bazli-stok'),
 }
 
-export interface DepoStokDetaySatir extends DepoBazliStokSatir {
+export interface DepoStokDetaySatir {
+  depoKod: string
+  depoAd: string
+  malzemeKod: string
+  malzemeAd: string
+  kg: number
+  mt: number
+  adet: number
   renkKod: string | null
   renkAd: string | null
   siparisNo: string | null
@@ -43,6 +50,12 @@ export interface DepoBarkodSatir {
   mt: number
   adet: number
   fisNo: string
+  /** Barkodun ana birimi: metraj varsa mt, yoksa kg, yoksa adet. */
+  birim: 'mt' | 'kg' | 'adet'
+  /** Barkodun ilk miktarı (ana birimde). */
+  toplam: number
+  /** Çıkışlarda kullanıldıktan sonra kalan miktar (ana birimde). */
+  kalan: number
 }
 
 export const depoBarkodApi = {

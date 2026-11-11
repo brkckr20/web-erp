@@ -29,6 +29,11 @@ export class CreateIrsaliyeKalemDto {
   /** Kalite kontrol gerekmez mi? (11-Fasondan Giriş). true ise kalem kalite bekleyen listesine girmez. */
   kaliteYapilmayacak?: boolean
   boyahaneRenkId?: number | null
+  sanalAgirlik?: number | null
+  sanalMetre?: number | null
+  sanalAdet?: number | null
+  sanalTopSayisi?: number | null
+  kkBarkodVar?: boolean | null
   varyant2RenkId?: number
   tahsisler?: CreateIrsaliyeKalemTahsisDto[]
   /** Satıra seçilen prosesler (İşlem id + sıra). */

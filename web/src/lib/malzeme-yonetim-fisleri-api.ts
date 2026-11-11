@@ -44,7 +44,11 @@ export interface MalzemeYonetimFisiKalem {
   satirTutari: number | null
   aciklama: string | null
   uuid: string | null
+  varyant1RenkId: number | null
+  varyant2RenkId: number | null
   malzeme?: { id: number; kod: string; ad: string } | null
+  varyant1Renk?: { id: number; kod: string; ad: string } | null
+  varyant2Renk?: { id: number; kod: string; ad: string } | null
 }
 
 export type MalzemeYonetimFisiFormData = Omit<MalzemeYonetimFisi, 'id' | 'kalemler'>

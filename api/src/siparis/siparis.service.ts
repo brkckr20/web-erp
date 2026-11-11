@@ -145,6 +145,52 @@ export class SiparisService {
     return siparis;
   }
 
+  /** Bir modele ait siparişleri, beden miktarları toplamıyla listeler. */
+  async findByModel(malzemeId: number) {
+    const kalemler = await this.prisma.siparisKalem.findMany({
+      where: { malzemeId },
+      select: {
+        siparisId: true,
+        renkler: { select: { bedenler: { select: { miktar: true } } } },
+      },
+    });
+    if (kalemler.length === 0) return [];
+
+    // Aynı model aynı siparişte birden çok kalem satırında geçebilir: sipariş bazında topla
+    const miktarlar = new Map<number, number>();
+    for (const kalem of kalemler) {
+      let toplam = 0;
+      for (const renk of kalem.renkler) {
+        for (const beden of renk.bedenler) {
+          toplam += Number(beden.miktar ?? 0);
+        }
+      }
+      miktarlar.set(
+        kalem.siparisId,
+        (miktarlar.get(kalem.siparisId) ?? 0) + toplam,
+      );
+    }
+
+    const siparisler = await this.prisma.siparis.findMany({
+      where: { id: { in: [...miktarlar.keys()] } },
+      orderBy: [{ tarih: 'desc' }, { siparisNo: 'desc' }],
+      select: {
+        id: true,
+        siparisNo: true,
+        tarih: true,
+        cariHesap: { select: { ad: true } },
+      },
+    });
+
+    return siparisler.map((s) => ({
+      id: s.id,
+      siparisNo: s.siparisNo,
+      tarih: s.tarih,
+      musteri: s.cariHesap?.ad ?? null,
+      miktar: miktarlar.get(s.id) ?? 0,
+    }));
+  }
+
   async create(dto: CreateSiparisDto) {
     const { kalemler, aciklamalar, numaratorId, ...rest } = dto as any;
     const data: any = { ...rest };

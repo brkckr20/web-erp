@@ -146,11 +146,21 @@ export default function MalzemeStokEkstresi({ malzemeKod, depoKod }: MalzemeStok
         valueFormatter: (p) => (p.value as number) ? String(p.value) : '-',
       },
       {
+        headerName: 'Barkod',
+        field: 'barkodSayisi',
+        width: 80,
+        type: 'rightAligned',
+        valueFormatter: (p) => ((p.value as number) > 0 ? String(p.value) : '-'),
+      },
+      {
         headerName: 'Birim Fiyat',
         field: 'birimFiyat',
         width: 100,
         type: 'rightAligned',
-        valueFormatter: (p) => (p.value as number).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        valueFormatter: (p) =>
+          p.value == null
+            ? '-'
+            : (p.value as number).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       },
       {
         headerName: 'Tutar',

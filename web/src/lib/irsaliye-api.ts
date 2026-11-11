@@ -69,6 +69,12 @@ export interface IrsaliyeKalem {
   fire?: number | null
   /** Kalite kontrol gerekmez mi? (11-Fasondan Giriş). true ise kalem "Kalite Bekleyen" listesine girmez. */
   kaliteYapilmayacak?: boolean | null
+  /** 11-Fasondan Giriş: KK barkodları bağlıysa kullanıcı girişi yerine KK toplamı gösterilir. */
+  sanalAgirlik?: number | string | null
+  sanalMetre?: number | string | null
+  sanalAdet?: number | null
+  sanalTopSayisi?: number | null
+  kkBarkodVar?: boolean | null
   /**
    * Boyahane hedef rengi (Boyahane Renk Kartı, Renk.tip=2). varyant1 = sipariş/müşteri
    * rengi, varyant2 = baskı deseni (kartı yok, sonraki aşama) olarak ayrılmıştır.

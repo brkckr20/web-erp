@@ -40,6 +40,10 @@ export default function BarkodSecimiModal({ open, onClose, onSelect, depoKod }: 
     { headerName: 'Mt', field: 'mt', width: 90, type: 'rightAligned' },
     { headerName: 'Kg', field: 'kg', width: 90, type: 'rightAligned' },
     { headerName: 'Adet', field: 'adet', width: 80, type: 'rightAligned' },
+    { headerName: 'Toplam', field: 'toplam', width: 100, type: 'rightAligned',
+      valueFormatter: (p: any) => `${p.value ?? 0} ${p.data?.birim ?? ''}`.trim() },
+    { headerName: 'Kalan', field: 'kalan', width: 100, type: 'rightAligned',
+      valueFormatter: (p: any) => `${p.value ?? 0} ${p.data?.birim ?? ''}`.trim() },
     { headerName: 'KK Fiş', field: 'fisNo', width: 100 },
   ]
 

@@ -246,15 +246,15 @@ export class KaliteKontrolService {
             await tx.kaliteKontrolKalem.update({ where: { id: b.id }, data: { topNo } })
           }
         }
-        // 11-Fasondan Giriş bağlantıları: KK kalemleri toplamı, kaynak 11 kalemine yazılır
-        // (netAgirlik/netMetre/adet). Fiş seviyesinde irsaliyeId de bağlanır.
+        // Fiş seviyesinde irsaliyeId bağlanır (miktar güncellemesi sadece Transfer ile yapılır)
         for (const irsaliyeKalemId of guncellenecekIrsaliyeKalemIds) {
-          const irsaliyeId = await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
-          if (irsaliyeId != null) {
+          const kaynak = await tx.irsaliyeKalem.findUnique({ where: { id: Number(irsaliyeKalemId) }, select: { irsaliyeId: true } })
+          if (kaynak?.irsaliyeId != null) {
             await tx.kaliteKontrol.update({
               where: { id: fis.id },
-              data: { irsaliyeId },
+              data: { irsaliyeId: kaynak.irsaliyeId },
             })
+            break
           }
         }
       }
@@ -345,12 +345,13 @@ export class KaliteKontrolService {
           }
         }
       }
-      // Eski + yeni tüm 11 bağlantılarını yeniden hesapla (toplam değişmiş olabilir).
+      // Fiş seviyesinde irsaliyeId bağlanır (miktar güncellemesi sadece Transfer ile yapılır)
       const tumBaglantilar = new Set<number>([...eskiBaglantilar, ...yeniBaglantilar])
       for (const irsaliyeKalemId of tumBaglantilar) {
-        const irsaliyeId = await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
-        if (irsaliyeId != null) {
-          await tx.kaliteKontrol.update({ where: { id }, data: { irsaliyeId } })
+        const kaynak = await tx.irsaliyeKalem.findUnique({ where: { id: Number(irsaliyeKalemId) }, select: { irsaliyeId: true } })
+        if (kaynak?.irsaliyeId != null) {
+          await tx.kaliteKontrol.update({ where: { id }, data: { irsaliyeId: kaynak.irsaliyeId } })
+          break
         }
       }
       const updated = await tx.kaliteKontrol.findUnique({
@@ -384,11 +385,98 @@ export class KaliteKontrolService {
       }
       await tx.kaliteKontrolKalem.deleteMany({ where: { fisId: id } })
       const fis = await tx.kaliteKontrol.delete({ where: { id } })
-      // Silinen fişin bağlı olduğu 11 kalemlerinin toplamlarını yeniden hesapla.
-      for (const irsaliyeKalemId of baglantiIds) {
-        await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
-      }
+      // Miktar güncellemesi sadece Transfer ile yapılır; silme sonrası otomatik güncelleme yok.
       return fis
+    })
+  }
+
+  /**
+   * Seçili KK barkod satırlarını "aktarıldı" olarak işaretler ve bağlı oldukları
+   * 11-Fasondan Giriş (kaynak) kaleminin miktarlarını kümülatif olarak günceller.
+   * Kümülatif: seçilen top + daha önce aktarılmış topların tamamı toplanır. Böylece
+   * 2 top aktarıldıktan sonra 1 top daha aktarılınca kaynak 2'ye düşmez, 3 olur.
+   * Fire yeniden hesaplanır.
+   */
+  async transferIrsaliyeler(kalemIds: number[]) {
+    const ids = [...new Set((kalemIds ?? []).map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0))]
+    if (ids.length === 0) return { islem: false, gercellenen: [] }
+
+    return this.prisma.$transaction(async (tx) => {
+      const kayitlar = await tx.kaliteKontrolKalem.findMany({
+        where: { id: { in: ids }, irsaliyeKalemId: { not: null } },
+        select: { id: true, irsaliyeKalemId: true },
+      })
+      const kaynakIds = [...new Set(
+        kayitlar
+          .map((k) => Number(k.irsaliyeKalemId))
+          .filter((n) => Number.isFinite(n) && n > 0),
+      )]
+      if (kaynakIds.length === 0) return { islem: false, gercellenen: [] }
+
+      // Seçili topları aktarıldı işaretle. Daha önce aktarılmış satırlar tekrar
+      // seçilse bile kümülatif toplama dahil kalır.
+      await tx.kaliteKontrolKalem.updateMany({
+        where: { id: { in: kayitlar.map((k) => k.id) } },
+        data: { aktarildi: true, aktarimTarihi: new Date() },
+      })
+
+      const gercellenen: {
+        irsaliyeKalemId: number
+        irsaliyeId: number | null
+        kayitSayisi: number
+        topSayisi: number
+      }[] = []
+
+      for (const irsaliyeKalemId of kaynakIds) {
+        const toplam = await tx.kaliteKontrolKalem.aggregate({
+          where: { irsaliyeKalemId, aktarildi: true },
+          _count: { _all: true },
+          _sum: { netAgirlik: true, netMetre: true, adet: true },
+        })
+        const kaynak = await tx.irsaliyeKalem.findUnique({
+          where: { id: irsaliyeKalemId },
+          select: {
+            id: true,
+            irsaliyeId: true,
+            olcuBirimi: true,
+            brutAgirlik: true,
+            brutMetre: true,
+          },
+        })
+        if (!kaynak) continue
+
+        const data: any = {
+          kkBarkodVar: true,
+          topSayisi: toplam._count._all,
+        }
+        if (toplam._sum.netAgirlik != null) data.netAgirlik = toplam._sum.netAgirlik
+        if (toplam._sum.netMetre != null) data.netMetre = toplam._sum.netMetre
+        if (toplam._sum.adet != null) data.adet = toplam._sum.adet
+
+        // Fire = brüt − net (kaynağın ölçü birimine göre).
+        const birim = String(kaynak.olcuBirimi ?? '').toLowerCase()
+        if (birim === 'brutkg' || birim === 'kg') {
+          data.fire = kaynak.brutAgirlik != null && data.netAgirlik != null && Number(data.netAgirlik) !== 0
+            ? new Prisma.Decimal(kaynak.brutAgirlik).minus(new Prisma.Decimal(data.netAgirlik))
+            : null
+        } else if (birim === 'brutmt' || birim === 'mt') {
+          data.fire = kaynak.brutMetre != null && data.netMetre != null && Number(data.netMetre) !== 0
+            ? new Prisma.Decimal(kaynak.brutMetre).minus(new Prisma.Decimal(data.netMetre))
+            : null
+        } else {
+          data.fire = null
+        }
+
+        await tx.irsaliyeKalem.update({ where: { id: irsaliyeKalemId }, data })
+        gercellenen.push({
+          irsaliyeKalemId,
+          irsaliyeId: kaynak.irsaliyeId,
+          kayitSayisi: toplam._count._all,
+          topSayisi: toplam._count._all,
+        })
+      }
+
+      return { islem: gercellenen.length > 0, gercellenen }
     })
   }
 
@@ -438,15 +526,7 @@ export class KaliteKontrolService {
           data: { irsaliyeId },
         })
 
-        // Kaynak 11 kalemlerinin toplamlarını KK toplamıyla eşitle (eski fişler için).
-        const kaynakKalemIds = [...new Set(
-          fis.kalemler
-            .filter((k) => k.irsaliyeKalemId != null)
-            .map((k) => Number(k.irsaliyeKalemId)),
-        )]
-        for (const irsaliyeKalemId of kaynakKalemIds) {
-          await this.kaynakIrsaliyeKaleminiGuncelle(tx, irsaliyeKalemId)
-        }
+        // Miktar güncellemesi sadece Transfer ile yapılır; stogaAl'da otomatik güncelleme yok.
 
         return tx.irsaliye.findUnique({
           where: { id: irsaliyeId },

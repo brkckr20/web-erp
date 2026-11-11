@@ -96,10 +96,19 @@ export interface Siparis {
 
 export type SiparisFormData = Omit<Siparis, 'id' | 'kalemler' | 'aciklamalar'>
 
+export interface SiparisModelOzet {
+  id: number
+  siparisNo: string
+  tarih: string
+  musteri: string | null
+  miktar: number
+}
+
 export const siparisApi = {
   nextNo: (numaratorId: number) =>
     api.get<{ siparisNo: string }>(`/siparis/next-no?numaratorId=${numaratorId}`),
   list: () => api.get<Siparis[]>('/siparis'),
+  listByModel: (malzemeId: number) => api.get<SiparisModelOzet[]>(`/siparis/model/${malzemeId}`),
   get: (id: number) => api.get<Siparis>(`/siparis/${id}`),
   bySiparisNo: (siparisNo: string) => api.get<Siparis>(`/siparis/by-siparis-no/${encodeURIComponent(siparisNo)}`),
   create: (data: Partial<SiparisFormData> & { kalemler?: SiparisKalem[]; aciklamalar?: SiparisAciklama[] }) =>

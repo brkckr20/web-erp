@@ -32,6 +32,11 @@ export class SiparisController {
     return this.service.findBySiparisNo(siparisNo);
   }
 
+  @Get('model/:malzemeId')
+  findByModel(@Param('malzemeId', ParseIntPipe) malzemeId: number) {
+    return this.service.findByModel(malzemeId);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

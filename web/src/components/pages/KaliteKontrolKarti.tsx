@@ -85,6 +85,9 @@ interface KalemRow {
   isEmriKg: number
   hatalar: { hataKodu: string; hataAdi: string; miktar?: number; aciklama?: string }[]
   stokFisNo?: string | null
+  /** Bu top 11-Fasondan Giriş kalemine aktarıldı mı? */
+  aktarildi: boolean
+  aktarimTarihi?: string | null
 }
 
 interface BekleyenRow {
@@ -124,6 +127,8 @@ const emptyKalem = (): KalemRow => ({
   isEmriId: null,
   isEmriKg: 0,
   hatalar: [],
+  aktarildi: false,
+  aktarimTarihi: null,
 })
 
 const formatTR = (v: number) => {
@@ -270,6 +275,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                 aciklama: h.aciklama ?? undefined,
               })),
               stokFisNo: k.stokFis?.fisNo ?? null,
+              aktarildi: !!k.aktarildi,
+              aktarimTarihi: k.aktarimTarihi ?? null,
             })))
           }
         })
@@ -325,6 +332,16 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
       }
     }
     setKalemler((prev) => [...prev, newRow])
+    let deneme = 0
+    const sec = () => {
+      const node = gridApiRef.current?.getRowNode(newRow.key)
+      if (node) {
+        node.setSelected(true)
+      } else if (deneme++ < 15) {
+        setTimeout(sec, 50)
+      }
+    }
+    sec()
     return newRow
   }
   const handleIsEmriSecimi = async (secimler: { isEmriNo: string; isEmriId: number; malzemeId: number | null; malzemeKod: string; malzemeAd: string; kg: number; mt: number; adet: number }[], gelenIsEmriNo: string) => {
@@ -701,6 +718,33 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
         }
       },
     })
+  }
+
+  /** Kalite Kontrol İşlemi Tamamla: seçili KK barkod satırlarının source (11) kalemlerini KK toplamıyla günceller. */
+  const handleTransfer = async () => {
+    const api = gridApiRef.current
+    const rows = (api?.getSelectedRows() ?? []) as KalemRow[]
+    const hedefler = rows.filter((r) => r.kalemId != null && r.irsaliyeKalemId != null)
+    if (hedefler.length === 0) {
+      message.warning('Aktarılacak KK barkod satırı seçin')
+      return
+    }
+    setAktariliyor(true)
+    try {
+      const res = await kaliteKontrolApi.transfer(hedefler.map((r) => Number(r.kalemId)))
+      const secilenKeys = new Set(hedefler.map((r) => r.key))
+      const simdi = new Date().toISOString()
+      setKalemler((prev) =>
+        prev.map((k) => (secilenKeys.has(k.key) ? { ...k, aktarildi: true, aktarimTarihi: simdi } : k)),
+      )
+      message.success(
+        `Kalite Kontrol İşlemi Tamamlandı: ${res?.gercellenen?.length ?? 0} kaynak 11 fişi miktarı güncellendi`,
+      )
+    } catch (err: any) {
+      message.error('Aktarım sırasında hata: ' + (err?.message || err))
+    } finally {
+      setAktariliyor(false)
+    }
   }
 
   const handleStogaAl = async () => {
@@ -1242,6 +1286,15 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
       ),
     },
     {
+      headerName: '11 Aktarım', field: 'aktarildi', width: 120,
+      cellClass: (p) => p.value ? '!text-[#16a34a] !font-medium' : '!text-[#9ca3af]',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <div className="!h-full !flex !items-center !px-2 !text-[11px]">
+          {p.data.aktarildi ? '✓ Aktarıldı' : '— Aktarılmadı'}
+        </div>
+      ),
+    },
+    {
       headerName: 'Stok', field: 'stokFisNo', width: 140,
       cellClass: (p) => p.value ? '!text-[#16a34a] !font-medium' : '!text-[#9ca3af]',
       cellRenderer: (p: { data: KalemRow }) => (
@@ -1433,7 +1486,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
               </Button>
             </div>
           </div>
-          <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
+          <div style={{ height: '100%', width: '100%' }} className="kalemler-grid">
             <Dropdown
               menu={{
                 items: [
@@ -1456,6 +1509,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                       else message.warning('Önce bir satır seçin')
                     },
                   },
+                  { key: 'transfer', label: 'Kalite Kontrol İşlemi Tamamla', onClick: handleTransfer },
                   { type: 'divider' },
                   { key: 'stogaAl', label: 'Stoğa Al', disabled: !id || !!stokFisId, onClick: handleStogaAl },
                 ],
@@ -1470,7 +1524,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                   theme={antTheme}
                   headerHeight={32}
                   rowHeight={30}
-                  rowSelection={{ mode: 'singleRow', enableClickSelection: true }}
+                  rowSelection={{ mode: 'multiRow' }}
                   getRowId={(p) => p.data.key}
                   localeText={agGridLocaleTR}
                   defaultColDef={{ resizable: true, sortable: true }}

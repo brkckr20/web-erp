@@ -519,6 +519,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }, [baslangicKalemler])
 
   const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
+  // Sanal KK alanları kirli takibine dahil edilmesin (otomatik doldurulur)
+  const kalemlerForKirli = useMemo(() => {
+    return kalemler.map(k => ({ ...k, sanalKg: undefined, sanalMt: undefined, sanalAdet: undefined, sanalTopSayisi: undefined, kkBarkodVar: undefined }))
+  }, [kalemler])
   // Kaydedilmemiş değişiklik: irsaliyeNo readonly, talimatId'yi yalnızca sunucu yazar.
   const { kirli, temizle } = useKirli([
     cariKod,
@@ -532,7 +536,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     yetkili,
     onaylandi,
     tamamlandi,
-    kalemler,
+    kalemlerForKirli,
   ])
 
   useEffect(() => {
@@ -747,11 +751,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
             fire: (k as IrsaliyeKalem).fire != null ? Number((k as IrsaliyeKalem).fire) : null,
             kaliteYapilmayacak: !!(k as IrsaliyeKalem).kaliteYapilmayacak,
             kalemDbId: k.id ?? null,
-            kkBarkodVar: false,
-            sanalKg: Number((k as IrsaliyeKalem).netAgirlik) || 0,
-            sanalMt: Number((k as IrsaliyeKalem).netMetre) || 0,
-            sanalAdet: Number((k as IrsaliyeKalem).adet) || 0,
-            sanalTopSayisi: Number((k as IrsaliyeKalem).topSayisi) || 0,
+            kkBarkodVar: !!(k as IrsaliyeKalem).kkBarkodVar,
+            sanalKg: (k as IrsaliyeKalem).sanalAgirlik != null ? Number((k as IrsaliyeKalem).sanalAgirlik) : Number((k as IrsaliyeKalem).netAgirlik) || 0,
+            sanalMt: (k as IrsaliyeKalem).sanalMetre != null ? Number((k as IrsaliyeKalem).sanalMetre) : Number((k as IrsaliyeKalem).netMetre) || 0,
+            sanalAdet: (k as IrsaliyeKalem).sanalAdet != null ? Number((k as IrsaliyeKalem).sanalAdet) : Number((k as IrsaliyeKalem).adet) || 0,
+            sanalTopSayisi: (k as IrsaliyeKalem).sanalTopSayisi != null ? Number((k as IrsaliyeKalem).sanalTopSayisi) : Number((k as IrsaliyeKalem).topSayisi) || 0,
             tahsis: ((k as IrsaliyeKalem).tahsisler ?? []).map((t) => ({
               siparisKalemId: t.siparisKalemId ?? null,
               siparisNo: t.siparisNo ?? '',
@@ -772,7 +776,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         .finally(() => {
           if (cancelled) return
           setLoading(false)
-          temizle()
+          // State güncellemelerinin uygulanması için bir tick bekle
+          setTimeout(() => temizle(), 0)
         })
     } else {
       irsaliyeApi
@@ -805,17 +810,33 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       .catch(() => setFasonTipleri([]))
   }, [irsaliyeTipi])
 
-  const kkYuklendiRef = useRef<Set<string>>(new Set())
+  const [canliTopSayiMap, setCanliTopSayiMap] = useState<Record<string, number>>({})
+  // Kalemlerin kayıtlı DB id'leri değiştiğinde (satır ekleme/kaydetme) detayları tazele.
+  // Tüm kalemler bağımlılık olursa her tuş vuruşunda yeniden fetch edilir; bu yüzden
+  // yalnızca kalemDbId listesi anahtar olarak kullanılır.
+  const kkKalemKey = useMemo(
+    () => kalemler.map((k) => (k.kalemDbId != null ? `${k.key}:${k.kalemDbId}` : '')).join('|'),
+    [kalemler],
+  )
+  const kalemlerRef = useRef(kalemler)
+  useEffect(() => {
+    kalemlerRef.current = kalemler
+  }, [kalemler])
 
   // 11-Fasondan Giriş: KK barkod detaylarını çekip sanal karşılaştırma alanlarını doldur.
-  // Sadece ilk yüklemede çalışır; kullanıcı girişinden sonraki kalemler değişikliklerinde tekrar çalışmaz.
   useEffect(() => {
     if (irsaliyeTipi !== '11') return
+    let cancelled = false
     const fetchSanal = async () => {
-      for (const k of kalemler) {
-        if (!k.kalemDbId || kkYuklendiRef.current.has(k.key)) continue
+      for (const k of kalemlerRef.current) {
+        if (!k.kalemDbId) continue
+        const sanalMiktarDolu = (k.sanalKg && k.sanalKg > 0) || (k.sanalMt && k.sanalMt > 0) || (k.sanalAdet && k.sanalAdet > 0)
+        const sanalTopSet = k.sanalTopSayisi != null && k.sanalTopSayisi > 0
         try {
           const detaylar = await kaliteKontrolApi.irsaliyeKalemDetay(k.kalemDbId)
+          if (cancelled) return
+          const canliSayi = detaylar.length
+          setCanliTopSayiMap((prev) => (prev[k.key] === canliSayi ? prev : { ...prev, [k.key]: canliSayi }))
           if (detaylar.length > 0) {
             let kg = 0, mt = 0, adet = 0
             for (const d of detaylar) {
@@ -826,16 +847,44 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
               else if (nm > 0) mt += nm
               else adet += na
             }
-            setKalemler((prev) => prev.map((r) => r.key === k.key ? { ...r, kkBarkodVar: true, sanalKg: kg, sanalMt: mt, sanalAdet: adet, sanalTopSayisi: detaylar.length } : r))
+            setKalemler((prev) => {
+              let degisti = false
+              const rows = prev.map((r) => {
+                if (r.key !== k.key) return r
+                const next = { ...r, kkBarkodVar: true }
+                if (!sanalTopSet) next.sanalTopSayisi = canliSayi
+                if (!sanalMiktarDolu) {
+                  next.sanalKg = kg
+                  next.sanalMt = mt
+                  next.sanalAdet = adet
+                }
+                const fark =
+                  r.kkBarkodVar !== next.kkBarkodVar ||
+                  r.sanalTopSayisi !== next.sanalTopSayisi ||
+                  r.sanalKg !== next.sanalKg ||
+                  r.sanalMt !== next.sanalMt ||
+                  r.sanalAdet !== next.sanalAdet
+                if (!fark) return r
+                degisti = true
+                return next
+              })
+              return degisti ? rows : prev
+            })
+          } else {
+            setKalemler((prev) => {
+              const r = prev.find((x) => x.key === k.key)
+              if (!r || r.kkBarkodVar) return prev
+              return prev.map((x) => (x.key === k.key ? { ...x, kkBarkodVar: true } : x))
+            })
           }
-          kkYuklendiRef.current.add(k.key)
         } catch {
-          kkYuklendiRef.current.add(k.key)
+          // Detay alınamazsa kayıtlı topSayisi görünmeye devam eder.
         }
       }
     }
     fetchSanal()
-  }, [irsaliyeTipi, kalemler])
+    return () => { cancelled = true }
+  }, [irsaliyeTipi, id, kkKalemKey])
 
   const hesapMiktariGetir = (k: KalemRow): number => {
     // Kartlardan büyük/küçük harf karışık gelebilir ('Adet' vs 'adet') → normalize et.
@@ -961,6 +1010,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         boyahaneRenkId: k.boyahaneRenkId,
         varyant1RenkId: k.varyant1RenkId,
         kaliteYapilmayacak: k.kaliteYapilmayacak,
+        sanalAgirlik: k.sanalKg ?? null,
+        sanalMetre: k.sanalMt ?? null,
+        sanalAdet: k.sanalAdet ?? null,
+        sanalTopSayisi: k.sanalTopSayisi ?? null,
+        kkBarkodVar: k.kkBarkodVar ?? false,
         prosesler: (k.prosesler ?? []).map((p) => ({ islemId: p.islemId, sira: p.sira })),
         tahsisler: k.tahsis,
       })) as IrsaliyeKalem[]
@@ -1263,14 +1317,23 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           } as ColDef<KalemRow>,
           {
             headerName: 'Top Sayısı', field: 'topSayisi', width: 100, cellClass: '!p-0', type: 'rightAligned',
-            cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => (
-              <TurkishNumberInput
-                value={p.value}
-                onChange={(val) => updateKalem(p.data.key, { topSayisi: Math.round(val) })}
-                onEnter={() => p.node.rowIndex != null && focusNextCell('topSayisi', p.node.rowIndex)}
-                className="!w-full !h-full !text-[12px] kalem-input"
-              />
-            ),
+            cellRenderer: (p: { data: KalemRow; value: number; node: { rowIndex: number | null } }) => {
+              if (irsaliyeTipi === '11') {
+                // Canlı KK sayısı henüz gelmediyse kayıtlı top_sayisi gösterilir.
+                // (Eskiden burada '-' kalıyordu; 3 bağlı barkod varken bile boş görünüyordu.)
+                const canli = canliTopSayiMap[p.data.key]
+                const goster = canli ?? p.data.topSayisi
+                return <div className="!w-full !h-full !flex !items-center !justify-end !text-[12px] !pr-2">{goster ?? '-'}</div>
+              }
+              return (
+                <TurkishNumberInput
+                  value={p.value}
+                  onChange={(val) => updateKalem(p.data.key, { topSayisi: Math.round(val) })}
+                  onEnter={() => p.node.rowIndex != null && focusNextCell('topSayisi', p.node.rowIndex)}
+                  className="!w-full !h-full !text-[12px] kalem-input"
+                />
+              )
+            },
           } as ColDef<KalemRow>,
           {
             // Satıra seçilen prosesler, sıra numarasına göre (sağ tık → Prosesler... ile düzenlenir).

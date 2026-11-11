@@ -14,10 +14,11 @@ export interface StokEkstresiSatir {
   mt: number
   adet: number
   olcuBirimi: string | null
-  birimFiyat: number
+  birimFiyat: number | null
   satirTutari: number
   aciklama: string | null
   cariAd: string | null
+  barkodSayisi: number
   yon: 'Giriş' | 'Çıkış'
   miktar: number
 }

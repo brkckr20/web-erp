@@ -13,7 +13,7 @@ const tire = (v: string | null) => v || '-'
 
 /** Satırın birleşik anahtarı (id'siz). Tıklanan satırın hafızası için. */
 const satirAnahtari = (r: DepoStokDetaySatir) =>
-  [r.depoKod, r.malzemeKod, r.renkKod, r.siparisNo, r.partiNo, r.takipNo].map((v) => v ?? '').join('|')
+  [r.depoKod, r.malzemeKod, r.renkKod, r.siparisNo, r.partiNo].map((v) => v ?? '').join('|')
 
 export default function DepoStokDetay({ onStokEkstresi }: { onStokEkstresi?: (malzemeKod: string, depoKod?: string) => void }) {
   const [satirlar, setSatirlar] = useState<DepoStokDetaySatir[]>([])
@@ -41,7 +41,7 @@ export default function DepoStokDetay({ onStokEkstresi }: { onStokEkstresi?: (ma
   }, [])
 
   const filtrelenmis = useMemo(() => {
-    let rows = satirlar.filter((r) => Math.abs(r.brutKg) > 0.0001 || Math.abs(r.kg) > 0.0001 || Math.abs(r.brutMt) > 0.0001 || Math.abs(r.mt) > 0.0001 || Math.abs(r.adet) > 0.0001)
+    let rows = satirlar.filter((r) => Math.abs(r.kg) > 0.0001 || Math.abs(r.mt) > 0.0001 || Math.abs(r.adet) > 0.0001)
     if (depoFiltre.length > 0) rows = rows.filter((r) => depoFiltre.includes(r.depoKod))
     const q = arama.trim().toLowerCase()
     if (q) {
@@ -54,8 +54,7 @@ export default function DepoStokDetay({ onStokEkstresi }: { onStokEkstresi?: (ma
           (r.renkKod ?? '').toLowerCase().includes(q) ||
           (r.renkAd ?? '').toLowerCase().includes(q) ||
           (r.siparisNo ?? '').toLowerCase().includes(q) ||
-          (r.partiNo ?? '').toLowerCase().includes(q) ||
-          (r.takipNo ?? '').toLowerCase().includes(q),
+          (r.partiNo ?? '').toLowerCase().includes(q),
       )
     }
     return rows
@@ -74,9 +73,7 @@ export default function DepoStokDetay({ onStokEkstresi }: { onStokEkstresi?: (ma
   const columns = useMemo<ColDef<DepoStokDetaySatir>[]>(() => {
     const aktif = (f: keyof DepoStokDetaySatir) => satirlar.some((s) => Math.abs((s[f] as number) ?? 0) > 0.0001)
     const dinamik: ColDef<DepoStokDetaySatir>[] = []
-    if (aktif('brutKg')) dinamik.push(miktarCol('brutKg', 'Brüt KG'))
     if (aktif('kg')) dinamik.push(miktarCol('kg', 'KG'))
-    if (aktif('brutMt')) dinamik.push(miktarCol('brutMt', 'Brüt MT'))
     if (aktif('mt')) dinamik.push(miktarCol('mt', 'MT'))
     if (aktif('adet')) dinamik.push(miktarCol('adet', 'Adet'))
 
@@ -89,7 +86,6 @@ export default function DepoStokDetay({ onStokEkstresi }: { onStokEkstresi?: (ma
       { headerName: 'Renk Adı', field: 'renkAd', width: 150, resizable: true, valueFormatter: (p) => tire(p.value as string | null) },
       { headerName: 'Sipariş No', field: 'siparisNo', width: 110, resizable: true, valueFormatter: (p) => tire(p.value as string | null) },
       { headerName: 'Parti No', field: 'partiNo', width: 110, resizable: true, valueFormatter: (p) => tire(p.value as string | null) },
-      { headerName: 'Takip No', field: 'takipNo', width: 110, resizable: true, valueFormatter: (p) => tire(p.value as string | null) },
       ...dinamik,
     ]
   }, [satirlar])
@@ -138,8 +134,10 @@ export default function DepoStokDetay({ onStokEkstresi }: { onStokEkstresi?: (ma
               loading={loading}
               rowData={filtrelenmis}
               columnDefs={columns}
+              storageKey="depoStokDetay"
               domLayout="normal"
               exportFileName="depo-stok-detay"
+              rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true }}
               onCellClicked={(e) => {
                 const a = e.data ? satirAnahtari(e.data) : null
                 setTiklananSatir((prev) => (prev === a ? null : a))

@@ -15,6 +15,9 @@ export interface KaliteKontrolKalem {
   netAgirlik: number | null
   netMetre: number | null
   adet: number | null
+  /** Bu top 11-Fasondan Giriş kalemine aktarıldı mı? */
+  aktarildi?: boolean
+  aktarimTarihi?: string | null
 }
 
 export interface KaliteKontrol {
@@ -109,6 +112,7 @@ export const kaliteKontrolApi = {
   remove: (id: number) => api.delete<void>(`/kalite-kontrol/${id}`),
   stogaAl: (id: number) => api.post<any>(`/kalite-kontrol/${id}/stoga-al`, {}),
   stogaAlinmamis: () => api.get<any[]>(`/kalite-kontrol/stoga-alinmamis`),
+  transfer: (kalemIds: number[]) => api.post<any>('/kalite-kontrol/transfer', { kalemIds }),
 
   // Hata
   getHatalar: (kalemId: number) =>

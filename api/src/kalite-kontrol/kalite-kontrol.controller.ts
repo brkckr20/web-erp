@@ -56,6 +56,11 @@ export class KaliteKontrolController {
     return this.service.stogaAl(id)
   }
 
+  @Post('transfer')
+  transfer(@Body() dto: { kalemIds?: number[] }) {
+    return this.service.transferIrsaliyeler(dto?.kalemIds ?? [])
+  }
+
   // Hata endpoints
   @Get('kalem/:kalemId/hata')
   getHatalar(@Param('kalemId', ParseIntPipe) kalemId: number) {

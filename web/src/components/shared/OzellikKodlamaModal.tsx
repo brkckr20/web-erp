@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Input, Modal, Table, Button, App } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Input, Modal, Button, App } from 'antd'
+import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons'
+import type { ColDef } from 'ag-grid-community'
+import DataGrid from '@/components/shared/DataGrid'
 import { ozellikKodlamaApi, type OzellikKodlama } from '@/lib/ozellik-kodlama-api'
 
 interface OzellikKodlamaModalProps {
@@ -25,6 +26,10 @@ export default function OzellikKodlamaModal({
   const [data, setData] = useState<OzellikKodlama[]>([])
   const [loading, setLoading] = useState(false)
   const [newAd, setNewAd] = useState('')
+  const [arama, setArama] = useState('')
+  const [editRecord, setEditRecord] = useState<OzellikKodlama | null>(null)
+  const [editAd, setEditAd] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -40,9 +45,16 @@ export default function OzellikKodlamaModal({
 
   useEffect(() => {
     if (open) {
+      setArama('')
       loadData()
     }
   }, [open, loadData])
+
+  const filtered = useMemo(() => {
+    const q = arama.trim().toLowerCase()
+    const list = q ? data.filter((d) => d.ad.toLowerCase().includes(q)) : data
+    return [...list].sort((a, b) => a.ad.localeCompare(b.ad, 'tr'))
+  }, [data, arama])
 
   const handleAdd = async () => {
     const trimmed = newAd.trim()
@@ -73,36 +85,71 @@ export default function OzellikKodlamaModal({
     }
   }
 
+  const handleEditStart = (record: OzellikKodlama) => {
+    setEditRecord(record)
+    setEditAd(record.ad)
+  }
+
+  const handleEditSave = async () => {
+    if (!editRecord) return
+    const trimmed = editAd.trim()
+    if (!trimmed) {
+      message.warning('Ad alanı zorunludur')
+      return
+    }
+    if (trimmed === editRecord.ad) {
+      setEditRecord(null)
+      return
+    }
+    setEditSaving(true)
+    try {
+      const updated = await ozellikKodlamaApi.update(editRecord.id, { ad: trimmed })
+      setData((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      if (value === updated.id) onChange?.(updated.id, updated)
+      setEditRecord(null)
+      message.success('Güncellendi')
+    } catch {
+      message.error('Güncellenemedi')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   const handleSelect = (record: OzellikKodlama) => {
     onChange?.(record.id, record)
     onClose?.()
   }
 
-  const columns: ColumnsType<OzellikKodlama> = [
-    {
-      title: 'Ad',
-      dataIndex: 'ad',
-      key: 'ad',
-      render: (text) => <span className="!text-[11px]">{text}</span>,
-    },
-    {
-      title: '',
-      key: 'actions',
-      width: 40,
-      render: (_, record) => (
-        <Button
-          type="text"
-          danger
-          size="small"
-          icon={<DeleteOutlined style={{ fontSize: 12 }} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleDelete(record.id)
-          }}
-        />
-      ),
-    },
-  ]
+  const columns = useMemo<ColDef<OzellikKodlama>[]>(
+    () => [
+      { headerName: 'Ad', field: 'ad', flex: 1, minWidth: 160, filter: 'agTextColumnFilter' },
+      {
+        headerName: '',
+        colId: 'islem',
+        width: 76,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        cellRenderer: (p: { data?: OzellikKodlama }) =>
+          p.data ? (
+            <div className="!flex !items-center !gap-2">
+              <EditOutlined
+                style={{ fontSize: 12, color: '#6b7280', cursor: 'pointer' }}
+                title="Düzenle"
+                onClick={() => handleEditStart(p.data!)}
+              />
+              <DeleteOutlined
+                style={{ fontSize: 12, color: '#ff4d4f', cursor: 'pointer' }}
+                title="Sil"
+                onClick={() => handleDelete(p.data!.id)}
+              />
+            </div>
+          ) : null,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [value],
+  )
 
   return (
     <Modal
@@ -110,9 +157,9 @@ export default function OzellikKodlamaModal({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={400}
+      width={600}
     >
-      <div className="!flex !gap-2 !mb-3">
+      <div className="!flex !gap-2 !mb-2">
         <Input
           size="small"
           placeholder="Ad"
@@ -131,19 +178,59 @@ export default function OzellikKodlamaModal({
           Ekle
         </Button>
       </div>
-      <Table
-        columns={columns}
-        dataSource={data}
-        rowKey="id"
-        size="small"
-        pagination={false}
+      <div className="!mb-2">
+        <Input
+          size="small"
+          allowClear
+          placeholder="Ara..."
+          prefix={<SearchOutlined style={{ fontSize: 12, color: '#9ca3af' }} />}
+          value={arama}
+          onChange={(e) => setArama(e.target.value)}
+          className="!text-[11px]"
+        />
+      </div>
+      <DataGrid
+        rowData={filtered}
+        columnDefs={columns}
         loading={loading}
-        onRow={(record) => ({
-          onDoubleClick: () => handleSelect(record),
-          className: `!cursor-pointer ${record.id === value ? '!bg-blue-50' : ''}`,
-        })}
-        className="[&_.ant-table-thead>tr>th]:!text-[10px] [&_.ant-table-thead>tr>th]:!text-[#6b7280] [&_.ant-table-tbody>tr>td]:!text-[11px] [&_.ant-table-tbody>tr>td]:!py-1.5"
+        height={300}
+        headerHeight={28}
+        rowHeight={28}
+        exportFileName={`ozellik-${kategori}`}
+        enableExcelExport={false}
+        enableColumnChooser={false}
+        rowSelection="single"
+        getRowId={(p) => String(p.data.id)}
+        onRowDoubleClicked={(e) => {
+          const target = e.event?.target as HTMLElement | null
+          if (target?.closest('[col-id="islem"]')) return
+          if (e.data) handleSelect(e.data)
+        }}
       />
+      <div className="!text-[10px] !text-gray-400 !mt-1">
+        Çift tıklayarak seçin; kalem ikonuyla düzenleyin.
+      </div>
+
+      <Modal
+        title={<span className="!text-[11px] !font-semibold">Özellik Düzenle</span>}
+        open={!!editRecord}
+        onCancel={() => setEditRecord(null)}
+        onOk={handleEditSave}
+        confirmLoading={editSaving}
+        okText="Kaydet"
+        cancelText="İptal"
+        width={360}
+        okButtonProps={{ size: 'small', className: '!text-[11px]' }}
+        cancelButtonProps={{ size: 'small', className: '!text-[11px]' }}
+      >
+        <Input
+          size="small"
+          value={editAd}
+          onChange={(e) => setEditAd(e.target.value)}
+          onPressEnter={handleEditSave}
+          className="!text-[11px]"
+        />
+      </Modal>
     </Modal>
   )
 }
