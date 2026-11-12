@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateModelBedenDto } from './dto/create-model-beden.dto'
+import { SiralamaModelBedenDto } from './dto/siralama-model-beden.dto'
 
 @Injectable()
 export class ModelBedenService {
@@ -10,7 +11,7 @@ export class ModelBedenService {
     return this.prisma.malzemeBeden.findMany({
       where: { malzemeId },
       include: { beden: true },
-      orderBy: { beden: { sira: 'asc' } },
+      orderBy: [{ sira: 'asc' }, { id: 'asc' }],
     })
   }
 
@@ -36,10 +37,35 @@ export class ModelBedenService {
       where: { malzemeId_bedenId: { malzemeId: dto.malzemeId, bedenId: dto.bedenId } },
     })
     if (exists) return exists
+    const son = await this.prisma.malzemeBeden.findFirst({
+      where: { malzemeId: dto.malzemeId },
+      orderBy: { sira: 'desc' },
+      select: { sira: true },
+    })
     return this.prisma.malzemeBeden.create({
-      data: { malzemeId: dto.malzemeId, bedenId: dto.bedenId },
+      data: { malzemeId: dto.malzemeId, bedenId: dto.bedenId, sira: (son?.sira ?? 0) + 1 },
       include: { beden: true },
     })
+  }
+
+  async sirala(dto: SiralamaModelBedenDto) {
+    const mevcut = await this.prisma.malzemeBeden.findMany({
+      where: { malzemeId: dto.malzemeId },
+      select: { bedenId: true },
+    })
+    const mevcutSet = new Set(mevcut.map((m) => m.bedenId))
+    if (dto.bedenIds.length !== mevcutSet.size || dto.bedenIds.some((id) => !mevcutSet.has(id))) {
+      throw new BadRequestException('Beden listesi modele ait güncel bedenlerle eşleşmiyor')
+    }
+    await this.prisma.$transaction(
+      dto.bedenIds.map((bedenId, i) =>
+        this.prisma.malzemeBeden.update({
+          where: { malzemeId_bedenId: { malzemeId: dto.malzemeId, bedenId } },
+          data: { sira: i + 1 },
+        }),
+      ),
+    )
+    return this.findByMalzeme(dto.malzemeId)
   }
 
   async remove(malzemeId: number, bedenId: number) {

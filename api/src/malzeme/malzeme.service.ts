@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateMalzemeDto } from './dto/create-malzeme.dto'
 import { UpdateMalzemeDto } from './dto/update-malzeme.dto'
+import { KopyalaMalzemeDto } from './dto/kopyala-malzeme.dto'
 
 @Injectable()
 export class MalzemeService {
@@ -113,6 +114,78 @@ export class MalzemeService {
     const data = this.prepareData(dto as any)
     await this.ureticiKoduKontrol(data.ureticiFirmaKodu)
     return this.prisma.malzeme.update({ where: { id }, data })
+  }
+
+  /** Modeli reçete/ölçü, beden ve kumaş gruplarıyla birlikte yeni kod/ad ile kopyalar. */
+  async kopyala(id: number, dto: KopyalaMalzemeDto) {
+    const kaynak = await this.prisma.malzeme.findUnique({ where: { id } })
+    if (!kaynak) throw new NotFoundException('Model bulunamadı')
+
+    const kod = (dto.kod ?? '').trim()
+    const ad = (dto.ad ?? '').trim()
+    if (!kod || !ad) throw new BadRequestException('Kod ve ad zorunludur')
+
+    const mevcut = await this.prisma.malzeme.findUnique({ where: { kod } })
+    if (mevcut) throw new BadRequestException(`Bu kod zaten kullanılıyor: ${kod}`)
+
+    return this.prisma.$transaction(async (tx) => {
+      const data: any = { ...kaynak }
+      delete data.id
+      delete data.createdAt
+      delete data.updatedAt
+      data.kod = kod
+      data.ad = ad
+      data.kullanimda = true
+
+      const yeni = await tx.malzeme.create({ data })
+
+      const bedenler = await tx.malzemeBeden.findMany({
+        where: { malzemeId: id },
+        orderBy: [{ sira: 'asc' }, { id: 'asc' }],
+      })
+      if (bedenler.length > 0) {
+        await tx.malzemeBeden.createMany({
+          data: bedenler.map((b) => ({ malzemeId: yeni.id, bedenId: b.bedenId, sira: b.sira })),
+        })
+      }
+
+      const kumasGruplari = await tx.malzemeKumasGrup.findMany({ where: { malzemeId: id } })
+      if (kumasGruplari.length > 0) {
+        await tx.malzemeKumasGrup.createMany({
+          data: kumasGruplari.map((g) => ({ malzemeId: yeni.id, kumasGrupId: g.kumasGrupId })),
+        })
+      }
+
+      const recete = await tx.modelRecete.findFirst({
+        where: { malzemeId: id },
+        include: { kalemler: { include: { olculer: true } } },
+      })
+      if (recete) {
+        const yeniRecete = await tx.modelRecete.create({
+          data: { malzemeId: yeni.id, aciklama: recete.aciklama },
+        })
+        for (const kalem of recete.kalemler) {
+          const kalemData: any = { ...kalem }
+          delete kalemData.id
+          delete kalemData.receteId
+          delete kalemData.createdAt
+          delete kalemData.updatedAt
+          delete kalemData.olculer
+          const olculer = kalem.olculer.map((o) => ({
+            bedenId: o.bedenId,
+            metraj: o.metraj,
+            en: o.en,
+            boy: o.boy,
+            miktar: o.miktar,
+          }))
+          await tx.receteKalem.create({
+            data: { ...kalemData, receteId: yeniRecete.id, olculer: { create: olculer } },
+          })
+        }
+      }
+
+      return yeni
+    }, { timeout: 30000 })
   }
 
   async remove(id: number) {

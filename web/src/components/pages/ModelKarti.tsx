@@ -6,7 +6,7 @@ import type { MenuProps } from 'antd'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi } from 'ag-grid-community'
-import { PlusOutlined, DeleteOutlined, UploadOutlined, DownloadOutlined, SettingOutlined, UpOutlined, DownOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, UploadOutlined, DownloadOutlined, SettingOutlined, UpOutlined, DownOutlined, CopyOutlined, HolderOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
@@ -29,9 +29,7 @@ import { modelKumasGrupApi, type ModelKumasGrup } from '@/lib/model-kumas-grup-a
 import { gtipApi } from '@/lib/gtip-api'
 import { malzemeEkApi } from '@/lib/malzeme-ek-api'
 import type { MalzemeEk } from '@/lib/malzeme-ek-api'
-import { malzemeFiyatApi, type MalzemeFiyat, type UpdateMalzemeFiyat } from '@/lib/malzeme-fiyat-api'
 import { siparisApi, type SiparisModelOzet } from '@/lib/siparis-api'
-import { dovizApi, type Doviz } from '@/lib/doviz-api'
 import { useAuth } from '@/context/AuthContext'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
@@ -42,10 +40,12 @@ ModuleRegistry.registerModules([AllCommunityModule])
 interface ModelKartiProps {
   isNew?: boolean
   kod?: string
+  onOpenSiparis?: (id: number, siparisNo: string) => void
+  onKopyalandi?: (kod: string) => void
 }
 
-/** Kolon durumu saklanan grid'ler (reçete alt tabloları + fiyat geçmişi). */
-type KolonGrid = 'kumas' | 'iplik' | 'aksesuar' | 'fiyat'
+/** Kolon durumu saklanan grid'ler (reçete alt tabloları). */
+type KolonGrid = 'kumas' | 'iplik' | 'aksesuar'
 
 const tabClass =
   '!px-3 !pt-2 !flex-1 !flex !flex-col !min-h-0 ' +
@@ -152,13 +152,15 @@ function createEmptyKumasKalem(): KumasRow {
   }
 }
 
-export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
+export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: ModelKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
   const [model, setModel] = useState<Malzeme | null>(null)
   const [recete, setRecete] = useState<ModelRecete | null>(null)
   const [bedenler, setBedenler] = useState<ModelBeden[]>([])
+  const [dragBedenId, setDragBedenId] = useState<number | null>(null)
+  const [dragOverBedenId, setDragOverBedenId] = useState<number | null>(null)
   const [kumasGruplari, setKumasGruplari] = useState<ModelKumasGrup[]>([])
   const [kumasKalemler, setKumasKalemler] = useState<KumasRow[]>([])
   const [iplikKalemler, setIplikKalemler] = useState<IplikRow[]>([])
@@ -168,7 +170,6 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   const kumasGridApiRef = useRef<GridApi | null>(null)
   const iplikGridApiRef = useRef<GridApi | null>(null)
   const aksesuarGridApiRef = useRef<GridApi | null>(null)
-  const fiyatGridApiRef = useRef<GridApi | null>(null)
   const [bedenModalVisible, setBedenModalVisible] = useState(false)
   const [bedenModalRowKey, setBedenModalRowKey] = useState<string | null>(null)
   const [bedenModalValues, setBedenModalValues] = useState<Record<number, string>>({})
@@ -176,13 +177,15 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   const [gtipAd, setGtipAd] = useState<string | null>(null)
   const [dosyalar, setDosyalar] = useState<File[]>([])
   const [ekList, setEkList] = useState<MalzemeEk[]>([])
-  const [fiyatlar, setFiyatlar] = useState<MalzemeFiyat[]>([])
   const [orderRows, setOrderRows] = useState<SiparisModelOzet[]>([])
   const [orderLoading, setOrderLoading] = useState(false)
-  const [dovizList, setDovizList] = useState<{ value: string; label: string }[]>([])
   const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [raporModalAcik, setRaporModalAcik] = useState(false)
+  const [kopyaModalAcik, setKopyaModalAcik] = useState(false)
+  const [kopyaKod, setKopyaKod] = useState('')
+  const [kopyaAd, setKopyaAd] = useState('')
+  const [kopyaLoading, setKopyaLoading] = useState(false)
 
   const handleDosyaSec = () => fileInputRef.current?.click()
 
@@ -284,12 +287,6 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   }, [kumasKalemler])
 
   useEffect(() => {
-    dovizApi.list().then((list) =>
-      setDovizList(list.filter((d) => d.kullanimda).map((d) => ({ value: d.kod, label: d.kod }))),
-    ).catch(() => {})
-  }, [])
-
-  useEffect(() => {
     if (!model?.id) {
       setOrderRows([])
       return
@@ -366,8 +363,6 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       }
       setDosyalar([])
       setSelectedDosya(ekData.length > 0 ? { type: 'existing', ek: ekData[0] } : null)
-      const fiyatData = await malzemeFiyatApi.list(malzeme.id).catch(() => [])
-      setFiyatlar(fiyatData)
     } catch (err) {
       console.error('Model yüklenirken hata:', err)
       message.warning(err instanceof Error ? err.message : 'Kod bulunamadı')
@@ -727,6 +722,41 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     report: { disabled: !model?.kod },
   })
 
+  const kopyaMenuItems: MenuProps['items'] = [
+    {
+      key: 'kopyala',
+      label: 'Kopyala',
+      icon: <CopyOutlined />,
+      disabled: !model?.id,
+      onClick: () => {
+        setKopyaKod('')
+        setKopyaAd(model?.ad ? `${model.ad} (Kopya)` : '')
+        setKopyaModalAcik(true)
+      },
+    },
+  ]
+
+  const handleKopyala = async () => {
+    if (!model?.id) return
+    const kod = kopyaKod.trim()
+    const ad = kopyaAd.trim()
+    if (!kod || !ad) {
+      message.warning('Kod ve ad zorunludur')
+      return
+    }
+    setKopyaLoading(true)
+    try {
+      const yeni = await malzemeApi.kopyala(model.id, { kod, ad })
+      message.success('Model kopyalandı')
+      setKopyaModalAcik(false)
+      onKopyalandi?.(yeni.kod)
+    } catch (err: unknown) {
+      message.error(extractApiMessage(err, 'Kopyalama sırasında hata oluştu'))
+    } finally {
+      setKopyaLoading(false)
+    }
+  }
+
   const [kolonPopoverOpen, setKolonPopoverOpen] = useState(false)
 
   const exportCsv = (api: GridApi | null, ad: string) => {
@@ -744,8 +774,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
   const getGridApi = (grid: KolonGrid): GridApi | null => {
     if (grid === 'kumas') return kumasGridApiRef.current
     if (grid === 'iplik') return iplikGridApiRef.current
-    if (grid === 'aksesuar') return aksesuarGridApiRef.current
-    return fiyatGridApiRef.current
+    return aksesuarGridApiRef.current
   }
 
   // Kayıtlı kolon durumunu (gizlilik/genişlik/sıra/sıralama) grid'e uygular.
@@ -798,25 +827,47 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: () => saveKolonlar(grid) },
   ]
 
-  const bedenYukari = (id: number) => {
-    setBedenler((prev) => {
-      const idx = prev.findIndex((b) => b.id === id)
-      if (idx <= 0) return prev
-      const next = [...prev]
-      const [item] = next.splice(idx, 1)
-      next.splice(idx - 1, 0, item)
-      return next
-    })
+  // Sıra model bazlıdır; kayıtlı modelde sunucuya yazılır, sipariş kartı beden kolonları bu sırayı izler.
+  const bedenSiraKaydet = async (next: ModelBeden[], onceki: ModelBeden[]) => {
+    setBedenler(next)
+    if (!model?.id) return
+    try {
+      const kayitli = await modelBedenApi.sirala(model.id, next.map((b) => b.bedenId))
+      if (kayitli) setBedenler(kayitli)
+    } catch (err: unknown) {
+      setBedenler(onceki)
+      message.error(err instanceof Error ? err.message : 'Beden sırası kaydedilemedi')
+    }
   }
-  const bedenAsagi = (id: number) => {
-    setBedenler((prev) => {
-      const idx = prev.findIndex((b) => b.id === id)
-      if (idx < 0 || idx >= prev.length - 1) return prev
-      const next = [...prev]
-      const [item] = next.splice(idx, 1)
-      next.splice(idx + 1, 0, item)
-      return next
-    })
+
+  const bedenTasi = (id: number, yon: -1 | 1) => {
+    const idx = bedenler.findIndex((b) => b.id === id)
+    const hedef = idx + yon
+    if (idx < 0 || hedef < 0 || hedef >= bedenler.length) return
+    const onceki = bedenler
+    const next = [...bedenler]
+    const [item] = next.splice(idx, 1)
+    next.splice(hedef, 0, item)
+    void bedenSiraKaydet(next, onceki)
+  }
+  const bedenYukari = (id: number) => bedenTasi(id, -1)
+  const bedenAsagi = (id: number) => bedenTasi(id, 1)
+
+  const bedenBirak = (hedefId: number, ustune: boolean) => {
+    const kaynakId = dragBedenId
+    setDragBedenId(null)
+    setDragOverBedenId(null)
+    if (kaynakId == null || kaynakId === hedefId) return
+    const kaynak = bedenler.findIndex((b) => b.id === kaynakId)
+    if (kaynak < 0) return
+    const onceki = bedenler
+    const next = [...bedenler]
+    const [item] = next.splice(kaynak, 1)
+    let hedef = next.findIndex((b) => b.id === hedefId)
+    if (hedef < 0) return
+    if (!ustune) hedef += 1
+    next.splice(hedef, 0, item)
+    void bedenSiraKaydet(next, onceki)
   }
 
   const kolonContent = (api: GridApi | null, grid?: KolonGrid) => {
@@ -902,7 +953,8 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           <SearchableCariSelect
             value={model?.ureticiFirmaKodu ?? undefined}
             onChange={(kod) => set('ureticiFirmaKodu', kod)}
-            widthClass="!w-[100px]"
+            className="!flex-1 !min-w-0"
+            widthClass="!w-[100px] !shrink-0"
           />
         </FormField>
         <FormField label="Müşteri Model No">
@@ -971,8 +1023,37 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
             <div className="!text-[11px] !text-gray-400 !p-2">Henüz beden eklenmemiş</div>
           )}
           {bedenler.map((b) => (
-            <div key={b.id} className="!flex !items-center !justify-between !px-2 !py-1 hover:!bg-gray-50">
-              <span className="!text-[11px] !text-[#333]">{b.beden.kod}</span>
+            <div
+              key={b.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move'
+                setDragBedenId(b.id)
+              }}
+              onDragEnd={() => {
+                setDragBedenId(null)
+                setDragOverBedenId(null)
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (dragBedenId != null && dragBedenId !== b.id) setDragOverBedenId(b.id)
+              }}
+              onDragLeave={() => setDragOverBedenId((prev) => (prev === b.id ? null : prev))}
+              onDrop={(e) => {
+                e.preventDefault()
+                const rect = e.currentTarget.getBoundingClientRect()
+                bedenBirak(b.id, e.clientY < rect.top + rect.height / 2)
+              }}
+              className={`!flex !items-center !justify-between !px-2 !py-1 !select-none hover:!bg-gray-50 !border-t-2 ${
+                dragBedenId === b.id ? '!opacity-40' : ''
+              } ${
+                dragBedenId !== b.id && dragOverBedenId === b.id ? '!border-[#FF9933] !bg-[#FFF4E0]' : '!border-transparent'
+              }`}
+            >
+              <span className="!flex !items-center !gap-1 !text-[11px] !text-[#333]">
+                <HolderOutlined className="!text-[#9ca3af] !cursor-grab" />
+                {b.beden.kod}
+              </span>
               <div className="!flex !items-center !gap-1">
                 <button type="button" className="!text-[11px] !text-[#9ca3af] hover:!text-[#333]" onClick={() => bedenYukari(b.id)} title="Yukarı taşı"><UpOutlined /></button>
                 <button type="button" className="!text-[11px] !text-[#9ca3af] hover:!text-[#333]" onClick={() => bedenAsagi(b.id)} title="Aşağı taşı"><DownOutlined /></button>
@@ -1505,7 +1586,6 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           { key: 'kumas', label: 'Kumaş', children: kumasContent },
           { key: 'iplik', label: 'İplik', children: iplikContent },
           { key: 'aksesuar', label: 'Aksesuar', children: aksesuarContent },
-          { key: 'susleme', label: 'Süsleme', children: null },
         ]}
       />
     </div>
@@ -1533,8 +1613,16 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
     [],
   )
 
+  const orderToplamMiktar = useMemo(
+    () => orderRows.reduce((a, r) => a + (Number(r.miktar) || 0), 0),
+    [orderRows],
+  )
+
   const orderContent = (
     <div className="!p-3">
+      <div className="!flex !justify-end !mb-1">
+        <span className="!text-[10px] !text-gray-400">Satıra çift tıklayarak siparişi açabilirsiniz</span>
+      </div>
       <div style={{ height: 'calc(100vh - 280px)', minHeight: 240, width: '100%' }}>
         <AgGridReact
           rowData={orderRows}
@@ -1545,226 +1633,14 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
           rowHeight={30}
           loading={orderLoading}
           getRowId={(p) => String(p.data.id)}
-          defaultColDef={{ resizable: true, sortable: true }}
+          defaultColDef={{ resizable: true, sortable: true, filter: true }}
+          pinnedBottomRowData={[
+            { id: 0, siparisNo: `Toplam (${orderRows.length})`, tarih: '', musteri: null, miktar: orderToplamMiktar },
+          ]}
+          onRowDoubleClicked={(e) => {
+            if (e.data) onOpenSiparis?.(e.data.id, e.data.siparisNo)
+          }}
         />
-      </div>
-    </div>
-  )
-
-  const fiyatColumns = useMemo<ColDef<MalzemeFiyat>[]>(
-    () => [
-      { headerName: 'Kodu', field: 'kod', width: 100, cellClass: '!p-0',
-        cellRenderer: (p: { data: MalzemeFiyat }) => {
-          const [v, setV] = useState(p.data.kod ?? '')
-          return (
-            <Input
-              size="small"
-              value={v}
-              onChange={(e) => setV(e.target.value)}
-              variant="borderless"
-              className="!w-full !h-full !text-[12px]"
-              onBlur={() => {
-                if (v !== (p.data.kod ?? '')) updateFiyat(p.data.id, { kod: v || undefined })
-              }}
-            />
-          )
-        },
-      },
-      { headerName: 'Açıklama', field: 'aciklama', width: 140, cellClass: '!p-0',
-        cellRenderer: (p: { data: MalzemeFiyat }) => {
-          const [v, setV] = useState(p.data.aciklama ?? '')
-          return (
-            <Input
-              size="small"
-              value={v}
-              onChange={(e) => setV(e.target.value)}
-              variant="borderless"
-              className="!w-full !h-full !text-[12px]"
-              onBlur={() => {
-                if (v !== (p.data.aciklama ?? '')) updateFiyat(p.data.id, { aciklama: v || undefined })
-              }}
-            />
-          )
-        },
-      },
-      { headerName: 'Döviz Cinsi', field: 'dovizCinsi', width: 100, cellClass: '!p-0',
-        cellRenderer: (p: { data: MalzemeFiyat }) => (
-          <Select
-            size="small"
-            value={p.data.dovizCinsi || undefined}
-            onChange={(val) => updateFiyat(p.data.id, { dovizCinsi: val })}
-            variant="borderless"
-            className="!w-full !h-full !text-[12px]"
-            popupMatchSelectWidth={false}
-            options={dovizList}
-          />
-        ),
-      },
-      { headerName: 'Fiyat', field: 'fiyat', width: 100, cellClass: '!p-0',
-        cellRenderer: (p: { data: MalzemeFiyat }) => {
-          const [v, setV] = useState(p.data.fiyat ?? '')
-          return (
-            <Input
-              size="small"
-              type="number"
-              value={v}
-              onChange={(e) => setV(e.target.value)}
-              variant="borderless"
-              className="!w-full !h-full !text-[12px]"
-              onBlur={() => {
-                const n = v ? Number(v) : null
-                if (n !== p.data.fiyat) updateFiyat(p.data.id, { fiyat: n ?? undefined })
-              }}
-            />
-          )
-        },
-      },
-      { headerName: 'Döviz Kuru', field: 'dovizKuru', width: 100, cellClass: '!p-0',
-        cellRenderer: (p: { data: MalzemeFiyat }) => {
-          const [v, setV] = useState(p.data.dovizKuru ?? '')
-          return (
-            <Input
-              size="small"
-              type="number"
-              value={v}
-              onChange={(e) => setV(e.target.value)}
-              variant="borderless"
-              className="!w-full !h-full !text-[12px]"
-              onBlur={() => {
-                const n = v ? Number(v) : null
-                if (n !== p.data.dovizKuru) updateFiyat(p.data.id, { dovizKuru: n ?? undefined })
-              }}
-            />
-          )
-        },
-      },
-      { headerName: 'Başlangıç', field: 'baslangic', width: 110, cellClass: '!p-0',
-        cellRenderer: (p: { data: MalzemeFiyat }) => (
-          <input
-            type="date"
-            value={p.data.baslangic ? p.data.baslangic.split('T')[0] : ''}
-            onChange={(e) => {
-              const val = e.target.value || null
-              updateFiyat(p.data.id, { baslangic: val ?? undefined })
-            }}
-            className="!w-full !h-full !text-[12px] !border-0 !bg-transparent !px-1 !outline-none"
-          />
-        ),
-      },
-      { headerName: 'Bitiş', field: 'bitis', width: 110, cellClass: '!p-0',
-        cellRenderer: (p: { data: MalzemeFiyat }) => (
-          <input
-            type="date"
-            value={p.data.bitis ? p.data.bitis.split('T')[0] : ''}
-            onChange={(e) => {
-              const val = e.target.value || null
-              updateFiyat(p.data.id, { bitis: val ?? undefined })
-            }}
-            className="!w-full !h-full !text-[12px] !border-0 !bg-transparent !px-1 !outline-none"
-          />
-        ),
-      },
-      { headerName: 'Kullanımda', field: 'kullanimda', width: 90, cellClass: '!p-0 !flex !items-center !justify-center',
-        cellRenderer: (p: { data: MalzemeFiyat }) => (
-          <Switch
-            size="small"
-            checked={!!p.data.kullanimda}
-            onChange={(checked) => updateFiyat(p.data.id, { kullanimda: checked })}
-          />
-        ),
-      },
-      {
-        headerName: '', width: 50, cellClass: '!p-0 !flex !items-center !justify-center',
-        cellRenderer: (p: { data: MalzemeFiyat }) => (
-          <Button
-            size="small"
-            type="text"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => deleteFiyat(p.data.id)}
-          />
-        ),
-      },
-    ],
-    [dovizList],
-  )
-
-  const updateFiyat = async (id: number, dto: UpdateMalzemeFiyat) => {
-    try {
-      await malzemeFiyatApi.update(id, dto)
-      setFiyatlar((prev) => prev.map((f) => (f.id === id ? { ...f, ...dto } : f)))
-    } catch { message.error('Fiyat güncellenemedi') }
-  }
-
-  const addFiyat = async () => {
-    if (!model) {
-      message.warning('Önce modeli kaydedin')
-      return
-    }
-    let malzemeId = model.id
-    if (!malzemeId && isNew) {
-      try {
-        const created = await malzemeApi.create({ ...model, tip: 5 } as any)
-        setModel(created)
-        malzemeId = created.id
-      } catch (err: unknown) {
-        message.error(err instanceof Error ? err.message : 'Model kaydedilemedi')
-        return
-      }
-    }
-    if (!malzemeId) return
-    try {
-      const created = await malzemeFiyatApi.create({ malzemeId })
-      setFiyatlar((prev) => [...prev, created])
-    } catch (e: any) { message.error(e?.message || 'Fiyat eklenemedi') }
-  }
-
-  const deleteFiyat = async (id: number) => {
-    try {
-      await malzemeFiyatApi.remove(id)
-      setFiyatlar((prev) => prev.filter((f) => f.id !== id))
-    } catch { message.error('Fiyat silinemedi') }
-  }
-
-  const fiyatContent = (
-    <div className="!flex !flex-col !h-full !p-3">
-      <div className="!flex !items-center !justify-between !mb-2 !flex-shrink-0">
-        <span className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Fiyat Geçmişi</span>
-        <div className="!flex !items-center !gap-1">
-          <Button size="small" icon={<DownloadOutlined />} onClick={() => exportCsv(fiyatGridApiRef.current, 'Fiyatlar')} className="!text-[11px] !h-7">Excel</Button>
-          <Popover
-            content={kolonContent(fiyatGridApiRef.current, 'fiyat')}
-            title={<span className="!text-[11px] !font-semibold">Kolonlar</span>}
-            trigger="click"
-          >
-            <Button size="small" icon={<SettingOutlined />} className="!h-7 !w-7" />
-          </Popover>
-          <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addFiyat} className="!text-[11px]">Yeni Fiyat</Button>
-        </div>
-      </div>
-      <div style={{ height: 220 }}>
-        <Dropdown menu={{ items: contextMenuItems('fiyat') }} trigger={['contextMenu']}>
-          <div style={{ height: '100%', width: '100%' }}>
-            <AgGridReact
-              rowDrag={true}
-              animateRows={true}
-              rowData={fiyatlar}
-              columnDefs={fiyatColumns}
-              theme={antGridTheme}
-              localeText={agGridLocaleTR}
-              headerHeight={32}
-              rowHeight={30}
-              domLayout="normal"
-              getRowId={(p) => String(p.data.id)}
-              defaultColDef={{ resizable: true, sortable: true, flex: 1 }}
-              onGridReady={(e) => {
-                fiyatGridApiRef.current = e.api
-                loadKolonlar(e.api, 'fiyat')
-                e.api.addEventListener('firstDataRendered', () => loadKolonlar(e.api, 'fiyat'))
-              }}
-            />
-          </div>
-        </Dropdown>
       </div>
     </div>
   )
@@ -1842,6 +1718,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
         <CardToolbar buttons={toolbarButtons} />
         <Spin spinning={loading} className="!flex-1 !flex !flex-col !min-h-0 [&_.ant-spin-container]:!flex-1 [&_.ant-spin-container]:!flex [&_.ant-spin-container]:!flex-col [&_.ant-spin-container]:!min-h-0">
+          <Dropdown menu={{ items: kopyaMenuItems }} trigger={['contextMenu']}>
             <div className="!flex !items-center !gap-4 !px-3 !py-2 !border-b !border-gray-200 !flex-shrink-0">
               <div className="!flex !items-center !gap-1.5">
                 <label className="!text-[11px] !font-semibold !text-[#333] !uppercase !w-12">Kodu</label>
@@ -1852,6 +1729,7 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
                 <Input size="small" value={model?.ad ?? ''} onChange={(e) => set('ad', e.target.value)} className="!w-[200px] !text-[11px]" />
               </div>
             </div>
+          </Dropdown>
 
           <Tabs
             size="small"
@@ -1862,12 +1740,37 @@ export default function ModelKarti({ isNew, kod }: ModelKartiProps) {
               { key: 'olcu', label: 'Ölçü Tablosu', children: olcuContent },
               { key: 'recete', label: 'Reçete Detayı', children: receteContent },
               { key: 'order', label: 'Order Bilgileri', children: orderContent },
-              { key: 'fiyat', label: 'Fiyatlar', children: fiyatContent },
               { key: 'ekler', label: 'Ekler', children: eklerContent },
             ]}
           />
         </Spin>
       </div>
+
+      <Modal
+        title={<span className="!text-[11px] !font-semibold">Modeli Kopyala</span>}
+        open={kopyaModalAcik}
+        onOk={handleKopyala}
+        confirmLoading={kopyaLoading}
+        onCancel={() => setKopyaModalAcik(false)}
+        width={360}
+        okText="Kopyala"
+        cancelText="İptal"
+        okButtonProps={{ size: 'small', className: '!text-[11px]' }}
+        cancelButtonProps={{ size: 'small', className: '!text-[11px]' }}
+      >
+        <div className="!flex !flex-col !gap-2 !py-1">
+          <div className="!text-[11px] !text-gray-500">
+            Kaynak: {model?.kod} - {model?.ad}
+          </div>
+          <label className="!text-[11px] !font-semibold !text-[#333]">Yeni Kod</label>
+          <Input size="small" value={kopyaKod} onChange={(e) => setKopyaKod(e.target.value)} className="!text-[11px]" />
+          <label className="!text-[11px] !font-semibold !text-[#333]">Yeni Ad</label>
+          <Input size="small" value={kopyaAd} onChange={(e) => setKopyaAd(e.target.value)} className="!text-[11px]" />
+          <div className="!text-[10px] !text-gray-400">
+            Reçete/ölçü, bedenler ve kumaş grupları kopyalanır. Ek dosyalar kopyalanmaz.
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         title={<span className="!text-[11px] !font-semibold">Beden Miktarları</span>}

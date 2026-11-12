@@ -962,6 +962,7 @@ model MalzemeBeden {
   id                Int      @id @default(autoincrement())
   malzemeId         Int      @map("malzeme_id")
   bedenId           Int      @map("beden_id")
+  sira              Int      @default(0)
 
   createdAt         DateTime @default(now()) @map("created_at")
 
@@ -1177,6 +1178,7 @@ model Siparis {
   numaratorId       Int?     @map("numarator_id")
   numarator         Numarator? @relation("SiparisNumarator", fields: [numaratorId], references: [id])
   musteriOrderNo    String?  @map("musteri_order_no") @db.VarChar(50)
+  sertifika         String?  @db.VarChar(50)
   tarih             DateTime @map("tarih")
   istemeTarihi      DateTime? @map("isteme_tarihi")
   mIstemeTarihi     DateTime? @map("m_isteme_tarihi")

@@ -1278,7 +1278,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <ModelKarti isNew />
     }
     if (tab.key.startsWith('model-karti-')) {
-      return <ModelKarti kod={tab.key.replace('model-karti-', '')} />
+      return <ModelKarti kod={tab.key.replace('model-karti-', '')} onOpenSiparis={openSiparisKarti} onKopyalandi={openModelKarti} />
     }
     if (tab.key === 'marka-kartlari') {
       return <MarkaListesi onSelect={openMarkaKarti} onNew={openYeniMarka} />

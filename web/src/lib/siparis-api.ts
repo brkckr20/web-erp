@@ -77,6 +77,7 @@ export interface Siparis {
   tarih: string
   istemeTarihi?: string | null
   mIstemeTarihi?: string | null
+  sertifika?: string | null
   kesimFazlasi?: string | null
   musteriTemsilcisi?: string | null
   toplamTutar?: number | null

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe, Query } 
 import { MalzemeService } from './malzeme.service'
 import { CreateMalzemeDto } from './dto/create-malzeme.dto'
 import { UpdateMalzemeDto } from './dto/update-malzeme.dto'
+import { KopyalaMalzemeDto } from './dto/kopyala-malzeme.dto'
 
 @Controller('malzeme')
 export class MalzemeController {
@@ -30,6 +31,11 @@ export class MalzemeController {
   @Post()
   create(@Body() dto: CreateMalzemeDto) {
     return this.malzemeService.create(dto)
+  }
+
+  @Post(':id/kopyala')
+  kopyala(@Param('id', ParseIntPipe) id: number, @Body() dto: KopyalaMalzemeDto) {
+    return this.malzemeService.kopyala(id, dto)
   }
 
   @Put(':id')

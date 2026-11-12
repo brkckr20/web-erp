@@ -64,6 +64,7 @@ export class CreateSiparisDto {
   ozelKod?: string;
   numaratorId?: number;
   musteriOrderNo?: string;
+  sertifika?: string;
   tarih?: string;
   istemeTarihi?: string;
   mIstemeTarihi?: string;

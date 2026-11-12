@@ -87,4 +87,5 @@ export const malzemeApi = {
   create: (data: MalzemeFormData) => api.post<Malzeme>('/malzeme', data),
   update: (id: number, data: Partial<MalzemeFormData>) => api.put<Malzeme>(`/malzeme/${id}`, data),
   delete: (id: number) => api.delete<void>(`/malzeme/${id}`),
+  kopyala: (id: number, data: { kod: string; ad: string }) => api.post<Malzeme>(`/malzeme/${id}/kopyala`, data),
 }

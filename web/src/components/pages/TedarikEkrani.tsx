@@ -103,6 +103,22 @@ const kesimFazlasiYuzde = (siparis: Siparis | null): number => {
   return isNaN(n) ? 0 : n
 }
 
+/**
+ * Miktarı olan renk satırlarında rengi seçilmemiş kumaş gruplarını döndürür.
+ * Bu gruplar tedarik hesabına dahil edilmez; kullanıcı hesaplama ekranında uyarılır.
+ */
+const eksikRenkliKumasGruplari = (kalem: SiparisKalem | null): string[] => {
+  const eksik = new Set<string>()
+  for (const renk of kalem?.renkler ?? []) {
+    const adet = (renk.bedenler ?? []).reduce((acc, b) => acc + (Number(b.miktar) || 0), 0)
+    if (adet <= 0) continue
+    for (const g of renk.kumasGruplari ?? []) {
+      if (!g.renkId) eksik.add(g.kumasGrup?.kod ?? `#${g.kumasGrupId}`)
+    }
+  }
+  return [...eksik]
+}
+
 export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkraniProps) {
   const { message, modal } = App.useApp()
   const [siparisler, setSiparisler] = useState<SiparisOption[]>([])
@@ -183,6 +199,18 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
   )
 
   const kfYuzde = useMemo(() => kesimFazlasiYuzde(siparis), [siparis])
+
+  const uyarRenkEksik = useCallback(
+    (kalem: SiparisKalem | null) => {
+      const eksik = eksikRenkliKumasGruplari(kalem)
+      if (!eksik.length) return
+      message.warning({
+        content: `Renk seçilmemiş kumaş grubu: ${eksik.join(', ')} — bu gruplar tedarik hesabına dahil edilmedi`,
+        duration: 8,
+      })
+    },
+    [message],
+  )
 
   const gridlerDoldur = useCallback(
     (satirlar: SatirKaynak[]): { detaySayisi: number; ihtiyacSayisi: number } => {
@@ -288,6 +316,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
         return
       }
       setKayitLoading(true)
+      if (!sessiz) uyarRenkEksik(kalem)
       try {
         const kayitlar = await tedarikApi.list(siparisId, tip, kalem.id)
         setSeciliDetayId(null)
@@ -308,7 +337,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
         setKayitLoading(false)
       }
     },
-    [siparisId, tip, gridlerDoldur, message],
+    [siparisId, tip, gridlerDoldur, uyarRenkEksik, message],
   )
 
   const modelOnChange = useCallback(
@@ -342,6 +371,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
       setDurum('')
       try {
         const sonuc: HesaplaSonuc = await tedarikApi.hesapla(siparisId, kalem.id ?? null)
+        uyarRenkEksik(kalem)
         const { detaySayisi, ihtiyacSayisi } = gridlerDoldur(sonuc.satirlar)
 
         if (detaySayisi === 0) {
@@ -360,7 +390,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
         setHesaplamaLoading(false)
       }
     },
-    [message, siparisId, gridlerDoldur, kayitlariYukle],
+    [message, siparisId, gridlerDoldur, kayitlariYukle, uyarRenkEksik],
   )
 
   const hesaplaMalzeme = useCallback(
@@ -382,6 +412,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
       setDurum('')
       try {
         const sonuc: HesaplaSonuc = await tedarikApi.hesapla(siparisId, kalem.id ?? null, hesapTip)
+        uyarRenkEksik(kalem)
         const { detaySayisi, ihtiyacSayisi } = gridlerDoldur(sonuc.satirlar)
 
         if (detaySayisi === 0) {
@@ -400,7 +431,7 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
         setHesaplamaLoading(false)
       }
     },
-    [message, siparisId, gridlerDoldur, kayitlariYukle],
+    [message, siparisId, gridlerDoldur, kayitlariYukle, uyarRenkEksik],
   )
 
   const handleHesapla = () => {
@@ -453,7 +484,6 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
       { headerName: 'Kumaş Kodu', field: 'kumasKod', width: 130 },
       { headerName: 'Kumaş Adı', field: 'kumasAdi', flex: 1, minWidth: 140 },
       { headerName: 'Varyant-1', field: 'varyant', width: 110 },
-      { headerName: 'Renk', field: 'renk', width: 150 },
       { headerName: 'Miktar', field: 'netMetraj', width: 130, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },
       { headerName: 'Birim', field: 'birim', width: 80 },
       { headerName: 'KF Dahil (mt)', field: 'kfMetraj', width: 130, cellClass: '!text-right', valueFormatter: (p) => fmt(p.value) },

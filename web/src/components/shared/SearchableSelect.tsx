@@ -112,7 +112,7 @@ export default function SearchableSelect<T extends SearchableItem>({
   }, [value, options, fetchSearch])
 
   return (
-    <div className={`!flex !items-center !gap-2 ${className ?? ''}`}>
+    <div className={`!flex !items-center !gap-2 !min-w-0 ${className ?? ''}`}>
       <Select
         showSearch
         allowClear
@@ -151,7 +151,7 @@ export default function SearchableSelect<T extends SearchableItem>({
                 ((option as { searchText?: string })?.searchText ?? '').toLowerCase().includes(input.toLowerCase())
         }
       />
-      {!hideAdLabel && <span className="!text-[11px] !text-[#333] !whitespace-nowrap !overflow-visible" title={selectedAd}>{selectedAd}</span>}
+      {!hideAdLabel && <span className="!text-[11px] !text-[#333] !min-w-0 !truncate" title={selectedAd}>{selectedAd}</span>}
     </div>
   )
 }

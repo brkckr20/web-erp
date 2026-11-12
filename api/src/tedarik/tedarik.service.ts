@@ -182,9 +182,11 @@ export class TedarikService {
         LEFT JOIN grup gr            ON gr.id         = m.grup_id
         JOIN recete_olcu ro          ON ro.kalem_id  = rk.id
         JOIN siparis_renk sr         ON sr.siparis_kalem_id = sk.id
-        LEFT JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
+        -- Kumaş grubuna bu renk satırında renk seçilmemişse kumaş kullanılmıyor kabul edilir.
+        JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
           AND g.kumas_grup_id = kg.id
-        LEFT JOIN renk rn                 ON rn.id         = g.renk_id
+          AND g.renk_id IS NOT NULL
+        JOIN renk rn                 ON rn.id         = g.renk_id
         JOIN siparis_renk_beden srb  ON srb.siparis_renk_id = sr.id
           AND srb.beden_id = ro.beden_id
         WHERE s.id = ${siparisId}
@@ -300,13 +302,18 @@ export class TedarikService {
           WHEN rk.tip = 4 THEN COALESCE(rk.variant_1, ana_kumas.variant_1)
           ELSE rk.variant_1 END
         -- Sipariş rengi -> kumaş grup eşleşmesi (kumaş hesabındaki zincirin aynısı).
+        -- Renk seçilmemiş grup bu renk satırında kullanılmıyor kabul edilir.
         LEFT JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id
           AND g.kumas_grup_id = kg.id
+          AND g.renk_id IS NOT NULL
         LEFT JOIN renk rn            ON rn.id         = g.renk_id
         JOIN siparis_renk_beden srb  ON srb.siparis_renk_id = sr.id
           AND srb.beden_id = ro.beden_id
         WHERE s.id = ${siparisId}
           AND (${kalemId} IS NULL OR sk.id = ${kalemId})
+          -- Kumaş grubu olan kalemlerde eşleme yoksa satır üretilmez; grupsuz
+          -- (varyantsız) erişim kalemleri bugünkü gibi renksiz hesaplanır.
+          AND (kg.id IS NULL OR g.id IS NOT NULL)
         GROUP BY
           m.id, m.kod, m.ad, m.hesap_birimi, gr.hesap_birimi, rk.tip, rk.miktar_bolen,
           kg.id, kg.kod,
