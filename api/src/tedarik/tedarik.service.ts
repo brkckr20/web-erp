@@ -1,9 +1,15 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { HesaplaParamsDto, HesaplaSonuc, TedarikHesaplaSatir } from './dto/hesapla.dto'
 import { TedarikIhtiyacCreateDto } from './dto/create.dto'
 import { TedarikIhtiyacUpdateDto } from './dto/update.dto'
+import { TahsisSatirDto } from './dto/tahsis.dto'
 import { BAYAT, GUNCEL } from './tedarik.constants'
+
+// Stok etkili fiş tipleri (Depo Bazlı Stok ile aynı listeler).
+const STOK_GIRIS_TIPLERI = `('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101')`
+const STOK_CIKIS_TIPLERI = `('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140')`
 
 @Injectable()
 export class TedarikService {
@@ -368,18 +374,18 @@ export class TedarikService {
     return { satirlar: rows, toplamNet }
   }
 
-  // Kumaş planlaması + serbest stok karşılaması.
+  // Kumaş planlaması + stok karşılaması.
   // Her ihtiyaç satırına iki stok toplamı eklenir (brüt üzerinden — fason brütle çalışır,
   // satın alınan kumaşta brüt≈net kabul edilir):
   // - renkliStok: aynı malzeme + aynı renk (varyant1_renk_id = ti.renk_id, ID ile eşleşir).
   //   İhtiyaç renksizse (ham isteniyorsa) renksiz stok buraya düşer.
-  // - hamStok: aynı malzeme + renksiz (varyant1 NULL) = boyanabilir ham; yalnızca renkli
-  //   ihtiyaçta dolar (ham ihtiyaca ham yazmak çift sayım olurdu).
-  // Serbest = siparis_kalem_id boş + tahsis kaydı yok (başkasına rezerve düşmez).
+  // - hamStok: yalnızca BU siparişe bağlı ham (renksiz) girişler: planlamadan doğan
+  //   kalemler (siparis_kalem_id) + stok_tahsis kayıtları. Free stok ayrı kolondur.
+  // - freeStok: malzemenin hiçbir siparişe bağlı olmayan ham bakiyesi (tahsis kaynağı).
   // Giriş/çıkış listeleri depoStokDetay ile aynıdır; yalnızca tamamlandi=1 sayılır.
   async planlamaKumas() {
-    const GIRIS = `('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101')`
-    const CIKIS = `('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140')`
+    const GIRIS = STOK_GIRIS_TIPLERI
+    const CIKIS = STOK_CIKIS_TIPLERI
     const rows = await this.prisma.$queryRawUnsafe<
       {
         siparisNo: string
@@ -539,6 +545,8 @@ export class TedarikService {
       birim: string
       renkliStok: number
       hamStok: number
+      bagliHam: number
+      tahsisEdilen: number
     }
 
     const satirlar: PlanSatir[] = rows.map((r) => {
@@ -570,12 +578,13 @@ export class TedarikService {
         birim: r.birim,
         renkliStok: yuvarla(birimeGore(r.renkliStokKg, r.renkliStokMt, r.renkliStokAdet)),
         hamStok: yuvarla(birimeGore(r.hamStokKg, r.hamStokMt, r.hamStokAdet)),
+        // Aşağıda (doğrudan bağ + tahsis) doldurulur; renksiz ihtiyaçta 0 kalır.
+        bagliHam: 0,
+        tahsisEdilen: 0,
       }
     })
 
-    // --- Ham stok havuzu: malzeme seviyesindedir, aynı malzemenin renk ihtiyacı olan
-    // satırları arasında GEREKEN oranıyla paylaştırılır (aksi halde her satıra tam
-    // stok yazılır ve "Açık" hesabı yanıltıcı olur).
+    // Malzeme bazlı gruplama (boya dağıtımında yedek hedef listesi).
     const malzemeSatirlari = new Map<number, PlanSatir[]>()
     for (const s of satirlar) {
       if (s.malzemeId == null) continue
@@ -583,28 +592,107 @@ export class TedarikService {
       list.push(s)
       malzemeSatirlari.set(s.malzemeId, list)
     }
-    const havuzGereken = new Map<number, number>()
-    const havuzStok = new Map<number, number>()
-    for (const [malzemeId, list] of malzemeSatirlari) {
-      let gerekenToplam = 0
-      let stok = 0
-      for (const s of list) {
-        if (s.varyant1RenkId == null) continue
-        gerekenToplam += s.gereken
-        stok = Math.max(stok, s.hamStok)
-      }
-      havuzGereken.set(malzemeId, gerekenToplam)
-      havuzStok.set(malzemeId, stok)
+
+    // --- Serbest (free) stok: malzemenin toplam ham stoğundan doğrudan siparişe bağlı
+    // girişler ve elle yapılan tahsisler düşülür. Tahsis zorunludur: free stok Açık
+    // hesabına kendiliğinden yansımaz, yalnızca tahsis kaynağıdır.
+    const hamToplamMap = new Map<number, { kg: number; mt: number; adet: number }>()
+    for (const r of rows) {
+      if (r.malzemeId == null) continue
+      hamToplamMap.set(r.malzemeId, {
+        kg: sayi(r.hamStokKg),
+        mt: sayi(r.hamStokMt),
+        adet: sayi(r.hamStokAdet),
+      })
     }
-    const hamPay = new Map<PlanSatir, number>()
-    for (const [malzemeId, list] of malzemeSatirlari) {
-      const toplamGereken = havuzGereken.get(malzemeId) ?? 0
-      const stok = havuzStok.get(malzemeId) ?? 0
-      if (toplamGereken <= 0) continue
-      for (const s of list) {
-        if (s.varyant1RenkId == null) continue
-        hamPay.set(s, yuvarla((stok * s.gereken) / toplamGereken))
+    const dogrudanBagli = await this.prisma.$queryRawUnsafe<
+      { siparisKalemId: number; malzemeId: number; kg: unknown; mt: unknown; adet: unknown }[]
+    >(`
+      SELECT ik2.siparis_kalem_id AS siparisKalemId, m2.id AS malzemeId,
+        SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(NULLIF(ik2.brut_agirlik, 0), ik2.net_agirlik, 0) ELSE 0 END) AS kg,
+        SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN COALESCE(NULLIF(ik2.brut_metre, 0), ik2.net_metre, 0) ELSE 0 END) AS mt,
+        SUM(CASE WHEN i2.irsaliye_tipi IN ${GIRIS} THEN ISNULL(ik2.adet, 0) ELSE 0 END) AS adet
+      FROM irsaliye_kalem ik2
+      JOIN irsaliye i2 ON i2.id = ik2.irsaliye_id
+      JOIN malzeme m2  ON m2.id = ik2.malzeme_id
+      WHERE i2.tamamlandi = 1
+        AND ik2.siparis_kalem_id IS NOT NULL
+        AND ik2.varyant1_renk_id IS NULL
+      GROUP BY ik2.siparis_kalem_id, m2.id
+    `)
+    const tahsisToplam = await this.prisma.$queryRawUnsafe<
+      { siparisKalemId: number; malzemeId: number; renkId: number | null; miktar: unknown }[]
+    >(`
+      SELECT siparis_kalem_id AS siparisKalemId, malzeme_id AS malzemeId, renk_id AS renkId, SUM(miktar) AS miktar
+      FROM stok_tahsis
+      GROUP BY siparis_kalem_id, malzeme_id, renk_id
+    `)
+    const bagliMap = new Map<number, { kg: number; mt: number; adet: number }>()
+    const dogrudanMap = new Map<string, { kg: number; mt: number; adet: number }>()
+    for (const d of dogrudanBagli) {
+      const m = bagliMap.get(d.malzemeId) ?? { kg: 0, mt: 0, adet: 0 }
+      m.kg += sayi(d.kg)
+      m.mt += sayi(d.mt)
+      m.adet += sayi(d.adet)
+      bagliMap.set(d.malzemeId, m)
+      dogrudanMap.set(`${d.siparisKalemId}:${d.malzemeId}`, { kg: sayi(d.kg), mt: sayi(d.mt), adet: sayi(d.adet) })
+    }
+    const tahsisMap = new Map<number, number>()
+    const tahsisRenkMap = new Map<string, number>()
+    for (const t of tahsisToplam) {
+      tahsisMap.set(t.malzemeId, (tahsisMap.get(t.malzemeId) ?? 0) + sayi(t.miktar))
+      tahsisRenkMap.set(`${t.siparisKalemId}:${t.malzemeId}:${t.renkId ?? 0}`, sayi(t.miktar))
+    }
+
+    const birimSec = (birim: string, kg: number, mt: number, adet: number) => {
+      const b = birim.toLowerCase()
+      return b.includes('kg') ? kg : b.includes('adet') ? adet : mt
+    }
+    const freeByMalzeme = new Map<number, number>()
+    const freeStok = new Map<PlanSatir, number>()
+    for (const s of satirlar) {
+      if (s.malzemeId == null) {
+        freeStok.set(s, 0)
+        continue
       }
+      let free = freeByMalzeme.get(s.malzemeId)
+      if (free == null) {
+        const toplam = hamToplamMap.get(s.malzemeId) ?? { kg: 0, mt: 0, adet: 0 }
+        const bagli = bagliMap.get(s.malzemeId) ?? { kg: 0, mt: 0, adet: 0 }
+        free = yuvarla(
+          Math.max(
+            0,
+            birimSec(s.birim, toplam.kg - bagli.kg, toplam.mt - bagli.mt, toplam.adet - bagli.adet) -
+              (tahsisMap.get(s.malzemeId) ?? 0),
+          ),
+        )
+        freeByMalzeme.set(s.malzemeId, free)
+      }
+      freeStok.set(s, free)
+    }
+
+    // --- Satıra bağlı ham: doğrudan (planlama kaynaklı giriş) + elle tahsis.
+    //     Doğrudan bağ sipariş kalemi + malzeme düzeyinde; aynı kalemin renk
+    //     satırlarına gereken oranıyla dağıtılır. Renksiz ihtiyaç satırında 0
+    //     kalır (renkli havuz zaten renksiz stoğu düşüyor).
+    const kalemGereken = new Map<string, number>()
+    for (const s of satirlar) {
+      if (s.siparisKalemId == null || s.malzemeId == null || s.varyant1RenkId == null) continue
+      const key = `${s.siparisKalemId}:${s.malzemeId}`
+      kalemGereken.set(key, yuvarla((kalemGereken.get(key) ?? 0) + s.gereken))
+    }
+    for (const s of satirlar) {
+      if (s.siparisKalemId == null || s.malzemeId == null || s.varyant1RenkId == null) continue
+      const key = `${s.siparisKalemId}:${s.malzemeId}`
+      const d = dogrudanMap.get(key)
+      const dagitilan =
+        d && (kalemGereken.get(key) ?? 0) > 0
+          ? yuvarla((birimSec(s.birim, d.kg, d.mt, d.adet) * s.gereken) / (kalemGereken.get(key) ?? 1))
+          : 0
+      const tahsis = tahsisRenkMap.get(`${key}:${s.varyant1RenkId}`) ?? 0
+      s.bagliHam = yuvarla(Math.max(0, dagitilan + tahsis))
+      // Satıra elle yapılmış free stok tahsisi (doğrudan bağ hariç).
+      s.tahsisEdilen = yuvarla(tahsis)
     }
 
     // --- Boyaya giden miktar: 134 çıkışları kalem bazında toplanır, tahsis (sipariş
@@ -667,13 +755,15 @@ export class TedarikService {
 
     return satirlar.map((s) => {
       const boyaGidenMiktar = boyaGiden.get(s) ?? 0
-      const hamPayMiktar = hamPay.get(s) ?? 0
-      const acikMiktar = yuvarla(Math.max(0, s.gereken - s.renkliStok - boyaGidenMiktar - hamPayMiktar))
-      const oneri: 'STOK' | 'BOYADA' | 'HAM_BOYA' | 'TEMIN' =
+      const freeMiktar = freeStok.get(s) ?? 0
+      const acikMiktar = yuvarla(Math.max(0, s.gereken - s.renkliStok - boyaGidenMiktar - s.bagliHam))
+      const oneri: 'STOK' | 'BOYADA' | 'HAM_BOYA' | 'FREE_TAHSIS' | 'TEMIN' =
         s.renkliStok >= s.gereken
           ? 'STOK'
           : acikMiktar > 0
-            ? 'TEMIN'
+            ? freeMiktar > 0
+              ? 'FREE_TAHSIS'
+              : 'TEMIN'
             : boyaGidenMiktar > 0
               ? 'BOYADA'
               : 'HAM_BOYA'
@@ -687,6 +777,7 @@ export class TedarikService {
         musteriAd: s.musteriAd,
         malzemeKod: s.malzemeKod,
         malzemeAd: s.malzemeAd,
+        malzemeId: s.malzemeId,
         islem: s.islem,
         varyant1: s.varyant1,
         varyant1Aciklama: s.varyant1Aciklama,
@@ -696,9 +787,13 @@ export class TedarikService {
         guncelMi: s.guncelMi,
         birim: s.birim,
         renkliStok: s.renkliStok,
-        hamStok: s.hamStok,
-        // Satıra düşen ham stok payı (malzeme havuzundan gereken oranıyla).
-        hamPay: hamPayMiktar,
+        // Bu siparişe bağlı ham (doğrudan bağ + elle tahsis). Fason aktarımı bunu kullanır.
+        hamStok: s.bagliHam,
+        // Malzemenin hiçbir siparişe bağlı olmayan ham stoğu (tahsis kaynağı).
+        freeStok: freeMiktar,
+        // Bu satıra elle tahsis edilen free stok (bağlı hamın tahsis kısmı).
+        tahsisEdilen: s.tahsisEdilen,
+        hamPay: s.bagliHam,
         // Boyaya gönderilmiş miktar (134 çıkışından tahsis oranıyla paylaştırılmış).
         boyaGiden: boyaGidenMiktar,
         acikMiktar,
@@ -829,7 +924,33 @@ export class TedarikService {
     }))
   }
 
-  async planlamaKumasHareketler(siparisNo: string, malzemeKod: string) {
+  async planlamaKumasHareketler(
+    siparisNo: string,
+    malzemeKod: string,
+    siparisKalemId?: number,
+    renkId?: number,
+  ) {
+    // Sadece bu siparişe (ve verilmişse renge) bağlı hareketler: kalem doğrudan sipariş
+    // kalemine bağlıysa ya da bu sipariş kalemi + renge stok tahsisi yapılmışsa.
+    // Renksiz girişler renk satırlarında görünür (kaleme bağlıysa pro-rata dağıtılır).
+    const renkFiltresi = Prisma.sql`AND (
+      (${renkId ?? null} IS NULL AND st.renk_id IS NULL)
+      OR st.renk_id = ${renkId ?? null}
+    )`
+    const kalemFiltresi =
+      siparisKalemId != null
+        ? Prisma.sql`AND (
+            (ik.siparis_kalem_id = ${siparisKalemId}
+              AND (${renkId ?? null} IS NULL OR ik.varyant1_renk_id IS NULL
+                   OR ik.varyant1_renk_id = ${renkId ?? null}))
+            OR EXISTS (
+              SELECT 1 FROM stok_tahsis st
+              WHERE st.irsaliye_kalem_id = ik.id
+                AND st.siparis_kalem_id = ${siparisKalemId}
+                ${renkFiltresi}
+            )
+          )`
+        : Prisma.empty
     const rows = await this.prisma.$queryRaw<
       {
         kalemId: number
@@ -839,6 +960,12 @@ export class TedarikService {
         fisTarihi: Date
         miktar: unknown
         birim: string | null
+        brutKg: unknown
+        kg: unknown
+        brutMt: unknown
+        mt: unknown
+        adet: number | null
+        tahsisMiktar: unknown
         depoAd: string | null
         cariAd: string | null
         aciklama: string | null
@@ -852,6 +979,17 @@ export class TedarikService {
         i.irsaliye_tarihi   AS fisTarihi,
         ik.miktar           AS miktar,
         ik.olcu_birimi      AS birim,
+        ik.brut_agirlik     AS brutKg,
+        ik.net_agirlik      AS kg,
+        ik.brut_metre       AS brutMt,
+        ik.net_metre        AS mt,
+        ik.adet             AS adet,
+        ISNULL((
+          SELECT SUM(st.miktar) FROM stok_tahsis st
+          WHERE st.irsaliye_kalem_id = ik.id
+            AND st.siparis_kalem_id = ${siparisKalemId ?? null}
+            ${renkFiltresi}
+        ), 0)               AS tahsisMiktar,
         d.ad                AS depoAd,
         ch.ad               AS cariAd,
         ik.aciklama         AS aciklama
@@ -861,6 +999,7 @@ export class TedarikService {
       LEFT JOIN depo d         ON d.id = i.depo_id
       LEFT JOIN cari_hesap ch  ON ch.id = i.cari_hesap_id
       WHERE m.kod = ${malzemeKod}
+        ${kalemFiltresi}
       ORDER BY i.irsaliye_tarihi DESC, i.irsaliye_no DESC
     `
 
@@ -872,6 +1011,12 @@ export class TedarikService {
       fisTarihi: r.fisTarihi,
       miktar: Number(r.miktar) || 0,
       birim: r.birim,
+      brutKg: r.brutKg == null ? null : Number(r.brutKg),
+      kg: r.kg == null ? null : Number(r.kg),
+      brutMt: r.brutMt == null ? null : Number(r.brutMt),
+      mt: r.mt == null ? null : Number(r.mt),
+      adet: r.adet == null ? null : Number(r.adet),
+      tahsisMiktar: Number(r.tahsisMiktar) || 0,
       depoAd: r.depoAd,
       cariAd: r.cariAd,
       aciklama: r.aciklama,
@@ -901,14 +1046,14 @@ export class TedarikService {
         d.ad  AS depoAd,
         SUM(CASE WHEN (r.kod = ${renkKod ?? null}
                        OR (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL))
-                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_agirlik, 0)
-                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_agirlik, 0)
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN COALESCE(NULLIF(ik.brut_agirlik, 0), ik.net_agirlik, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -COALESCE(NULLIF(ik.brut_agirlik, 0), ik.net_agirlik, 0)
                            ELSE 0 END
                  ELSE 0 END) AS renkliKg,
         SUM(CASE WHEN (r.kod = ${renkKod ?? null}
                        OR (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL))
-                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_metre, 0)
-                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_metre, 0)
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN COALESCE(NULLIF(ik.brut_metre, 0), ik.net_metre, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -COALESCE(NULLIF(ik.brut_metre, 0), ik.net_metre, 0)
                            ELSE 0 END
                  ELSE 0 END) AS renkliMt,
         SUM(CASE WHEN (r.kod = ${renkKod ?? null}
@@ -918,13 +1063,13 @@ export class TedarikService {
                            ELSE 0 END
                  ELSE 0 END) AS renkliAdet,
         SUM(CASE WHEN ${renkKod ?? null} IS NOT NULL AND ik.varyant1_renk_id IS NULL
-                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_agirlik, 0)
-                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_agirlik, 0)
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN COALESCE(NULLIF(ik.brut_agirlik, 0), ik.net_agirlik, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -COALESCE(NULLIF(ik.brut_agirlik, 0), ik.net_agirlik, 0)
                            ELSE 0 END
                  ELSE 0 END) AS hamKg,
         SUM(CASE WHEN ${renkKod ?? null} IS NOT NULL AND ik.varyant1_renk_id IS NULL
-                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','124','125','133','139','10','16','17','18','20','21','40','101') THEN ISNULL(ik.brut_metre, 0)
-                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -ISNULL(ik.brut_metre, 0)
+                 THEN CASE WHEN i.irsaliye_tipi IN ('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101') THEN COALESCE(NULLIF(ik.brut_metre, 0), ik.net_metre, 0)
+                           WHEN i.irsaliye_tipi IN ('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140') THEN -COALESCE(NULLIF(ik.brut_metre, 0), ik.net_metre, 0)
                            ELSE 0 END
                  ELSE 0 END) AS hamMt,
         SUM(CASE WHEN ${renkKod ?? null} IS NOT NULL AND ik.varyant1_renk_id IS NULL
@@ -939,7 +1084,10 @@ export class TedarikService {
       LEFT JOIN depo d ON d.id = i.depo_id
       WHERE i.tamamlandi = 1
         AND (m.id = ${malzemeId ?? null} OR (${malzemeId ?? null} IS NULL AND m.kod = ${malzemeKod}))
-        AND (r.kod = ${renkKod ?? null} OR (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL))
+        AND (
+          (${renkKod ?? null} IS NULL AND ik.varyant1_renk_id IS NULL)
+          OR (${renkKod ?? null} IS NOT NULL AND (r.kod = ${renkKod ?? null} OR ik.varyant1_renk_id IS NULL))
+        )
         AND d.kod IS NOT NULL
       GROUP BY d.kod, d.ad
       ORDER BY d.kod
@@ -959,6 +1107,142 @@ export class TedarikService {
       .filter(
         (r) => r.renkliKg !== 0 || r.renkliMt !== 0 || r.renkliAdet !== 0 || r.hamKg !== 0 || r.hamMt !== 0 || r.hamAdet !== 0,
       )
+  }
+
+  // Serbest ham stoktan sipariş kalemine elle tahsis. Kaynak: tamamlanmış, renksiz,
+  // hiçbir siparişe bağlı olmayan giriş kalemleri (en eski fiş önce).
+  async tahsisEt(satirlar: TahsisSatirDto[]) {
+    if (!Array.isArray(satirlar) || satirlar.length === 0) {
+      throw new BadRequestException('Tahsis edilecek satır yok')
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const kalanFree = new Map<number, number>()
+      const sonuc: {
+        siparisKalemId: number
+        malzemeId: number
+        renkId: number | null
+        tahsisEdilen: number
+        kalan: number
+      }[] = []
+
+      for (const s of satirlar) {
+        const istenen = this.yuvarla(Number(s.miktar) || 0)
+        // Renksiz ihtiyaçta ham stok zaten renkli havuzda sayıldığı için tahsis tutulmaz.
+        if (!s.siparisKalemId || !s.malzemeId || s.renkId == null || istenen <= 0) continue
+
+        if (kalanFree.get(s.malzemeId) == null) {
+          kalanFree.set(s.malzemeId, await this.serbestHam(tx, s.malzemeId, s.birim ?? ''))
+        }
+        const hedef = this.yuvarla(Math.min(istenen, kalanFree.get(s.malzemeId) ?? 0))
+        if (hedef <= 0) {
+          sonuc.push({
+            siparisKalemId: s.siparisKalemId,
+            malzemeId: s.malzemeId,
+            renkId: s.renkId ?? null,
+            tahsisEdilen: 0,
+            kalan: istenen,
+          })
+          continue
+        }
+
+        const kaynaklar = await this.tahsisKaynaklari(tx, s.malzemeId, s.birim ?? '')
+        let kalanHedef = hedef
+        for (const k of kaynaklar) {
+          if (kalanHedef <= 0.00005) break
+          const kalanKaynak = this.yuvarla(Number(k.miktar) - Number(k.tahsisli))
+          if (kalanKaynak <= 0) continue
+          const pay = this.yuvarla(Math.min(kalanHedef, kalanKaynak))
+          await tx.stokTahsis.create({
+            data: {
+              irsaliyeKalemId: k.kalemId,
+              siparisKalemId: s.siparisKalemId,
+              malzemeId: s.malzemeId,
+              renkId: s.renkId ?? null,
+              siparisNo: s.siparisNo ?? null,
+              modelKod: s.modelKod ?? null,
+              miktar: new Prisma.Decimal(pay),
+            },
+          })
+          kalanHedef = this.yuvarla(kalanHedef - pay)
+        }
+
+        const tahsisEdilen = this.yuvarla(hedef - kalanHedef)
+        kalanFree.set(s.malzemeId, this.yuvarla((kalanFree.get(s.malzemeId) ?? 0) - tahsisEdilen))
+        sonuc.push({
+          siparisKalemId: s.siparisKalemId,
+          malzemeId: s.malzemeId,
+          renkId: s.renkId ?? null,
+          tahsisEdilen,
+          kalan: this.yuvarla(istenen - tahsisEdilen),
+        })
+      }
+
+      return { satirlar: sonuc }
+    })
+  }
+
+  // Tahsis edilmiş serbest stoğu geri bırakır (satır: sipariş kalemi + malzeme + renk).
+  async tahsisKaldir(siparisKalemId: number, malzemeId: number, renkId?: number | null) {
+    const res = await this.prisma.stokTahsis.deleteMany({
+      where: { siparisKalemId, malzemeId, renkId: renkId ?? null },
+    })
+    return { silinen: res.count }
+  }
+
+  private yuvarla(v: number) {
+    return Math.round(v * 1e4) / 1e4
+  }
+
+  // Tahsis miktarı hedef satırın biriminden okunur (brüt varsa brüt, yoksa net).
+  private stokMiktarIfadesi(birim: string, alias: string) {
+    const b = (birim || '').toLowerCase()
+    if (b.includes('kg')) return `COALESCE(NULLIF(${alias}.brut_agirlik, 0), ${alias}.net_agirlik, 0)`
+    if (b.includes('adet')) return `ISNULL(${alias}.adet, 0)`
+    return `COALESCE(NULLIF(${alias}.brut_metre, 0), ${alias}.net_metre, 0)`
+  }
+
+  // Malzemenin serbest ham bakiyesi: toplam ham − siparişe bağlı girişler − tahsisler.
+  private async serbestHam(tx: Prisma.TransactionClient, malzemeId: number, birim: string) {
+    const qty = this.stokMiktarIfadesi(birim, 'ik2')
+    const rows = await tx.$queryRawUnsafe<{ toplam: unknown; bagli: unknown }[]>(`
+      SELECT
+        SUM(CASE WHEN i2.irsaliye_tipi IN ${STOK_GIRIS_TIPLERI} THEN ${qty}
+                 WHEN i2.irsaliye_tipi IN ${STOK_CIKIS_TIPLERI} THEN -${qty}
+                 ELSE 0 END) AS toplam,
+        SUM(CASE WHEN i2.irsaliye_tipi IN ${STOK_GIRIS_TIPLERI} AND ik2.siparis_kalem_id IS NOT NULL THEN ${qty} ELSE 0 END) AS bagli
+      FROM irsaliye_kalem ik2
+      JOIN irsaliye i2 ON i2.id = ik2.irsaliye_id
+      WHERE i2.tamamlandi = 1
+        AND ik2.malzeme_id = ${malzemeId}
+        AND ik2.varyant1_renk_id IS NULL
+    `)
+    const tahsis = await tx.stokTahsis.aggregate({
+      where: { malzemeId },
+      _sum: { miktar: true },
+    })
+    const toplam = Number(rows[0]?.toplam) || 0
+    const bagli = Number(rows[0]?.bagli) || 0
+    const tahsisli = Number(tahsis._sum.miktar ?? 0)
+    return this.yuvarla(Math.max(0, toplam - bagli - tahsisli))
+  }
+
+  // FIFO kaynaklar: en eski tamamlanmış, renksiz, siparişe bağlı olmayan giriş kalemleri.
+  private async tahsisKaynaklari(tx: Prisma.TransactionClient, malzemeId: number, birim: string) {
+    const qty = this.stokMiktarIfadesi(birim, 'ik')
+    return tx.$queryRawUnsafe<{ kalemId: number; miktar: unknown; tahsisli: unknown }[]>(`
+      SELECT
+        ik.id AS kalemId,
+        ${qty} AS miktar,
+        ISNULL((SELECT SUM(st.miktar) FROM stok_tahsis st WHERE st.irsaliye_kalem_id = ik.id), 0) AS tahsisli
+      FROM irsaliye_kalem ik
+      JOIN irsaliye i ON i.id = ik.irsaliye_id
+      WHERE i.tamamlandi = 1
+        AND i.irsaliye_tipi IN ${STOK_GIRIS_TIPLERI}
+        AND ik.malzeme_id = ${malzemeId}
+        AND ik.varyant1_renk_id IS NULL
+        AND ik.siparis_kalem_id IS NULL
+      ORDER BY i.irsaliye_tarihi ASC, i.id ASC
+    `)
   }
 
   async findBySiparis(siparisId: number, tip?: string, siparisKalemId?: number) {

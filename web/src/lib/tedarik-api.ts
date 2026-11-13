@@ -50,7 +50,7 @@ export interface TedarikIhtiyac {
   guncellemeTarihi: string | null
 }
 
-export type KarsilamaOneri = 'STOK' | 'BOYADA' | 'HAM_BOYA' | 'TEMIN'
+export type KarsilamaOneri = 'STOK' | 'BOYADA' | 'HAM_BOYA' | 'FREE_TAHSIS' | 'TEMIN'
 
 export interface KumasPlanlamaSatir {
   siparisNo: string
@@ -74,16 +74,42 @@ export interface KumasPlanlamaSatir {
   guncelMi: boolean
   /** Serbest stok karşılaması (satır birimiyle): aynı malzeme+renk. */
   renkliStok: number
-  /** Serbest ham stok (aynı malzeme, renksiz) — boyanabilir. */
+  /** Bu siparişe bağlı ham stok (doğrudan bağ + elle tahsis), satır birimiyle. */
   hamStok: number
-  /** Satıra düşen ham stok payı (malzeme havuzundan gereken oranıyla paylaştırılır). */
+  /** Malzemenin hiçbir siparişe bağlı olmayan ham stoğu; tahsis kaynağı. */
+  freeStok: number
+  /** Bu satıra elle tahsis edilen free stok (bağlı hamın tahsis kısmı), satır birimiyle. */
+  tahsisEdilen: number
+  /** Fason/planlama aktarımında kullanılan bağlı ham miktarı. */
   hamPay?: number
   /** Boyaya gönderilmiş miktar (134-Fasona Çıkış, tahsis oranıyla satıra paylaştırılmış). */
   boyaGiden?: number
-  /** gereken - renkli - boyaGiden - hamPay (0 altı 0). */
+  /** gereken - renkli - boyaGiden - bağlı ham (0 altı 0). */
   acikMiktar: number
-  /** STOK=stoktan karşıla, BOYADA=boyada bekliyor, HAM_BOYA=hamı boyaya gönder, TEMIN=satın al/dokuma gerekli. */
+  /** STOK=stoktan karşıla, BOYADA=boyada bekliyor, HAM_BOYA=hamı boyaya gönder, FREE_TAHSIS=free stoktan tahsis et, TEMIN=satın al/dokuma gerekli. */
   oneri: KarsilamaOneri
+}
+
+export interface TahsisSatir {
+  siparisKalemId: number
+  siparisNo?: string | null
+  modelKod?: string | null
+  malzemeId: number
+  renkId?: number | null
+  birim?: string
+  miktar: number
+}
+
+export interface TahsisSonucSatir {
+  siparisKalemId: number
+  malzemeId: number
+  renkId: number | null
+  tahsisEdilen: number
+  kalan: number
+}
+
+export interface TahsisSonuc {
+  satirlar: TahsisSonucSatir[]
 }
 
 export interface TedarikOzet {
@@ -117,6 +143,12 @@ export interface KumasHareketSatiri {
   fisTarihi: string
   miktar: number
   birim: string | null
+  brutKg?: number | null
+  kg?: number | null
+  brutMt?: number | null
+  mt?: number | null
+  adet?: number | null
+  tahsisMiktar: number
   depoAd: string | null
   cariAd: string | null
   aciklama: string | null
@@ -154,9 +186,20 @@ export const tedarikApi = {
   ozet: (siparisId: number) => api.get<TedarikOzet>(`/tedarik/ozet?siparisId=${siparisId}`),
   siparisHesapla: (siparisId: number) =>
     api.post<SiparisHesaplaSonuc>(`/tedarik/siparis-hesapla?siparisId=${siparisId}`),
-  planlamaKumasHareketler: (siparisNo: string, malzemeKod: string) =>
+  planlamaKumasHareketler: (
+    siparisNo: string,
+    malzemeKod: string,
+    siparisKalemId?: number | null,
+    renkId?: number | null,
+  ) =>
     api.get<KumasHareketSatiri[]>(
-      `/tedarik/planlama/kumas/hareketler?siparisNo=${encodeURIComponent(siparisNo)}&malzemeKod=${encodeURIComponent(malzemeKod)}`,
+      `/tedarik/planlama/kumas/hareketler?siparisNo=${encodeURIComponent(siparisNo)}&malzemeKod=${encodeURIComponent(malzemeKod)}${siparisKalemId ? `&siparisKalemId=${siparisKalemId}` : ''}${renkId ? `&renkId=${renkId}` : ''}`,
+    ),
+  tahsisEt: (satirlar: TahsisSatir[]) =>
+    api.post<TahsisSonuc>('/tedarik/planlama/tahsis', { satirlar }),
+  tahsisKaldir: (siparisKalemId: number, malzemeId: number, renkId?: number | null) =>
+    api.delete<{ silinen: number }>(
+      `/tedarik/planlama/tahsis?siparisKalemId=${siparisKalemId}&malzemeId=${malzemeId}${renkId ? `&renkId=${renkId}` : ''}`,
     ),
   planlamaIplik: () => api.get<KumasPlanlamaSatir[]>('/tedarik/planlama/iplik'),
   planlamaIplikHareketler: (siparisNo: string, malzemeKod: string) =>

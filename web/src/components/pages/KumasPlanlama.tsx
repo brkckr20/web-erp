@@ -1,6 +1,6 @@
 'use client'
 
-import { Input, App, Dropdown, Modal, Table, Button } from 'antd'
+import { Input, InputNumber, App, Dropdown, Modal, Table, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -14,6 +14,8 @@ import {
   BgColorsOutlined,
   WarningOutlined,
   BankOutlined,
+  LinkOutlined,
+  DisconnectOutlined,
 } from '@ant-design/icons'
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
@@ -33,7 +35,14 @@ const fisTipiAdlari: Record<string, string> = {
   '122': 'Mal Alım İade İrsaliyesi',
   '133': 'Fasona Giriş İade İrsaliyesi',
   '201': 'Satın Alma Siparişi',
+  '202': 'Fason Talimat Fişi',
 }
+
+const f3 = (v: number) =>
+  Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+
+const tahsisAnahtar = (r: KumasPlanlamaSatir) =>
+  `${r.siparisKalemId}:${r.malzemeId}:${r.varyant1RenkId ?? 0}`
 
 export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }: {
   onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void
@@ -43,7 +52,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
   const [arama, setArama] = useState('')
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const gridRef = useRef<DataGridHandle>(null)
   const [hareketSatir, setHareketSatir] = useState<KumasPlanlamaSatir | null>(null)
   const [hareketler, setHareketler] = useState<KumasHareketSatiri[]>([])
@@ -52,13 +61,18 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   const [karsilamaDepo, setKarsilamaDepo] = useState<KarsilamaDepoSatir[]>([])
   const [karsilamaLoading, setKarsilamaLoading] = useState(false)
   const [guncelleniyor, setGuncelleniyor] = useState(false)
+  const [tahsisPlan, setTahsisPlan] = useState<{
+    satirlar: KumasPlanlamaSatir[]
+    miktarlar: Record<string, number>
+  } | null>(null)
+  const [tahsisKaydediyor, setTahsisKaydediyor] = useState(false)
 
   const hareketAc = useCallback((r: KumasPlanlamaSatir) => {
     setHareketSatir(r)
     setHareketler([])
     setHareketLoading(true)
     tedarikApi
-      .planlamaKumasHareketler(r.siparisNo, r.malzemeKod)
+      .planlamaKumasHareketler(r.siparisNo, r.malzemeKod, r.siparisKalemId ?? null, r.varyant1RenkId ?? null)
       .then(setHareketler)
       .catch((err: unknown) =>
         message.error('Hareketler yüklenemedi: ' + (err instanceof Error ? err.message : String(err))),
@@ -102,8 +116,9 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
     {
       title: 'Fiş Tipi',
       dataIndex: 'fisTipi',
-      width: 150,
-      render: (v: string) => fisTipiAdlari[v] ?? v,
+      width: 200,
+      ellipsis: true,
+      render: (v: string) => (fisTipiAdlari[v] ? `${v} - ${fisTipiAdlari[v]}` : v),
     },
     {
       title: 'Tarih',
@@ -111,14 +126,21 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       width: 100,
       render: (v: string) => (v ? new Date(v).toLocaleDateString('tr-TR') : ''),
     },
+    ...(['brutKg', 'kg', 'brutMt', 'mt', 'adet'] as const).map((alan) => ({
+      title: alan === 'brutKg' ? 'Brüt Kg' : alan === 'kg' ? 'Kg' : alan === 'brutMt' ? 'Brüt Mt' : alan === 'mt' ? 'Mt' : 'Adet',
+      dataIndex: alan,
+      width: 100,
+      align: 'right' as const,
+      render: (v: number | null) =>
+        v == null ? '' : Number(v).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+    })),
     {
-      title: 'Miktar',
-      dataIndex: 'miktar',
+      title: 'Tahsis',
+      dataIndex: 'tahsisMiktar',
       width: 110,
-      align: 'right',
-      render: (v: number, r) =>
-        Number(v).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) +
-        (r.birim ? ' ' + r.birim : ''),
+      align: 'right' as const,
+      render: (v: number) =>
+        Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
     },
     {
       title: 'Depo',
@@ -182,8 +204,83 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
     [bayatSatirlar],
   )
 
+  // Tahsis onayındaki satırlar: havuz malzeme düzeyinde paylaşıldığı için her satırın
+  // gerçekte gördüğü kalan havuz, önceki satırların tahsisleri düşülerek bulunur.
+  const tahsisOzet = useMemo(() => {
+    if (!tahsisPlan) return null
+    const kalan = new Map<number, number>()
+    const satirlar = tahsisPlan.satirlar.map((r) => {
+      const malzemeId = r.malzemeId as number
+      const havuz = kalan.get(malzemeId) ?? (Number(r.freeStok) || 0)
+      const acikIhtiyac = Number(r.acikMiktar) || 0
+      const istenen = tahsisPlan.miktarlar[tahsisAnahtar(r)] ?? 0
+      // Havuz ortak olduğu için bir satıra yazılan miktar sonrakilerin tavanını düşürür.
+      const miktar = Number(Math.min(istenen, Math.max(0, havuz), acikIhtiyac).toFixed(3))
+      kalan.set(malzemeId, Math.max(0, havuz - miktar))
+      return {
+        satir: r,
+        havuz,
+        miktar,
+        acikIhtiyac,
+        acik: Math.max(0, acikIhtiyac - miktar),
+        enFazla: Math.min(acikIhtiyac, havuz),
+      }
+    })
+    return {
+      satirlar,
+      toplam: satirlar.reduce((acc, s) => acc + s.miktar, 0),
+      acikToplam: satirlar.reduce((acc, s) => acc + s.acik, 0),
+      birim: new Set(satirlar.map((s) => s.satir.birim)).size === 1 ? satirlar[0]?.satir.birim ?? '' : '',
+    }
+  }, [tahsisPlan])
+
+  const tahsisMiktarDegistir = (r: KumasPlanlamaSatir, deger: number, enFazla: number) => {
+    setTahsisPlan((p) => {
+      if (!p) return p
+      const miktar = Math.min(Math.max(0, Number(deger) || 0), enFazla)
+      return { ...p, miktarlar: { ...p.miktarlar, [tahsisAnahtar(r)]: Number(miktar.toFixed(3)) } }
+    })
+  }
+
+  const tahsisKaydet = async () => {
+    if (!tahsisPlan || !tahsisOzet) return
+    const gonderilecek = tahsisOzet.satirlar.filter((s) => s.miktar > 0.00005)
+    if (gonderilecek.length === 0) {
+      message.warning('Tahsis edilecek miktar yok')
+      return
+    }
+    const birimEki = tahsisOzet.birim ? ` ${tahsisOzet.birim}` : ''
+    setTahsisKaydediyor(true)
+    try {
+      const sonuc = await tedarikApi.tahsisEt(
+        gonderilecek.map((s) => ({
+          siparisKalemId: s.satir.siparisKalemId as number,
+          siparisNo: s.satir.siparisNo,
+          modelKod: s.satir.modelKod,
+          malzemeId: s.satir.malzemeId as number,
+          renkId: s.satir.varyant1RenkId ?? null,
+          birim: s.satir.birim,
+          miktar: s.miktar,
+        })),
+      )
+      const toplam = sonuc.satirlar.reduce((acc, s) => acc + s.tahsisEdilen, 0)
+      const acik = sonuc.satirlar.reduce((acc, s) => acc + s.kalan, 0)
+      setTahsisPlan(null)
+      await load()
+      if (acik > 0.00005) {
+        message.warning(`${f3(toplam)}${birimEki} tahsis edildi · ${f3(acik)}${birimEki} açık kaldı`)
+      } else {
+        message.success(`${f3(toplam)}${birimEki} tahsis edildi`)
+      }
+    } catch (err) {
+      message.error('Tahsis yapılamadı: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setTahsisKaydediyor(false)
+    }
+  }
+
   const bayatlariGuncelle = useCallback(() => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Bayat tedarik hesapları güncellensin mi?',
       content: `${bayatSatirlar.length} satır (${bayatSiparisSayisi} sipariş) güncel sipariş bilgilerine göre yeniden hesaplanacak.`,
       okText: 'Yeniden Hesapla',
@@ -209,7 +306,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         }
       },
     })
-  }, [bayatSatirlar.length, bayatSiparisSayisi, load, message])
+  }, [bayatSatirlar.length, bayatSiparisSayisi, load, message, modal])
 
   const columns = useMemo<ColDef<KumasPlanlamaSatir>[]>(() => [
     { headerName: 'Sipariş No', field: 'siparisNo', width: 110, resizable: true },
@@ -264,6 +361,25 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       cellStyle: (p) => (Number(p.value) < 0 ? { backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 600 } : undefined),
     },
     {
+      headerName: 'Tahsis Edilen',
+      field: 'tahsisEdilen',
+      width: 115,
+      type: 'rightAligned',
+      resizable: true,
+      valueFormatter: (p) =>
+        Number(p.value || 0).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+    },
+    {
+      headerName: 'Free Stok',
+      field: 'freeStok',
+      width: 110,
+      type: 'rightAligned',
+      resizable: true,
+      valueFormatter: (p) =>
+        Number(p.value).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+      cellStyle: (p) => (Number(p.value || 0) > 0 ? { backgroundColor: '#cffafe', color: '#155e75', fontWeight: 600 } : undefined),
+    },
+    {
       headerName: 'Boya Giden',
       field: 'boyaGiden',
       width: 110,
@@ -293,11 +409,14 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
             ? 'Boyada Bekliyor'
             : p.data?.oneri === 'HAM_BOYA'
               ? 'Hamı Boyaya Gönder'
-              : 'Temin Gerekli',
+              : p.data?.oneri === 'FREE_TAHSIS'
+                ? 'Free Stoktan Tahsis Et'
+                : 'Temin Gerekli',
       cellStyle: (p) => {
         if (p.data?.oneri === 'STOK') return { backgroundColor: '#dcfce7', color: '#166534', fontWeight: 600 }
         if (p.data?.oneri === 'BOYADA') return { backgroundColor: '#ede9fe', color: '#5b21b6', fontWeight: 600 }
         if (p.data?.oneri === 'HAM_BOYA') return { backgroundColor: '#ffedd5', color: '#9a3412', fontWeight: 600 }
+        if (p.data?.oneri === 'FREE_TAHSIS') return { backgroundColor: '#cffafe', color: '#155e75', fontWeight: 600 }
         return { backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 600 }
       },
     },
@@ -334,6 +453,8 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
     { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
     { key: 'depo-stok', label: 'Depo Stok Kırılımı (Renkli/Ham)', icon: <BankOutlined /> },
     { type: 'divider' },
+    { key: 'tahsis-et', label: 'İhtiyaç Miktarı Kadar Tahsis Et', icon: <LinkOutlined /> },
+    { key: 'tahsis-kaldir', label: 'Tahsisleri Kaldır', icon: <DisconnectOutlined /> },
     { key: 'hareket-detaylari', label: 'Hareket Detayları', icon: <ProfileOutlined /> },
     { key: 'renkler', label: 'Renkler', icon: <BgColorsOutlined /> },
   ]
@@ -447,7 +568,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       const olustur = () => onYeniSatinalmaSiparis?.(kalemler)
       const bayatSayisi = secili.filter((r) => r.guncelMi === false).length
       if (bayatSayisi > 0) {
-        Modal.confirm({
+        modal.confirm({
           title: 'Seçili satırların tedarik hesabı güncel değil',
           content: `${bayatSayisi} satır için sipariş bilgileri sonradan değişmiş, miktarlar eski olabilir. Yine de devam edilsin mi?`,
           okText: 'Yine de Devam Et',
@@ -474,6 +595,74 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         return
       }
       karsilamaAc(secili[0])
+      return
+    }
+    if (key === 'tahsis-et') {
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
+        return
+      }
+      const hedefler = secili.filter(
+        (r) =>
+          (Number(r.acikMiktar) || 0) > 0 &&
+          r.siparisKalemId &&
+          r.malzemeId &&
+          r.varyant1RenkId != null,
+      )
+      if (hedefler.length === 0) {
+        message.warning('Seçili satırlarda tahsis edilecek açık ihtiyaç yok (renksiz satırlar zaten stok havuzundan karşılanır)')
+        return
+      }
+      const miktarlar: Record<string, number> = {}
+      const kalanHavuz = new Map<number, number>()
+      for (const r of hedefler) {
+        const malzemeId = r.malzemeId as number
+        const kalan = kalanHavuz.get(malzemeId) ?? (Number(r.freeStok) || 0)
+        const tahsis = Math.min(Number(r.acikMiktar) || 0, Math.max(0, kalan))
+        miktarlar[tahsisAnahtar(r)] = Number(tahsis.toFixed(3))
+        kalanHavuz.set(malzemeId, kalan - tahsis)
+      }
+      setTahsisPlan({ satirlar: hedefler, miktarlar })
+      return
+    }
+    if (key === 'tahsis-kaldir') {
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
+        return
+      }
+      const hedefler = secili.filter((r) => r.siparisKalemId && r.malzemeId)
+      if (hedefler.length === 0) {
+        message.warning('Seçili satırlarda kaldırılacak tahsis yok')
+        return
+      }
+      modal.confirm({
+        title: 'Seçili satırların tahsisleri kaldırılsın mı?',
+        content: `${hedefler.length} satır için yapılmış ham stok tahsisi silinecek; miktarlar free stoğa döner.`,
+        okText: 'Kaldır',
+        okButtonProps: { danger: true },
+        cancelText: 'Vazgeç',
+        onOk: async () => {
+          try {
+            let silinen = 0
+            for (const r of hedefler) {
+              const res = await tedarikApi.tahsisKaldir(
+                r.siparisKalemId as number,
+                r.malzemeId as number,
+                r.varyant1RenkId ?? null,
+              )
+              silinen += res.silinen
+            }
+            await load()
+            message.success(`${silinen} tahsis kaydı kaldırıldı`)
+          } catch (err) {
+            message.error(
+              'Tahsis kaldırılamadı: ' + (err instanceof Error ? err.message : String(err)),
+            )
+          }
+        },
+      })
       return
     }
     if (key === 'hareket-detaylari') {
@@ -579,6 +768,9 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
                 enableRowSelection
                 getRowClass={(p) => (p.data?.guncelMi === false ? 'bayat-satir' : '')}
                 onCellContextMenu={(e: CellContextMenuEvent<KumasPlanlamaSatir>) => {
+                  // Sağ tık tek satırı hedefler; seçili satıra sağ tıklanınca çoklu seçim korunur.
+                  if (e.node?.isSelected()) return
+                  e.api.deselectAll()
                   e.node?.setSelected(true)
                 }}
               />
@@ -605,7 +797,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         styles={{ body: { height: 'calc(100vh - 70px)', overflowY: 'auto' } }}
         title={
           hareketSatir
-            ? `Hareket Detayları - ${hareketSatir.siparisNo} / ${hareketSatir.malzemeKod}`
+            ? `Hareket Detayları - ${hareketSatir.siparisNo} / ${hareketSatir.malzemeKod}${hareketSatir.varyant1 ? ` / ${hareketSatir.varyant1}` : ''}`
             : 'Hareket Detayları'
         }
       >
@@ -647,6 +839,87 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
           pagination={false}
           locale={{ emptyText: 'Serbest stok bulunamadı — temin gerekli (satın alma / dokuma / fason)' }}
         />
+      </Modal>
+      <Modal
+        open={!!tahsisPlan}
+        title="Free stoktan tahsis yapılsın mı?"
+        width={780}
+        okText={tahsisOzet && tahsisOzet.acikToplam > 0.00005 ? 'Kısmi Rezerv Et' : 'Tahsis Et'}
+        cancelText="Vazgeç"
+        confirmLoading={tahsisKaydediyor}
+        onOk={tahsisKaydet}
+        onCancel={() => {
+          if (!tahsisKaydediyor) setTahsisPlan(null)
+        }}
+      >
+        {tahsisOzet && (
+          <div className="text-sm">
+            <p className="!mb-2 !text-[12px] !text-[#6b7280]">
+              Tahsis miktarını değiştirebilirsin. Havuz malzeme düzeyinde ortaktır; bir satıra fazla
+              verirsen sonraki satırın kalan havuzu azalır. Miktarı sıfır olan satır gönderilmez.
+            </p>
+            <div className="max-h-72 overflow-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th className="py-1">Sipariş</th>
+                    <th>Malzeme</th>
+                    <th>Renk</th>
+                    <th className="text-right">Açık</th>
+                    <th className="text-right">Kalan Havuz</th>
+                    <th className="text-right">Tahsis</th>
+                    <th className="text-right">Kalan Açık</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tahsisOzet.satirlar.map((s) => (
+                    <tr key={tahsisAnahtar(s.satir)}>
+                      <td className="py-0.5">{s.satir.siparisNo}</td>
+                      <td className="py-0.5">{s.satir.malzemeKod}</td>
+                      <td className="py-0.5">{s.satir.varyant1}</td>
+                      <td className="py-0.5 text-right tabular-nums">{f3(s.acikIhtiyac)}</td>
+                      <td className="py-0.5 text-right tabular-nums">{f3(s.havuz)}</td>
+                      <td className="py-0.5 text-right">
+                        <InputNumber
+                          size="small"
+                          min={0}
+                          max={s.enFazla}
+                          step={0.001}
+                          precision={3}
+                          value={s.miktar}
+                          onChange={(v) => tahsisMiktarDegistir(s.satir, Number(v ?? 0), s.enFazla)}
+                          style={{ width: 112 }}
+                        />
+                      </td>
+                      <td
+                        className={`py-0.5 text-right tabular-nums ${s.acik > 0.00005 ? 'text-amber-600' : ''}`}
+                      >
+                        {f3(s.acik)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="!mt-2 !text-[12px]">
+              Toplam tahsis:{' '}
+              <b>
+                {f3(tahsisOzet.toplam)}
+                {tahsisOzet.birim ? ` ${tahsisOzet.birim}` : ''}
+              </b>
+              {tahsisOzet.acikToplam > 0.00005 && (
+                <span className="text-amber-600">
+                  {' '}
+                  · Açıkta kalacak:{' '}
+                  <b>
+                    {f3(tahsisOzet.acikToplam)}
+                    {tahsisOzet.birim ? ` ${tahsisOzet.birim}` : ''}
+                  </b>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   )

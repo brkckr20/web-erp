@@ -601,6 +601,8 @@ model IrsaliyeKalem {
   kaliteKontrolKalemleri KaliteKontrolKalem[] @relation("KKKalemIrsaliyeKalem")
   // Birleşmiş 202 talimat satırının sipariş/model dağılımı (salt-okunur tahsis detayı).
   tahsisler         IrsaliyeKalemTahsis[] @relation("KalemTahsisleri")
+  // Serbest ham stoktan sipariş kalemine yapılan elle rezervasyonlar.
+  stokTahsisleri    StokTahsis[] @relation("KalemStokTahsisleri")
   // Kalem satırına seçilen boyahane prosesleri (İşlem kartları, sıra yok).
   islemler          IrsaliyeKalemIslem[] @relation("KalemIslemleri")
 
@@ -626,6 +628,30 @@ model IrsaliyeKalemTahsis {
   @@index([irsaliyeKalemId])
   @@index([siparisKalemId])
   @@map("irsaliye_kalem_tahsis")
+}
+
+// Serbest (siparişe bağlı olmayan) ham stoktan sipariş kalemine yapılan elle rezervasyon.
+// irsaliye_kalem_tahsis'ten ayrı tutulur: o tablo 202→134→11 zincirinde fiş kaydında
+// silinip yeniden yazılır; buradaki kayıtlar stok fişinin düzenlenmesinden etkilenmez.
+model StokTahsis {
+  id              Int      @id @default(autoincrement())
+  irsaliyeKalemId Int      @map("irsaliye_kalem_id")
+  irsaliyeKalem   IrsaliyeKalem @relation("KalemStokTahsisleri", fields: [irsaliyeKalemId], references: [id], onDelete: Cascade)
+  // Hedef sipariş kalemi (skaler bağ, siparisKalemId kalıbı).
+  siparisKalemId  Int      @map("siparis_kalem_id")
+  // Hedef ihtiyaç satırı: malzeme ve sipariş rengi (renk yoksa NULL).
+  malzemeId       Int      @map("malzeme_id")
+  renkId          Int?     @map("renk_id")
+  // Görüntüleme snapshot'ı (sipariş/model sonradan silinse bile tahsis izi korunur).
+  siparisNo       String?  @map("siparis_no") @db.VarChar(50)
+  modelKod        String?  @map("model_kod") @db.VarChar(100)
+  miktar          Decimal  @db.Decimal(18, 4)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([irsaliyeKalemId])
+  @@index([siparisKalemId, malzemeId])
+  @@index([malzemeId])
+  @@map("stok_tahsis")
 }
 
 model IrsaliyeKalemIslem {

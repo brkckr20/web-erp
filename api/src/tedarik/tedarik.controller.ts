@@ -13,6 +13,7 @@ import { TedarikService } from './tedarik.service'
 import { HesaplaParamsDto } from './dto/hesapla.dto'
 import { TedarikIhtiyacCreateDto } from './dto/create.dto'
 import { TedarikIhtiyacUpdateDto } from './dto/update.dto'
+import { TahsisSatirDto } from './dto/tahsis.dto'
 
 @Controller('tedarik')
 export class TedarikController {
@@ -61,8 +62,29 @@ export class TedarikController {
   planlamaKumasHareketler(
     @Query('siparisNo') siparisNo: string,
     @Query('malzemeKod') malzemeKod: string,
+    @Query('siparisKalemId') siparisKalemId?: string,
+    @Query('renkId') renkId?: string,
   ) {
-    return this.service.planlamaKumasHareketler(siparisNo, malzemeKod)
+    return this.service.planlamaKumasHareketler(
+      siparisNo,
+      malzemeKod,
+      siparisKalemId ? Number(siparisKalemId) : undefined,
+      renkId ? Number(renkId) : undefined,
+    )
+  }
+
+  @Post('planlama/tahsis')
+  tahsisEt(@Body() dto: { satirlar: TahsisSatirDto[] }) {
+    return this.service.tahsisEt(dto?.satirlar ?? [])
+  }
+
+  @Delete('planlama/tahsis')
+  tahsisKaldir(
+    @Query('siparisKalemId', ParseIntPipe) siparisKalemId: number,
+    @Query('malzemeId', ParseIntPipe) malzemeId: number,
+    @Query('renkId') renkId?: string,
+  ) {
+    return this.service.tahsisKaldir(siparisKalemId, malzemeId, renkId ? Number(renkId) : null)
   }
 
   @Get('planlama/kumas/depo-stok')
