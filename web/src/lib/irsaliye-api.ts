@@ -88,6 +88,8 @@ export interface IrsaliyeKalem {
   malzeme?: { id: number; kod: string; ad: string; barkod?: string | null } | null
   /** Birleşmiş 202 talimat satırının sipariş/model dağılımı (salt-okunur). */
   tahsisler?: IrsaliyeKalemTahsis[]
+  /** Serbest ham stoktan sipariş kalemine yapılan elle tahsisler (salt-okunur). */
+  stokTahsisleri?: IrsaliyeKalemTahsis[]
   /** Satıra seçilen prosesler (İşlem kartları, sıralı). */
   islemler?: { islemId?: number; sira?: number; islem?: { id: number; kod: string; ad: string } | null }[]
   /** Kaydetmede/aktarımda taşınan proses listesi. */

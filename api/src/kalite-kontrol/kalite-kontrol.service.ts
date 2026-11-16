@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { IrsaliyeService } from '../irsaliye/irsaliye.service'
@@ -7,6 +7,19 @@ import { CreateKaliteKontrolDto, UpdateKaliteKontrolDto } from './dto/create-kal
 function padBarkod(n: number, length: number): string {
   return n.toString().padStart(length, '0')
 }
+
+// Barkodu tüketen çıkış tipleri — rapor.service.ts depoBarkodStok ile aynı küme.
+// KK kaydı silinirse bu fişlerin takip_no alanında ölü barkod kalır.
+const BARKOD_KULLANAN_CIKIS_TIPLERI = [
+  '2', '3', '4', '8', '12', '23', '120', '121', '123', '126', '134', '138', '192', '99',
+  '130', '131', '132', '135', '136', '137', '140',
+]
+
+// Stok girişi sayılan fiş tipleri — Depo Bazlı Stok / Kumaş Planlama ile aynı liste.
+const STOK_GIRIS_TIPLERI = [
+  '1', '5', '6', '9', '11', '22', '122', '124', '125', '133', '139',
+  '10', '16', '17', '18', '20', '21', '40', '101',
+]
 
 @Injectable()
 export class KaliteKontrolService {
@@ -128,7 +141,17 @@ export class KaliteKontrolService {
       },
     })
     if (!fis) throw new NotFoundException('Fiş bulunamadı')
+    // Satır bazlı stok durumu: barkod bir giriş fişinde görünüyorsa fiş no'su döner.
+    // KK fişi 11/10 gibi tamamlanmış bir giriş fişine bağlıysa tüm satırlar stoktadır.
+    const stokMap = await this.barkodStokDurumu(this.prisma, fis.kalemler.map((k) => k.barkod))
+    const fisStokta = fis.irsaliyeId != null && !!(fis.irsaliye as any)?.tamamlandi
+    const fisStokNo = fisStokta ? ((fis.irsaliye as any)?.irsaliyeNo ?? null) : null
     const result: any = { ...fis }
+    result.kalemler = fis.kalemler.map((k) => {
+      const stok = k.barkod ? stokMap.get(k.barkod) : undefined
+      const stokFisNo = stok?.irsaliyeNo ?? fisStokNo
+      return { ...k, stokFisNo, stoktaMi: !!stok || fisStokta }
+    })
     result.siparisNo = fis.isEmri?.siparisNo ?? null
     // Fiş cari hesap boşsa 11 fişinden al
     if (!result.cariHesapId && result.kalemler && result.kalemler.length > 0) {
@@ -301,6 +324,12 @@ export class KaliteKontrolService {
         // Fişte olup gelen olmayan satırları sil.
         const silinecekIds = existingIds.filter((x) => !gelenIds.has(x))
         if (silinecekIds.length > 0) {
+          const silinecekKalemler = await tx.kaliteKontrolKalem.findMany({
+            where: { id: { in: silinecekIds } },
+            select: { barkod: true },
+          })
+          const kullanimlar = await this.kullanilanBarkodlar(tx, silinecekKalemler.map((k) => k.barkod))
+          if (kullanimlar.length > 0) throw this.barkodKullanimHatasi(kullanimlar)
           await tx.kaliteKontrolHata.deleteMany({ where: { kalemId: { in: silinecekIds } } })
           await tx.kaliteKontrolKalem.deleteMany({ where: { id: { in: silinecekIds } } })
         }
@@ -364,8 +393,74 @@ export class KaliteKontrolService {
     })
   }
 
+  /**
+   * Barkod → onu stoğa sokan tamamlanmış giriş fişi. Bir KK topu hangi fişle
+   * stoğa girdiyse ("Stoğa Al" tip-10 üretim fişi ya da elle 10-Üretim fişi)
+   * "Stok" kolonu o fişi gösterir.
+   */
+  private async barkodStokDurumu(
+    db: any,
+    barkodlar: (string | null | undefined)[],
+  ): Promise<Map<string, { irsaliyeNo: string | null; irsaliyeTarihi: Date | null }>> {
+    const benzersiz = [...new Set(barkodlar.filter((b): b is string => !!b && String(b).trim() !== ''))]
+    if (benzersiz.length === 0) return new Map()
+    const rows = await db.irsaliyeKalem.findMany({
+      where: {
+        takipNo: { in: benzersiz },
+        irsaliye: { tamamlandi: true, irsaliyeTipi: { in: STOK_GIRIS_TIPLERI } },
+      },
+      select: {
+        takipNo: true,
+        irsaliye: { select: { irsaliyeNo: true, irsaliyeTarihi: true } },
+      },
+      orderBy: { id: 'desc' },
+    })
+    const map = new Map<string, { irsaliyeNo: string | null; irsaliyeTarihi: Date | null }>()
+    for (const r of rows) {
+      if (!r.takipNo || map.has(r.takipNo)) continue
+      map.set(r.takipNo, {
+        irsaliyeNo: r.irsaliye?.irsaliyeNo ?? null,
+        irsaliyeTarihi: r.irsaliye?.irsaliyeTarihi ?? null,
+      })
+    }
+    return map
+  }
+
+  /**
+   * Verilen KK barkodlarından çıkış fişlerinde kullanılmış olanları döndürür.
+   * Kullanım, irsaliye_kalem.takip_no = kalite_kontrol_kalem.barkod eşleşmesiyle
+   * türetildiği için KK kaydı silinirse çıkış satırında ölü bir takipNo kalır.
+   */
+  private async kullanilanBarkodlar(db: any, barkodlar: (string | null | undefined)[]) {
+    const benzersiz = [...new Set(barkodlar.filter((b): b is string => !!b && String(b).trim() !== ''))]
+    if (benzersiz.length === 0) return []
+    return db.irsaliyeKalem.findMany({
+      where: {
+        takipNo: { in: benzersiz },
+        irsaliye: { tamamlandi: true, irsaliyeTipi: { in: BARKOD_KULLANAN_CIKIS_TIPLERI } },
+      },
+      select: { takipNo: true, irsaliye: { select: { irsaliyeNo: true } } },
+    })
+  }
+
+  private barkodKullanimHatasi(
+    kullanimlar: { takipNo: string | null; irsaliye: { irsaliyeNo: string } }[],
+  ) {
+    const barkodlar = [...new Set(kullanimlar.map((k) => k.takipNo).filter(Boolean))]
+    const fisNolar = [...new Set(kullanimlar.map((k) => k.irsaliye?.irsaliyeNo).filter(Boolean))]
+    return new BadRequestException(
+      `Bu barkodlar çıkış fişlerinde kullanılmış (Barkod: ${barkodlar.join(', ')} · Fiş No: ${fisNolar.join(', ')}). ` +
+        'Önce ilgili çıkış fişinin satırından barkodu kaldırın.',
+    )
+  }
+
   async remove(id: number) {
     const oncesi = await this.findOne(id)
+    const kullanimlar = await this.kullanilanBarkodlar(
+      this.prisma,
+      (oncesi.kalemler ?? []).map((k: any) => k.barkod),
+    )
+    if (kullanimlar.length > 0) throw this.barkodKullanimHatasi(kullanimlar)
     const baglantiIds = new Set<number>(
       (oncesi.kalemler ?? [])
         .map((k: any) => k.irsaliyeKalemId)
@@ -480,8 +575,8 @@ export class KaliteKontrolService {
     })
   }
 
-  stogaAlinmamisListe() {
-    return this.prisma.kaliteKontrol.findMany({
+  async stogaAlinmamisListe() {
+    const fisler = await this.prisma.kaliteKontrol.findMany({
       where: { irsaliyeId: null },
       orderBy: { fisNo: 'desc' },
       include: {
@@ -492,6 +587,18 @@ export class KaliteKontrolService {
         },
       },
     })
+    // Bir top herhangi bir giriş fişiyle stoğa girdiyse tekrar stoğa alınamaz;
+    // listeden düşülür ki aynı üretim iki kez stok sayılmasın.
+    const stokMap = await this.barkodStokDurumu(
+      this.prisma,
+      fisler.flatMap((f) => f.kalemler.map((k) => k.barkod)),
+    )
+    return fisler
+      .map((f) => ({
+        ...f,
+        kalemler: f.kalemler.filter((k) => !(k.barkod && stokMap.has(k.barkod))),
+      }))
+      .filter((f) => f.kalemler.length > 0)
   }
 
   async stogaAl(id: number) {
@@ -512,6 +619,25 @@ export class KaliteKontrolService {
 
     const kalemler = fis.kalemler.filter((k) => k.malzemeId)
     if (kalemler.length === 0) throw new Error('Stoğa alınabilecek kalem bulunamadı (malzemeId gerekli)')
+
+    // Aynı top daha önce bir üretim/giriş fişiyle stoğa alınmışsa ikinci kez alınmaz;
+    // stokta olmayan satırlar stoğa alınır (kısmi aktarım sonrası fiş kilitlenmesin).
+    const mevcutStok = await this.barkodStokDurumu(this.prisma, kalemler.map((k) => k.barkod))
+    const stoklanacak = kalemler.filter((k) => !(k.barkod && mevcutStok.has(k.barkod)))
+    if (stoklanacak.length === 0) {
+      const fisNolar = [
+        ...new Set(
+          kalemler
+            .map((k) => (k.barkod ? mevcutStok.get(k.barkod)?.irsaliyeNo : null))
+            .filter((x): x is string => !!x),
+        ),
+      ]
+      throw new BadRequestException(
+        `Bu fişteki top barkodları zaten stoğa alınmış` +
+          (fisNolar.length ? ` (Fiş No: ${fisNolar.join(', ')})` : '') +
+          '.',
+      )
+    }
 
     // 11-Fasondan Giriş kalemine bağlıysa: ayrı tip-10 üretim fişi OLUŞTURULMAMAKTAR.
     // 11 fişi zaten GİRİŞ tipi + tamamlandı=true ile stoğa düşer. KK fis 11'e bağlanır.
@@ -553,7 +679,7 @@ export class KaliteKontrolService {
         },
       })
 
-      for (const k of kalemler) {
+      for (const k of stoklanacak) {
         await tx.irsaliyeKalem.create({
           data: {
             irsaliyeId: irsaliye.id,
@@ -573,10 +699,16 @@ export class KaliteKontrolService {
         data: { irsaliyeId: irsaliye.id },
       })
 
-      return tx.irsaliye.findUnique({
+      // Üretim bu sipariş için yapıldıysa satırlar otomatik olarak sipariş kalemine
+      // bağlanır; Kumaş Planlama'da Ham Stok altında görünür (free stoktan düşer).
+      const tahsis = await this.irsaliyeService.sipariseTahsisEt(tx, irsaliye.id, fis.isEmriId)
+
+      const olusan = await tx.irsaliye.findUnique({
         where: { id: irsaliye.id },
         include: { kalemler: { include: { malzeme: true } } },
       })
+      const atlanan = kalemler.length - stoklanacak.length
+      return olusan ? { ...olusan, tahsis, atlanan } : olusan
     })
   }
 

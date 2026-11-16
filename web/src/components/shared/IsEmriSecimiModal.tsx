@@ -41,6 +41,7 @@ interface IsEmriSecimiKalem {
   adet: number
   kullanilanKg: number
   kullanilanMt: number
+  kullanilanAdet: number
 }
 
 interface IsEmriSecimiModalProps {
@@ -93,6 +94,7 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
           adet: k.adet ?? 0,
           kullanilanKg: k.kullanilanKg ?? 0,
           kullanilanMt: k.kullanilanMt ?? 0,
+          kullanilanAdet: k.kullanilanAdet ?? 0,
         })
       }
     }
@@ -103,7 +105,8 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
     return allKalemler.filter((row) => {
       const kalanKg = row.kg - row.kullanilanKg
       const kalanMt = row.mt - row.kullanilanMt
-      return kalanKg > 0 || kalanMt > 0
+      const kalanAdet = row.adet - row.kullanilanAdet
+      return kalanKg > 0 || kalanMt > 0 || kalanAdet > 0
     })
   }, [allKalemler])
 
@@ -142,7 +145,7 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
           const row = p.data!
           if (row.kg > 0) return row.kg - row.kullanilanKg
           if (row.mt > 0) return row.mt - row.kullanilanMt
-          return 0
+          return row.adet - row.kullanilanAdet
         },
         valueFormatter: (p) => (p.value ?? 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       },
@@ -154,6 +157,11 @@ export default function IsEmriSecimiModal({ open, onClose, onSelect }: IsEmriSec
     const secilen = gridApi?.getSelectedRows() as IsEmriSecimiKalem[] | undefined
     if (!secilen || secilen.length === 0) {
       message.warning('Lütfen en az bir kalem seçin')
+      return
+    }
+    const isEmirleri = [...new Set(secilen.map((s) => s.isEmriNo))]
+    if (isEmirleri.length > 1) {
+      message.warning('Tek seferde tek iş emrine ait satırları seçin')
       return
     }
     const isEmriNo = secilen[0].isEmriNo

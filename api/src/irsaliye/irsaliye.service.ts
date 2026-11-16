@@ -49,7 +49,7 @@ function fireHesapla(k: any): Prisma.Decimal | null {
 
 // Kalem verisini yazmaya hazırlar: ilişki alanlarını temizler, fire'ı hesaplar.
 function kalemDataHazirla(k: any): any {
-  const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, fire: _fire, tahsisler: _tahsisler, islemler: _islemler, prosesler: _prosesler, ...rest } = k
+  const { id: _id, malzeme: _malzeme, irsaliye: _irsaliye, fire: _fire, tahsisler: _tahsisler, stokTahsisleri: _stokTahsisleri, islemler: _islemler, prosesler: _prosesler, ...rest } = k
   return { ...rest, fire: fireHesapla(k) }
 }
 
@@ -59,6 +59,8 @@ const kalemInclude = {
   varyant2Renk: true,
   boyahaneRenk: true,
   tahsisler: true,
+  // Serbest ham stoktan sipariş kalemine yapılan elle tahsisler (Tahsis Detayları).
+  stokTahsisleri: true,
   islemler: { include: { islem: true } },
 }
 
@@ -149,6 +151,141 @@ export class IrsaliyeService {
     return irsaliye
   }
 
+  /**
+   * Tamamlanmış 10-Üretim fişi satırlarını ilgili sipariş kalemine bağlar.
+   * Satırın barkodu (takipNo) KK kalemine, oradan KK iş emrine ve sipariş numarasına
+   * çözülür. Siparişte o malzemeye düşen TEK sipariş kalemi varsa satır doğrudan
+   * siparis_kalem_id ile bağlanır; Kumaş Planlama bu satırı "Ham Stok" sayar.
+   * Aday kalemler tedarik_ihtiyac'tan gelir: siparis_kalem.malzeme_id MODEL
+   * malzemesidir, kumaş satırını tutmaz.
+   * Birden fazla eşleşme varsa yanlış siparişe bağlamamak için dokunulmaz (elle tahsis).
+   * Zaten bağlı ve malzemesi tutan satırlar korunur.
+   */
+  async sipariseTahsisEt(
+    tx: Prisma.TransactionClient,
+    irsaliyeId: number,
+    varsayilanIsEmriId?: number | null,
+  ): Promise<{ baglanan: number; belirsiz: number }> {
+    const sonuc = { baglanan: 0, belirsiz: 0 }
+    const fis = await tx.irsaliye.findUnique({
+      where: { id: irsaliyeId },
+      select: {
+        irsaliyeTipi: true,
+        tamamlandi: true,
+        kalemler: { select: { id: true, malzemeId: true, takipNo: true, siparisKalemId: true } },
+      },
+    })
+    if (!fis || fis.irsaliyeTipi !== '10' || !fis.tamamlandi || fis.kalemler.length === 0) return sonuc
+
+    // Mevcut bağlar: siparişi de taşınır, satırın malzemesi değişmişse bağ tazelenir.
+    const bagliIds = [
+      ...new Set(fis.kalemler.map((k) => k.siparisKalemId).filter((v): v is number => v != null)),
+    ]
+    const baglilar = bagliIds.length
+      ? await tx.siparisKalem.findMany({
+          where: { id: { in: bagliIds } },
+          select: { id: true, siparisId: true },
+        })
+      : []
+    const bagliMap = new Map(baglilar.map((k) => [k.id, k]))
+
+    // Barkod → KK iş emri (aynı barkod birden fazla KK'da olsa en yenisi geçerli).
+    const barkodlar = [
+      ...new Set(fis.kalemler.map((k) => k.takipNo).filter((b): b is string => !!b && b.trim() !== '')),
+    ]
+    const kkKalemler = barkodlar.length
+      ? await tx.kaliteKontrolKalem.findMany({
+          where: { barkod: { in: barkodlar } },
+          select: {
+            barkod: true,
+            isEmriNo: true,
+            fis: { select: { isEmriId: true, isEmriNo: true } },
+          },
+          orderBy: { id: 'desc' },
+        })
+      : []
+    const barkodIsEmri = new Map<string, { id: number | null; no: string | null }>()
+    for (const k of kkKalemler) {
+      if (!k.barkod || barkodIsEmri.has(k.barkod)) continue
+      barkodIsEmri.set(k.barkod, {
+        id: k.fis?.isEmriId ?? null,
+        // Fiş seviyesinde iş emri yoksa satırdaki iş emri no'su kullanılır.
+        no: k.fis?.isEmriNo ?? k.isEmriNo ?? null,
+      })
+    }
+
+    const siparisNoOnbellek = new Map<string, string | null>()
+    const siparisNoBul = async (isEmriId: number | null, isEmriNo: string | null) => {
+      const anahtar = isEmriId != null ? `id:${isEmriId}` : isEmriNo ? `no:${isEmriNo}` : ''
+      if (!anahtar) return null
+      if (siparisNoOnbellek.has(anahtar)) return siparisNoOnbellek.get(anahtar)!
+      const ie =
+        isEmriId != null
+          ? await tx.isEmri.findUnique({ where: { id: isEmriId }, select: { siparisNo: true } })
+          : await tx.isEmri.findUnique({ where: { isEmriNo: isEmriNo! }, select: { siparisNo: true } })
+      const siparisNo = ie?.siparisNo ?? null
+      siparisNoOnbellek.set(anahtar, siparisNo)
+      return siparisNo
+    }
+
+    const siparisIdOnbellek = new Map<string, number | null>()
+    const siparisIdBul = async (siparisNo: string) => {
+      if (siparisIdOnbellek.has(siparisNo)) return siparisIdOnbellek.get(siparisNo)!
+      const s = await tx.siparis.findUnique({ where: { siparisNo }, select: { id: true } })
+      const id = s?.id ?? null
+      siparisIdOnbellek.set(siparisNo, id)
+      return id
+    }
+
+    // Kumaş ihtiyacı sipariş kalemi + malzeme eşleşmesini verir. siparis_kalem.malzeme_id
+    // model malzemesi olduğu için oradan aranmaz.
+    const kalemOnbellek = new Map<string, number[]>()
+    const adayKalemler = async (siparisId: number, malzemeId: number) => {
+      const anahtar = `${siparisId}:${malzemeId}`
+      const onbellek = kalemOnbellek.get(anahtar)
+      if (onbellek) return onbellek
+      const rows = await tx.tedarikIhtiyac.findMany({
+        where: { siparisId, malzemeId },
+        select: { siparisKalemId: true },
+      })
+      const adaylar = [...new Set(rows.map((r) => r.siparisKalemId))]
+      kalemOnbellek.set(anahtar, adaylar)
+      return adaylar
+    }
+
+    for (const k of fis.kalemler) {
+      if (k.malzemeId == null) continue
+
+      // Bağlı kalem hâlâ bu malzemenin ihtiyacındaysa dokunulmaz.
+      const mevcut = k.siparisKalemId != null ? bagliMap.get(k.siparisKalemId) : null
+      if (mevcut && (await adayKalemler(mevcut.siparisId, k.malzemeId)).includes(mevcut.id)) continue
+
+      const kkIsEmri = k.takipNo ? barkodIsEmri.get(k.takipNo) : undefined
+      const siparisNo =
+        (await siparisNoBul(kkIsEmri?.id ?? null, kkIsEmri?.no ?? null)) ??
+        (await siparisNoBul(varsayilanIsEmriId ?? null, null))
+      const siparisId = siparisNo ? await siparisIdBul(siparisNo) : null
+      const adaylar = siparisId != null ? await adayKalemler(siparisId, k.malzemeId) : []
+
+      if (adaylar.length === 1) {
+        await tx.irsaliyeKalem.update({
+          where: { id: k.id },
+          data: { siparisKalemId: adaylar[0] },
+        })
+        sonuc.baglanan += 1
+      } else if (adaylar.length > 1) {
+        // Belirsiz eşleşme: eski (artık tutmayan) bağ varsa temizlenir, elle tahsise bırakılır.
+        if (k.siparisKalemId != null) {
+          await tx.irsaliyeKalem.update({ where: { id: k.id }, data: { siparisKalemId: null } })
+        }
+        sonuc.belirsiz += 1
+      } else if (k.siparisKalemId != null) {
+        await tx.irsaliyeKalem.update({ where: { id: k.id }, data: { siparisKalemId: null } })
+      }
+    }
+    return sonuc
+  }
+
   async create(dto: CreateIrsaliyeDto) {
     const data: any = { ...dto }
     // Otomatik oluşan stok fişleri taslak kalmasın ( örn. 201'den Mal Alım ).
@@ -173,7 +310,7 @@ export class IrsaliyeService {
           await islemleriYaz(tx, kalem.id, (k as any).prosesler)
         }
       }
-      return tx.irsaliye.findUnique({
+      const olusan = await tx.irsaliye.findUnique({
         where: { id: irsaliye.id },
         include: {
           cariHesap: true,
@@ -182,6 +319,9 @@ export class IrsaliyeService {
           kalemler: { include: kalemInclude },
         },
       })
+      if (!olusan) return olusan
+      const tahsis = await this.sipariseTahsisEt(tx, olusan.id)
+      return { ...olusan, tahsis }
     })
   }
 
@@ -278,7 +418,7 @@ export class IrsaliyeService {
           await tx.irsaliyeKalem.deleteMany({ where: { id: { in: silinecekIdler } } })
         }
       }
-      return tx.irsaliye.findUnique({
+      const guncel = await tx.irsaliye.findUnique({
         where: { id },
         include: {
           cariHesap: true,
@@ -287,6 +427,9 @@ export class IrsaliyeService {
           kalemler: { include: kalemInclude },
         },
       })
+      if (!guncel) return guncel
+      const tahsis = await this.sipariseTahsisEt(tx, guncel.id)
+      return { ...guncel, tahsis }
     })
   }
 

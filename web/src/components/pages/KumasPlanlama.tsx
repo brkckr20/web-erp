@@ -16,12 +16,21 @@ import {
   BankOutlined,
   LinkOutlined,
   DisconnectOutlined,
+  FileAddOutlined,
 } from '@ant-design/icons'
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
 import DataGrid, { DataGridHandle } from '@/components/shared/DataGrid'
-import { tedarikApi, type KumasPlanlamaSatir, type KumasHareketSatiri, type KarsilamaDepoSatir } from '@/lib/tedarik-api'
+import {
+  tedarikApi,
+  type KumasPlanlamaSatir,
+  type KumasHareketSatiri,
+  type KarsilamaDepoSatir,
+  type TahsisKaynakSatir,
+  type TahsisSatir,
+} from '@/lib/tedarik-api'
 import { fasonTipiApi, parseKategoriler, type FasonTipi } from '@/lib/fason-tipi-api'
+import { isEmriApi } from '@/lib/is-emri-api'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
 import { baslangicKalemleriBirlestir, baslangicKalemleriKumule } from '@/components/pages/IrsaliyeKarti'
 
@@ -41,13 +50,35 @@ const fisTipiAdlari: Record<string, string> = {
 const f3 = (v: number) =>
   Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
 
-const tahsisAnahtar = (r: KumasPlanlamaSatir) =>
-  `${r.siparisKalemId}:${r.malzemeId}:${r.varyant1RenkId ?? 0}`
+// Kaynak seçimi başlangıcı: malzeme ihtiyacı kadar, fiş sırasına göre (FIFO)
+// kaynak satırları doldurulur. Kullanıcı miktarları değiştirebilir.
+const varsayilanTahsisSecimi = (
+  hedefler: KumasPlanlamaSatir[],
+  kaynaklar: TahsisKaynakSatir[],
+): Record<number, number> => {
+  const ihtiyac = new Map<number, number>()
+  for (const h of hedefler) {
+    const malzemeId = h.malzemeId as number
+    ihtiyac.set(malzemeId, (ihtiyac.get(malzemeId) ?? 0) + (Number(h.acikMiktar) || 0))
+  }
+  const secimler: Record<number, number> = {}
+  for (const k of kaynaklar) {
+    const kalanIhtiyac = ihtiyac.get(k.malzemeId) ?? 0
+    if (kalanIhtiyac <= 0.00005) continue
+    const miktar = Number(Math.min(k.kalan, kalanIhtiyac).toFixed(3))
+    if (miktar <= 0.00005) continue
+    secimler[k.irsaliyeKalemId] = miktar
+    ihtiyac.set(k.malzemeId, kalanIhtiyac - miktar)
+  }
+  return secimler
+}
 
-export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }: {
+export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat, onIsEmriAc }: {
   onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void
   /** Fason Talimatı (202) açar; fasonId fiş alt tipi olarak gelir. */
   onFasonTalimat?: (fasonTipiId: number, kalemler: IrsaliyeBaslangicKalem[]) => void
+  /** Oluşturulan iş emrini kart sekmesinde açar. */
+  onIsEmriAc?: (isEmriNo: string) => void
 }) {
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
   const [arama, setArama] = useState('')
@@ -61,11 +92,14 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
   const [karsilamaDepo, setKarsilamaDepo] = useState<KarsilamaDepoSatir[]>([])
   const [karsilamaLoading, setKarsilamaLoading] = useState(false)
   const [guncelleniyor, setGuncelleniyor] = useState(false)
-  const [tahsisPlan, setTahsisPlan] = useState<{
-    satirlar: KumasPlanlamaSatir[]
-    miktarlar: Record<string, number>
+  const [kaynakPlan, setKaynakPlan] = useState<{
+    hedefler: KumasPlanlamaSatir[]
+    kaynaklar: TahsisKaynakSatir[]
+    secimler: Record<number, number>
   } | null>(null)
+  const [kaynakYukleniyor, setKaynakYukleniyor] = useState(false)
   const [tahsisKaydediyor, setTahsisKaydediyor] = useState(false)
+  const [isEmriOlusturuyor, setIsEmriOlusturuyor] = useState(false)
 
   const hareketAc = useCallback((r: KumasPlanlamaSatir) => {
     setHareketSatir(r)
@@ -204,68 +238,147 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
     [bayatSatirlar],
   )
 
-  // Tahsis onayındaki satırlar: havuz malzeme düzeyinde paylaşıldığı için her satırın
-  // gerçekte gördüğü kalan havuz, önceki satırların tahsisleri düşülerek bulunur.
-  const tahsisOzet = useMemo(() => {
-    if (!tahsisPlan) return null
-    const kalan = new Map<number, number>()
-    const satirlar = tahsisPlan.satirlar.map((r) => {
-      const malzemeId = r.malzemeId as number
-      const havuz = kalan.get(malzemeId) ?? (Number(r.freeStok) || 0)
-      const acikIhtiyac = Number(r.acikMiktar) || 0
-      const istenen = tahsisPlan.miktarlar[tahsisAnahtar(r)] ?? 0
-      // Havuz ortak olduğu için bir satıra yazılan miktar sonrakilerin tavanını düşürür.
-      const miktar = Number(Math.min(istenen, Math.max(0, havuz), acikIhtiyac).toFixed(3))
-      kalan.set(malzemeId, Math.max(0, havuz - miktar))
-      return {
-        satir: r,
-        havuz,
-        miktar,
-        acikIhtiyac,
-        acik: Math.max(0, acikIhtiyac - miktar),
-        enFazla: Math.min(acikIhtiyac, havuz),
+  // Kaynak seçim özeti: malzeme bazında ihtiyaç ve seçilen kaynak miktarı.
+  const kaynakOzet = useMemo(() => {
+    if (!kaynakPlan) return null
+    const ihtiyac = new Map<number, { kod: string; ad: string; birim: string; toplam: number }>()
+    for (const h of kaynakPlan.hedefler) {
+      const malzemeId = h.malzemeId as number
+      const mevcut = ihtiyac.get(malzemeId) ?? {
+        kod: h.malzemeKod,
+        ad: h.malzemeAd,
+        birim: h.birim,
+        toplam: 0,
       }
-    })
-    return {
-      satirlar,
-      toplam: satirlar.reduce((acc, s) => acc + s.miktar, 0),
-      acikToplam: satirlar.reduce((acc, s) => acc + s.acik, 0),
-      birim: new Set(satirlar.map((s) => s.satir.birim)).size === 1 ? satirlar[0]?.satir.birim ?? '' : '',
+      mevcut.toplam += Number(h.acikMiktar) || 0
+      ihtiyac.set(malzemeId, mevcut)
     }
-  }, [tahsisPlan])
+    const secilen = new Map<number, number>()
+    for (const k of kaynakPlan.kaynaklar) {
+      const miktar = Number(kaynakPlan.secimler[k.irsaliyeKalemId]) || 0
+      if (miktar > 0.00005) secilen.set(k.malzemeId, (secilen.get(k.malzemeId) ?? 0) + miktar)
+    }
+    const malzemeler = [...ihtiyac.entries()].map(([malzemeId, v]) => ({
+      malzemeId,
+      kod: v.kod,
+      ad: v.ad,
+      birim: v.birim,
+      ihtiyac: Number(v.toplam.toFixed(3)),
+      secilen: Number((secilen.get(malzemeId) ?? 0).toFixed(3)),
+    }))
+    return {
+      malzemeler,
+      secilenToplam: malzemeler.reduce((acc, m) => acc + m.secilen, 0),
+      acikToplam: malzemeler.reduce((acc, m) => acc + Math.max(0, m.ihtiyac - m.secilen), 0),
+      birim: malzemeler.length === 1 ? malzemeler[0]?.birim ?? '' : '',
+    }
+  }, [kaynakPlan])
 
-  const tahsisMiktarDegistir = (r: KumasPlanlamaSatir, deger: number, enFazla: number) => {
-    setTahsisPlan((p) => {
+  // Bir kaynak satırda kullanılabilecek en fazla miktar: satırın kalanı ve
+  // malzemenin diğer seçimlerden artan ihtiyacı.
+  const kaynakEnFazla = (k: TahsisKaynakSatir) => {
+    if (!kaynakPlan) return 0
+    const ihtiyac = kaynakPlan.hedefler
+      .filter((h) => h.malzemeId === k.malzemeId)
+      .reduce((acc, h) => acc + (Number(h.acikMiktar) || 0), 0)
+    const digerleri = kaynakPlan.kaynaklar
+      .filter((x) => x.malzemeId === k.malzemeId && x.irsaliyeKalemId !== k.irsaliyeKalemId)
+      .reduce((acc, x) => acc + (Number(kaynakPlan.secimler[x.irsaliyeKalemId]) || 0), 0)
+    return Number(Math.min(k.kalan, Math.max(0, ihtiyac - digerleri)).toFixed(3))
+  }
+
+  const kaynakSecimDegistir = (k: TahsisKaynakSatir, deger: number, enFazla: number) => {
+    setKaynakPlan((p) => {
       if (!p) return p
-      const miktar = Math.min(Math.max(0, Number(deger) || 0), enFazla)
-      return { ...p, miktarlar: { ...p.miktarlar, [tahsisAnahtar(r)]: Number(miktar.toFixed(3)) } }
+      const miktar = Number(Math.min(Math.max(0, Number(deger) || 0), enFazla).toFixed(3))
+      const secimler = { ...p.secimler }
+      if (miktar > 0.00005) secimler[k.irsaliyeKalemId] = miktar
+      else delete secimler[k.irsaliyeKalemId]
+      return { ...p, secimler }
     })
   }
 
-  const tahsisKaydet = async () => {
-    if (!tahsisPlan || !tahsisOzet) return
-    const gonderilecek = tahsisOzet.satirlar.filter((s) => s.miktar > 0.00005)
-    if (gonderilecek.length === 0) {
+  const kaynakOneriUygula = () =>
+    setKaynakPlan((p) => (p ? { ...p, secimler: varsayilanTahsisSecimi(p.hedefler, p.kaynaklar) } : p))
+
+  const kaynakSecimiAc = async (hedefler: KumasPlanlamaSatir[]) => {
+    setKaynakPlan({ hedefler, kaynaklar: [], secimler: {} })
+    setKaynakYukleniyor(true)
+    try {
+      const malzemeler = [
+        ...new Map(hedefler.map((r) => [r.malzemeId as number, r.birim || ''])).entries(),
+      ].map(([malzemeId, birim]) => ({ malzemeId, birim }))
+      const kaynaklar = await tedarikApi.tahsisKaynaklari(malzemeler)
+      setKaynakPlan({
+        hedefler,
+        kaynaklar,
+        secimler: varsayilanTahsisSecimi(hedefler, kaynaklar),
+      })
+    } catch (err) {
+      setKaynakPlan(null)
+      message.error(
+        'Ham stok kaynakları yüklenemedi: ' + (err instanceof Error ? err.message : String(err)),
+      )
+    } finally {
+      setKaynakYukleniyor(false)
+    }
+  }
+
+  const kaynakTahsisKaydet = async () => {
+    if (!kaynakPlan || !kaynakOzet) return
+    const secilenler = kaynakPlan.kaynaklar
+      .map((k) => ({
+        kaynak: k,
+        secilen: Number(kaynakPlan.secimler[k.irsaliyeKalemId]) || 0,
+        kalanKaynak: k.kalan,
+      }))
+      .filter((x) => x.secilen > 0.00005)
+    if (secilenler.length === 0) {
+      message.warning('Tahsis için kaynak miktarı seçilmedi')
+      return
+    }
+
+    // Seçilen kaynaklar malzeme bazında hedef satırlara sırayla dağıtılır.
+    const satirlar: TahsisSatir[] = []
+    for (const r of kaynakPlan.hedefler) {
+      const malzemeId = r.malzemeId as number
+      let kalanIhtiyac = Number(r.acikMiktar) || 0
+      if (kalanIhtiyac <= 0.00005) continue
+      const kaynaklar: { irsaliyeKalemId: number; miktar: number }[] = []
+      for (const s of secilenler) {
+        if (s.kaynak.malzemeId !== malzemeId || s.kalanKaynak <= 0.00005) continue
+        const pay = Number(Math.min(kalanIhtiyac, s.secilen, s.kalanKaynak).toFixed(3))
+        if (pay <= 0.00005) continue
+        kaynaklar.push({ irsaliyeKalemId: s.kaynak.irsaliyeKalemId, miktar: pay })
+        s.secilen = Number((s.secilen - pay).toFixed(3))
+        s.kalanKaynak = Number((s.kalanKaynak - pay).toFixed(3))
+        kalanIhtiyac = Number((kalanIhtiyac - pay).toFixed(3))
+        if (kalanIhtiyac <= 0.00005) break
+      }
+      if (kaynaklar.length === 0) continue
+      satirlar.push({
+        siparisKalemId: r.siparisKalemId as number,
+        siparisNo: r.siparisNo,
+        modelKod: r.modelKod,
+        malzemeId,
+        renkId: r.varyant1RenkId ?? null,
+        birim: r.birim,
+        miktar: Number(kaynaklar.reduce((acc, k) => acc + k.miktar, 0).toFixed(3)),
+        kaynaklar,
+      })
+    }
+    if (satirlar.length === 0) {
       message.warning('Tahsis edilecek miktar yok')
       return
     }
-    const birimEki = tahsisOzet.birim ? ` ${tahsisOzet.birim}` : ''
+
+    const birimEki = kaynakOzet.birim ? ` ${kaynakOzet.birim}` : ''
     setTahsisKaydediyor(true)
     try {
-      const sonuc = await tedarikApi.tahsisEt(
-        gonderilecek.map((s) => ({
-          siparisKalemId: s.satir.siparisKalemId as number,
-          siparisNo: s.satir.siparisNo,
-          modelKod: s.satir.modelKod,
-          malzemeId: s.satir.malzemeId as number,
-          renkId: s.satir.varyant1RenkId ?? null,
-          birim: s.satir.birim,
-          miktar: s.miktar,
-        })),
-      )
+      const sonuc = await tedarikApi.tahsisEt(satirlar)
       const toplam = sonuc.satirlar.reduce((acc, s) => acc + s.tahsisEdilen, 0)
       const acik = sonuc.satirlar.reduce((acc, s) => acc + s.kalan, 0)
-      setTahsisPlan(null)
+      setKaynakPlan(null)
       await load()
       if (acik > 0.00005) {
         message.warning(`${f3(toplam)}${birimEki} tahsis edildi · ${f3(acik)}${birimEki} açık kaldı`)
@@ -278,6 +391,48 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
       setTahsisKaydediyor(false)
     }
   }
+
+  const kaynakColumns: ColumnsType<TahsisKaynakSatir> = [
+    {
+      title: 'Malzeme',
+      dataIndex: 'malzemeKod',
+      ellipsis: true,
+      render: (_: unknown, r) => `${r.malzemeKod} - ${r.malzemeAd}`,
+    },
+    { title: 'Fiş No', dataIndex: 'fisNo', width: 110 },
+    {
+      title: 'Tarih',
+      dataIndex: 'fisTarihi',
+      width: 95,
+      render: (v: string | null) => (v ? new Date(v).toLocaleDateString('tr-TR') : ''),
+    },
+    { title: 'Depo', dataIndex: 'depoAd', width: 110, ellipsis: true },
+    { title: 'Cari', dataIndex: 'cariAd', width: 130, ellipsis: true },
+    { title: 'Miktar', dataIndex: 'miktar', width: 90, align: 'right', render: (v: number) => f3(v) },
+    { title: 'Tahsisli', dataIndex: 'tahsisli', width: 90, align: 'right', render: (v: number) => f3(v) },
+    { title: 'Kalan', dataIndex: 'kalan', width: 90, align: 'right', render: (v: number) => f3(v) },
+    {
+      title: 'Kullanılacak',
+      key: 'secim',
+      width: 120,
+      align: 'right',
+      render: (_: unknown, r) => {
+        const enFazla = kaynakEnFazla(r)
+        return (
+          <InputNumber
+            size="small"
+            min={0}
+            max={enFazla}
+            step={0.001}
+            precision={3}
+            value={kaynakPlan?.secimler[r.irsaliyeKalemId] ?? 0}
+            onChange={(v) => kaynakSecimDegistir(r, Number(v ?? 0), enFazla)}
+            style={{ width: 104 }}
+          />
+        )
+      },
+    },
+  ]
 
   const bayatlariGuncelle = useCallback(() => {
     modal.confirm({
@@ -450,6 +605,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
           ],
         })),
     },
+    { key: 'is-emri-olustur', label: 'İş Emri Oluştur', icon: <FileAddOutlined />, disabled: isEmriOlusturuyor },
     { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
     { key: 'depo-stok', label: 'Depo Stok Kırılımı (Renkli/Ham)', icon: <BankOutlined /> },
     { type: 'divider' },
@@ -501,7 +657,105 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
     return baslangicKalemleriBirlestir(kalemler.filter((k) => k !== null) as IrsaliyeBaslangicKalem[])
   }
 
+  // Seçili planlama satırlarından iş emri oluşturur. Satırlar sipariş bazında
+  // gruplanır; aynı malzeme tek satırda birleşir. Miktar, satırın birimine göre
+  // kg / mt / adet alanına yazılır.
+  const isEmriOlustur = async (secili: KumasPlanlamaSatir[]) => {
+    const uygun = secili.filter(
+      (r) => r.siparisNo && r.malzemeId && (Number(r.gerekenMiktar) || 0) > 0,
+    )
+    if (uygun.length === 0) {
+      message.warning('Seçili satırlarda iş emrine aktarılacak kumaş ihtiyacı yok')
+      return
+    }
+
+    type KalemToplam = {
+      malzemeId: number
+      malzemeKod: string
+      malzemeAd: string
+      kg: number
+      mt: number
+      adet: number
+    }
+    const gruplar = new Map<string, Map<number, KalemToplam>>()
+    const musteriSiparisler = new Map<string, string>()
+    for (const r of uygun) {
+      const siparisNo = String(r.siparisNo).trim()
+      const malzemeId = r.malzemeId as number
+      if (r.musteriSiparisNo) musteriSiparisler.set(siparisNo, r.musteriSiparisNo)
+      const malzemeler = gruplar.get(siparisNo) ?? new Map<number, KalemToplam>()
+      const hedef = malzemeler.get(malzemeId) ?? {
+        malzemeId,
+        malzemeKod: r.malzemeKod,
+        malzemeAd: r.malzemeAd,
+        kg: 0,
+        mt: 0,
+        adet: 0,
+      }
+      const miktar = Number(r.gerekenMiktar) || 0
+      const birim = (r.birim || '').toLowerCase()
+      if (birim.includes('kg')) hedef.kg += miktar
+      else if (birim.includes('adet')) hedef.adet += miktar
+      else hedef.mt += miktar
+      malzemeler.set(malzemeId, hedef)
+      gruplar.set(siparisNo, malzemeler)
+    }
+
+    setIsEmriOlusturuyor(true)
+    const olusanlar: string[] = []
+    try {
+      for (const [siparisNo, malzemeler] of gruplar) {
+        const kalemler = [...malzemeler.values()].map((k, i) => ({
+          sira: i,
+          siparisNo,
+          malzemeId: k.malzemeId,
+          malzemeKod: k.malzemeKod,
+          malzemeAd: k.malzemeAd,
+          kg: k.kg > 0.00005 ? Number(k.kg.toFixed(4)) : null,
+          mt: k.mt > 0.00005 ? Number(k.mt.toFixed(4)) : null,
+          adet: k.adet > 0.00005 ? Number(k.adet.toFixed(4)) : null,
+        }))
+        const created = await isEmriApi.create({
+          aciklama: null,
+          siparisNo,
+          musteriSiparisNo: musteriSiparisler.get(siparisNo) ?? null,
+          baslangicTarihi: null,
+          bitisTarihi: null,
+          durum: null,
+          kalemler,
+        })
+        olusanlar.push(created.isEmriNo)
+      }
+      message.success(
+        olusanlar.length === 1
+          ? `İş emri oluşturuldu: ${olusanlar[0]}`
+          : `${olusanlar.length} iş emri oluşturuldu: ${olusanlar.join(', ')}`,
+      )
+      if (olusanlar.length > 0) onIsEmriAc?.(olusanlar[olusanlar.length - 1])
+    } catch (err) {
+      const detay = err instanceof Error ? err.message : String(err)
+      if (olusanlar.length > 0) {
+        message.warning(
+          `${olusanlar.join(', ')} oluşturuldu; kalanlar oluşturulamadı: ${detay}`,
+        )
+      } else {
+        message.error('İş emri oluşturulamadı: ' + detay)
+      }
+    } finally {
+      setIsEmriOlusturuyor(false)
+    }
+  }
+
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'is-emri-olustur') {
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
+        return
+      }
+      if (!isEmriOlusturuyor) isEmriOlustur(secili)
+      return
+    }
     if (key === 'satinalma:satir' || key === 'satinalma:birlesik' || key === 'ham-satinalma-talimat') {
       const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
       if (!secili || secili.length === 0) {
@@ -614,16 +868,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         message.warning('Seçili satırlarda tahsis edilecek açık ihtiyaç yok (renksiz satırlar zaten stok havuzundan karşılanır)')
         return
       }
-      const miktarlar: Record<string, number> = {}
-      const kalanHavuz = new Map<number, number>()
-      for (const r of hedefler) {
-        const malzemeId = r.malzemeId as number
-        const kalan = kalanHavuz.get(malzemeId) ?? (Number(r.freeStok) || 0)
-        const tahsis = Math.min(Number(r.acikMiktar) || 0, Math.max(0, kalan))
-        miktarlar[tahsisAnahtar(r)] = Number(tahsis.toFixed(3))
-        kalanHavuz.set(malzemeId, kalan - tahsis)
-      }
-      setTahsisPlan({ satirlar: hedefler, miktarlar })
+      kaynakSecimiAc(hedefler)
       return
     }
     if (key === 'tahsis-kaldir') {
@@ -841,83 +1086,103 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat }
         />
       </Modal>
       <Modal
-        open={!!tahsisPlan}
-        title="Free stoktan tahsis yapılsın mı?"
-        width={780}
-        okText={tahsisOzet && tahsisOzet.acikToplam > 0.00005 ? 'Kısmi Rezerv Et' : 'Tahsis Et'}
+        open={!!kaynakPlan}
+        title="Ham Stoktan Tahsis — Kaynak Seçimi"
+        width={1040}
+        okText={kaynakOzet && kaynakOzet.acikToplam > 0.00005 ? 'Kısmi Rezerv Et' : 'Tahsis Et'}
         cancelText="Vazgeç"
         confirmLoading={tahsisKaydediyor}
-        onOk={tahsisKaydet}
+        okButtonProps={{
+          disabled: kaynakYukleniyor || !kaynakOzet || kaynakOzet.secilenToplam <= 0.00005,
+        }}
+        onOk={kaynakTahsisKaydet}
         onCancel={() => {
-          if (!tahsisKaydediyor) setTahsisPlan(null)
+          if (!tahsisKaydediyor) setKaynakPlan(null)
         }}
       >
-        {tahsisOzet && (
+        {kaynakPlan && (
           <div className="text-sm">
             <p className="!mb-2 !text-[12px] !text-[#6b7280]">
-              Tahsis miktarını değiştirebilirsin. Havuz malzeme düzeyinde ortaktır; bir satıra fazla
-              verirsen sonraki satırın kalan havuzu azalır. Miktarı sıfır olan satır gönderilmez.
+              Girişi yapılmış, hiçbir siparişe bağlı olmayan (veya kalanı olan) ham kumaş satırları
+              listelenir. Kullanılacak miktarı değiştirerek hangi fişten ne kadar tahsis edileceğini
+              seçebilirsin. Bir kaynağın kalanı ve malzemenin açık ihtiyacı aşılamaz.
             </p>
-            <div className="max-h-72 overflow-auto">
-              <table className="w-full">
+
+            <div className="!mb-2 max-h-32 overflow-auto">
+              <table className="w-full !text-[12px]">
                 <thead>
                   <tr className="text-left text-gray-500">
-                    <th className="py-1">Sipariş</th>
+                    <th className="py-0.5">Sipariş</th>
+                    <th>Model</th>
                     <th>Malzeme</th>
                     <th>Renk</th>
-                    <th className="text-right">Açık</th>
-                    <th className="text-right">Kalan Havuz</th>
-                    <th className="text-right">Tahsis</th>
-                    <th className="text-right">Kalan Açık</th>
+                    <th className="text-right">Açık İhtiyaç</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tahsisOzet.satirlar.map((s) => (
-                    <tr key={tahsisAnahtar(s.satir)}>
-                      <td className="py-0.5">{s.satir.siparisNo}</td>
-                      <td className="py-0.5">{s.satir.malzemeKod}</td>
-                      <td className="py-0.5">{s.satir.varyant1}</td>
-                      <td className="py-0.5 text-right tabular-nums">{f3(s.acikIhtiyac)}</td>
-                      <td className="py-0.5 text-right tabular-nums">{f3(s.havuz)}</td>
-                      <td className="py-0.5 text-right">
-                        <InputNumber
-                          size="small"
-                          min={0}
-                          max={s.enFazla}
-                          step={0.001}
-                          precision={3}
-                          value={s.miktar}
-                          onChange={(v) => tahsisMiktarDegistir(s.satir, Number(v ?? 0), s.enFazla)}
-                          style={{ width: 112 }}
-                        />
-                      </td>
-                      <td
-                        className={`py-0.5 text-right tabular-nums ${s.acik > 0.00005 ? 'text-amber-600' : ''}`}
-                      >
-                        {f3(s.acik)}
+                  {kaynakPlan.hedefler.map((h) => (
+                    <tr key={`${h.siparisKalemId}:${h.malzemeId}:${h.varyant1RenkId ?? 0}`}>
+                      <td className="py-0.5">{h.siparisNo}</td>
+                      <td>{h.modelKod || '-'}</td>
+                      <td>{h.malzemeKod}</td>
+                      <td>{h.varyant1 || '-'}</td>
+                      <td className="text-right tabular-nums">
+                        {f3(Number(h.acikMiktar) || 0)} {h.birim}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="!mt-2 !text-[12px]">
-              Toplam tahsis:{' '}
-              <b>
-                {f3(tahsisOzet.toplam)}
-                {tahsisOzet.birim ? ` ${tahsisOzet.birim}` : ''}
-              </b>
-              {tahsisOzet.acikToplam > 0.00005 && (
-                <span className="text-amber-600">
-                  {' '}
-                  · Açıkta kalacak:{' '}
-                  <b>
-                    {f3(tahsisOzet.acikToplam)}
-                    {tahsisOzet.birim ? ` ${tahsisOzet.birim}` : ''}
-                  </b>
-                </span>
-              )}
+
+            <div className="!flex !items-center !justify-between !mb-1">
+              <span className="!text-[12px] !text-[#4b5563]">Uygun ham stok fiş satırları</span>
+              <div className="!flex !gap-2">
+                <Button size="small" onClick={kaynakOneriUygula} disabled={kaynakYukleniyor}>
+                  Önerilen Dağıtım
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => setKaynakPlan((p) => (p ? { ...p, secimler: {} } : p))}
+                  disabled={kaynakYukleniyor}
+                >
+                  Seçimi Temizle
+                </Button>
+              </div>
             </div>
+            <Table<TahsisKaynakSatir>
+              size="small"
+              columns={kaynakColumns}
+              dataSource={kaynakPlan.kaynaklar}
+              loading={kaynakYukleniyor}
+              rowKey={(r) => r.irsaliyeKalemId}
+              pagination={{ pageSize: 10, size: 'small', showSizeChanger: false }}
+              rowClassName={(r) =>
+                (kaynakPlan.secimler[r.irsaliyeKalemId] ?? 0) > 0 ? '!bg-[#ecfdf5]' : ''
+              }
+              locale={{
+                emptyText:
+                  'Uygun ham stok bulunamadı — girişi yapılmış, siparişe bağlı olmayan ham kumaş yok.',
+              }}
+            />
+
+            {kaynakOzet && (
+              <div className="!mt-2 !text-[12px] !text-[#333]">
+                {kaynakOzet.malzemeler.map((m) => (
+                  <div key={m.malzemeId} className="!flex !items-center !justify-between">
+                    <span>
+                      {m.kod} — {m.ad}
+                    </span>
+                    <span className="tabular-nums">
+                      Seçilen: <b>{f3(m.secilen)}</b> / İhtiyaç: <b>{f3(m.ihtiyac)}</b> {m.birim}
+                      {m.ihtiyac - m.secilen > 0.00005 && (
+                        <span className="text-amber-600"> · Açık: {f3(m.ihtiyac - m.secilen)}</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </Modal>

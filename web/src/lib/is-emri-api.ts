@@ -12,6 +12,7 @@ export interface IsEmriKalem {
   adet?: number | null
   kullanilanKg?: number | null
   kullanilanMt?: number | null
+  kullanilanAdet?: number | null
 }
 
 export interface IsEmri {
@@ -26,7 +27,7 @@ export interface IsEmri {
   kalemler: IsEmriKalem[]
 }
 
-export type CreateIsEmri = Omit<IsEmri, 'id'>
+export type CreateIsEmri = Omit<IsEmri, 'id' | 'isEmriNo'> & { isEmriNo?: string }
 export type UpdateIsEmri = Partial<CreateIsEmri>
 
 export const isEmriApi = {

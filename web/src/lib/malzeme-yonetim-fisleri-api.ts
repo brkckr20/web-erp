@@ -23,6 +23,8 @@ export interface MalzemeYonetimFisi {
   cariHesap?: { id: number; kod: string; ad: string } | null
   depo?: { id: number; kod: string; ad: string } | null
   kalemler?: MalzemeYonetimFisiKalem[]
+  /** 10-Üretim fişi kaydında sunucunun otomatik sipariş tahsisi özeti. */
+  tahsis?: { baglanan: number; belirsiz: number }
 }
 
 export interface MalzemeYonetimFisiKalem {

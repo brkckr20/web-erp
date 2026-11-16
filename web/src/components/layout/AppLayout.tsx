@@ -1363,7 +1363,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <TedarikEkrani tip="aksesuar" />
     }
     if (tab.key === 'kumas-planlama') {
-      return <KumasPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onFasonTalimat={openFasonTalimat} />
+      return <KumasPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onFasonTalimat={openFasonTalimat} onIsEmriAc={openIsEmriKarti} />
     }
     if (tab.key === 'iplik-planlama') {
       return <IplikPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onIrsaliyeAc={openIrsaliyeKarti} onFasonTalimat={openFasonTalimat} />

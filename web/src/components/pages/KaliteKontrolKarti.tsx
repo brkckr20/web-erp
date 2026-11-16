@@ -85,6 +85,8 @@ interface KalemRow {
   isEmriKg: number
   hatalar: { hataKodu: string; hataAdi: string; miktar?: number; aciklama?: string }[]
   stokFisNo?: string | null
+  /** Bu top herhangi bir giriş fişiyle stoğa girdi mi? */
+  stoktaMi?: boolean
   /** Bu top 11-Fasondan Giriş kalemine aktarıldı mı? */
   aktarildi: boolean
   aktarimTarihi?: string | null
@@ -195,7 +197,6 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [stokFisId, setStokFisId] = useState<number | null>(null)
   const [hataModalRow, setHataModalRow] = useState<KalemRow | null>(null)
   const [etiketOpen, setEtiketOpen] = useState(false)
   const [etiketKalemler, setEtiketKalemler] = useState<{ barkod: string; malzemeKod: string; malzemeAd: string; kg: number; mt: number; adet: number; hatalar: { hataKodu: string; hataAdi: string; aciklama?: string }[] }[]>([])
@@ -274,7 +275,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                 miktar: h.miktar ?? undefined,
                 aciklama: h.aciklama ?? undefined,
               })),
-              stokFisNo: k.stokFis?.fisNo ?? null,
+              stokFisNo: k.stokFisNo ?? null,
+              stoktaMi: !!k.stoktaMi,
               aktarildi: !!k.aktarildi,
               aktarimTarihi: k.aktarimTarihi ?? null,
             })))
@@ -345,6 +347,10 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
     return newRow
   }
   const handleIsEmriSecimi = async (secimler: { isEmriNo: string; isEmriId: number; malzemeId: number | null; malzemeKod: string; malzemeAd: string; kg: number; mt: number; adet: number }[], gelenIsEmriNo: string) => {
+    if (isEmriKod && gelenIsEmriNo !== isEmriKod) {
+      message.warning(`Bu fiş ${isEmriKod} iş emrine bağlı; farklı iş emrinden satır eklenemez`)
+      return
+    }
     if (!isEmriKod) {
       setIsEmriKod(gelenIsEmriNo)
       try {
@@ -368,7 +374,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
         malzemeAd: s.malzemeAd,
         isEmriNo: s.isEmriNo,
         isEmriId: s.isEmriId,
-        isEmriKg: s.kg,
+        isEmriKg: s.kg || s.mt || s.adet,
         kg: 0,
         mt: 0,
         adet: 0,
@@ -625,10 +631,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
           }),
         )
       }
-      // 11-Fasondan Giriş bağlantısı sunucu tarafında kayıtta kurulur → ayrı
-      // "Stoğa Al" adımı gerekmez, operatör sadece Kaydet'e basar.
-      if (guncel?.irsaliyeId) setStokFisId(guncel.irsaliyeId)
-      // Senkron bittikten sonra temizle (kalemler referansı değişmiş olur).
+      // 11-Fasondan Giriş bağlantısı sunucu tarafında kayıtta kurulur.
       temizle()
       return kaydedilenId as number
     } catch (err: any) {
@@ -745,28 +748,6 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
     } finally {
       setAktariliyor(false)
     }
-  }
-
-  const handleStogaAl = async () => {
-    if (!id) { message.warning('Önce fişi kaydedin'); return }
-    if (stokFisId) { message.warning('Bu fiş zaten stoğa alınmış'); return }
-    const malzemeOlanKalemler = kalemler.filter((k) => k.malzemeId)
-    if (malzemeOlanKalemler.length === 0) { message.warning('Stoğa alınabilecek kalem bulunamadı (malzeme seçilmemiş)'); return }
-    modal.confirm({
-      title: 'Stoğa Al',
-      content: `${malzemeOlanKalemler.length} kalem stoğa alınacak. Devam etmek istediğinize emin misiniz?`,
-      okText: 'Evet, stoğa al',
-      cancelText: 'Vazgeç',
-      onOk: async () => {
-        try {
-          const stokFis = await kaliteKontrolApi.stogaAl(id)
-          setStokFisId(stokFis.id)
-          message.success(`Stok fişi oluşturuldu: ${stokFis.fisNo}`)
-        } catch (err: any) {
-          message.error('Stoğa alınırken hata: ' + (err?.message || err))
-        }
-      },
-    })
   }
 
   const cariHesapIdBul = async (kod: string): Promise<number | null> => {
@@ -1296,10 +1277,14 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
     },
     {
       headerName: 'Stok', field: 'stokFisNo', width: 140,
-      cellClass: (p) => p.value ? '!text-[#16a34a] !font-medium' : '!text-[#9ca3af]',
+      cellClass: (p) => (p.value || p.data.stoktaMi) ? '!text-[#16a34a] !font-medium' : '!text-[#9ca3af]',
       cellRenderer: (p: { data: KalemRow }) => (
         <div className="!h-full !flex !items-center !px-2 !text-[11px]">
-          {p.data.stokFisNo ? `✓ ${p.data.stokFisNo}` : '— Aktarılmadı'}
+          {p.data.stokFisNo
+            ? `✓ ${p.data.stokFisNo}`
+            : p.data.stoktaMi
+              ? '✓ Stokta'
+              : '— Aktarılmadı'}
         </div>
       ),
     },
@@ -1510,8 +1495,6 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                     },
                   },
                   { key: 'transfer', label: 'Kalite Kontrol İşlemi Tamamla', onClick: handleTransfer },
-                  { type: 'divider' },
-                  { key: 'stogaAl', label: 'Stoğa Al', disabled: !id || !!stokFisId, onClick: handleStogaAl },
                 ],
               }}
               trigger={['contextMenu']}

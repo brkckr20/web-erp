@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Tabs, Input, Row, Col, App, Spin, Button } from 'antd'
+import { Tabs, Input, Row, Col, App, Spin, Button, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import { isEmriApi } from '@/lib/is-emri-api'
 import type { IsEmri, CreateIsEmri, IsEmriKalem } from '@/lib/is-emri-api'
+import { siparisApi, type Siparis } from '@/lib/siparis-api'
 
 const emptyData: CreateIsEmri = {
   aciklama: '',
@@ -19,6 +20,7 @@ const emptyData: CreateIsEmri = {
 }
 
 interface KalemRow {
+  id: number | null
   sira: number
   siparisNo: string
   malzemeId: number | null
@@ -34,7 +36,7 @@ interface KalemRow {
   adet: number | null
 }
 
-const emptyKalem = (): KalemRow => ({ sira: 0, siparisNo: '', malzemeId: null, malzemeKod: '', malzemeAd: '', tur: '', cinsi: '', grm2: '', en: '', boy: '', kg: null, mt: null, adet: null })
+const emptyKalem = (): KalemRow => ({ id: null, sira: 0, siparisNo: '', malzemeId: null, malzemeKod: '', malzemeAd: '', tur: '', cinsi: '', grm2: '', en: '', boy: '', kg: null, mt: null, adet: null })
 
 interface IsEmriKartiProps {
   isNew?: boolean
@@ -48,6 +50,17 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [siparisler, setSiparisler] = useState<Siparis[]>([])
+  const [siparisYukleniyor, setSiparisYukleniyor] = useState(false)
+
+  useEffect(() => {
+    setSiparisYukleniyor(true)
+    siparisApi
+      .list()
+      .then(setSiparisler)
+      .catch(() => setSiparisler([]))
+      .finally(() => setSiparisYukleniyor(false))
+  }, [])
 
   useEffect(() => {
     if (kod) {
@@ -76,6 +89,7 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
       })
       setKalemler(
         (data.kalemler ?? []).map((k: any, i) => ({
+          id: k.id ?? null,
           sira: k.sira ?? i,
           siparisNo: k.siparisNo ?? '',
           malzemeId: k.malzemeId ?? null,
@@ -121,6 +135,7 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
       const payload: CreateIsEmri = {
         ...form,
         kalemler: kalemler.map((k, i) => ({
+          id: k.id ?? undefined,
           sira: i,
           siparisNo: k.siparisNo || null,
           malzemeId: k.malzemeId ?? null,
@@ -131,17 +146,33 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
           adet: k.adet ?? null,
         })),
       }
-      if (id) {
-        await isEmriApi.update(id, payload)
-        message.success('İş emri başarıyla güncellendi')
+      const kaydedilen = id
+        ? await isEmriApi.update(id, payload)
+        : await isEmriApi.create(payload)
+      if (!id) {
+        setId(kaydedilen.id)
+        setForm((prev) => ({ ...prev, isEmriNo: kaydedilen.isEmriNo }))
+        message.success(`İş emri oluşturuldu: ${kaydedilen.isEmriNo}`)
       } else {
-        const created = await isEmriApi.create(payload)
-        setId(created.id)
-        setForm((prev) => ({ ...prev, isEmriNo: created.isEmriNo }))
-        message.success(`İş emri oluşturuldu: ${created.isEmriNo}`)
+        message.success('İş emri başarıyla güncellendi')
       }
-    } catch {
-      message.error('Kayıt sırasında hata oluştu')
+      // Yeni eklenen satırların id'lerini al: tekrar kayıtta mükerrer satır oluşmasın.
+      setKalemler((prev) =>
+        prev.map((k, i) => {
+          const db = (kaydedilen.kalemler ?? []).find((x: any) => x.sira === i)
+          return db?.id ? { ...k, id: db.id } : k
+        }),
+      )
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err)
+      let detay = raw
+      try {
+        const j = JSON.parse(raw)
+        detay = Array.isArray(j?.message) ? j.message.join(', ') : j?.message ?? raw
+      } catch {
+        // düz metin hata
+      }
+      message.error('Kayıt sırasında hata: ' + detay)
     } finally {
       setSaving(false)
     }
@@ -245,7 +276,29 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
                       <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">İş Emri Bilgileri</div>
                       <div className="!space-y-2.5">
                         <FormField label="Sipariş No">
-                          <Input size="small" value={form.siparisNo ?? ''} onChange={(e) => set('siparisNo', e.target.value)} className="!text-[11px]" />
+                          <Select
+                            size="small"
+                            showSearch
+                            allowClear
+                            loading={siparisYukleniyor}
+                            value={form.siparisNo || undefined}
+                            placeholder="Sipariş no ara / seç..."
+                            className="!w-full !text-[11px]"
+                            optionFilterProp="label"
+                            options={siparisler.map((s) => ({
+                              value: s.siparisNo,
+                              label: `${s.siparisNo}${s.cariHesap?.ad ? ' — ' + s.cariHesap.ad : ''}`,
+                            }))}
+                            onChange={(v?: string) => {
+                              setForm((prev) => ({
+                                ...prev,
+                                siparisNo: v ?? '',
+                                musteriSiparisNo: v
+                                  ? siparisler.find((s) => s.siparisNo === v)?.musteriOrderNo ?? ''
+                                  : '',
+                              }))
+                            }}
+                          />
                         </FormField>
                         <FormField label="Müşteri Sip. No">
                           <Input size="small" value={form.musteriSiparisNo ?? ''} onChange={(e) => set('musteriSiparisNo', e.target.value)} className="!text-[11px]" />
@@ -324,13 +377,13 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
                                   <Input size="small" value={k.siparisNo} onChange={(e) => setKalem(idx, 'siparisNo', e.target.value)} className="!text-[11px]" />
                                 </td>
                                 <td className="!border !border-gray-200 !px-1 !py-1">
-                                  <Input size="small" type="number" value={k.kg ?? ''} onChange={(e) => setKalem(idx, 'kg', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
+                                  <Input size="small" type="number" min={0} value={k.kg ?? ''} onChange={(e) => setKalem(idx, 'kg', e.target.value === '' ? null : Math.max(0, Number(e.target.value)))} className="!text-[11px]" />
                                 </td>
                                 <td className="!border !border-gray-200 !px-1 !py-1">
-                                  <Input size="small" type="number" value={k.mt ?? ''} onChange={(e) => setKalem(idx, 'mt', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
+                                  <Input size="small" type="number" min={0} value={k.mt ?? ''} onChange={(e) => setKalem(idx, 'mt', e.target.value === '' ? null : Math.max(0, Number(e.target.value)))} className="!text-[11px]" />
                                 </td>
                                 <td className="!border !border-gray-200 !px-1 !py-1">
-                                  <Input size="small" type="number" value={k.adet ?? ''} onChange={(e) => setKalem(idx, 'adet', e.target.value === '' ? null : Number(e.target.value))} className="!text-[11px]" />
+                                  <Input size="small" type="number" min={0} value={k.adet ?? ''} onChange={(e) => setKalem(idx, 'adet', e.target.value === '' ? null : Math.max(0, Number(e.target.value)))} className="!text-[11px]" />
                                 </td>
                                 <td className="!border !border-gray-200 !px-1 !py-1 !text-center">
                                   <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeKalem(idx)} />

@@ -8,8 +8,11 @@ import { TahsisSatirDto } from './dto/tahsis.dto'
 import { BAYAT, GUNCEL } from './tedarik.constants'
 
 // Stok etkili fiş tipleri (Depo Bazlı Stok ile aynı listeler).
-const STOK_GIRIS_TIPLERI = `('1','5','6','9','11','22','122','124','125','133','139','10','16','17','18','20','21','40','101')`
-const STOK_CIKIS_TIPLERI = `('2','3','4','8','12','23','120','121','123','126','134','138','192','99','130','131','132','135','136','137','140')`
+const STOK_GIRIS_TIP_LISTESI = ['1', '5', '6', '9', '11', '22', '122', '124', '125', '133', '139', '10', '16', '17', '18', '20', '21', '40', '101']
+const STOK_CIKIS_TIP_LISTESI = ['2', '3', '4', '8', '12', '23', '120', '121', '123', '126', '134', '138', '192', '99', '130', '131', '132', '135', '136', '137', '140']
+const STOK_GIRIS_TIPLERI = `(${STOK_GIRIS_TIP_LISTESI.map((t) => `'${t}'`).join(',')})`
+const STOK_CIKIS_TIPLERI = `(${STOK_CIKIS_TIP_LISTESI.map((t) => `'${t}'`).join(',')})`
+const STOK_GIRIS_TIP_SETI = new Set(STOK_GIRIS_TIP_LISTESI)
 
 @Injectable()
 export class TedarikService {
@@ -389,6 +392,7 @@ export class TedarikService {
     const rows = await this.prisma.$queryRawUnsafe<
       {
         siparisNo: string
+        musteriSiparisNo: string | null
         siparisId: number | null
         siparisKalemId: number | null
         modelKod: string | null
@@ -416,6 +420,7 @@ export class TedarikService {
     >(`
       SELECT
         s.siparis_no        AS siparisNo,
+        s.musteri_order_no  AS musteriSiparisNo,
         MIN(s.id)           AS siparisId,
         MIN(ti.siparis_kalem_id) AS siparisKalemId,
         mm.kod              AS modelKod,
@@ -485,7 +490,7 @@ export class TedarikService {
       ) hs
       WHERE ti.tip = N'kumas'
       GROUP BY
-        s.siparis_no, mm.kod, mm.ad, sk.miktar, ch.ad,
+        s.siparis_no, s.musteri_order_no, mm.kod, mm.ad, sk.miktar, ch.ad,
         ti.malzeme_kod,         ti.malzeme_ad,
         ti.malzeme_id,
         rk.islem,
@@ -526,6 +531,7 @@ export class TedarikService {
 
     type PlanSatir = {
       siparisNo: string
+      musteriSiparisNo: string | null
       siparisId: number | null
       siparisKalemId: number | null
       modelKod: string | null
@@ -559,6 +565,7 @@ export class TedarikService {
             : Number(mt) || 0
       return {
         siparisNo: r.siparisNo,
+        musteriSiparisNo: r.musteriSiparisNo ?? null,
         siparisId: r.siparisId ?? null,
         siparisKalemId: r.siparisKalemId ?? null,
         modelKod: r.modelKod,
@@ -769,6 +776,7 @@ export class TedarikService {
               : 'HAM_BOYA'
       return {
         siparisNo: s.siparisNo,
+        musteriSiparisNo: s.musteriSiparisNo,
         siparisId: s.siparisId,
         siparisKalemId: s.siparisKalemId,
         modelKod: s.modelKod,
@@ -1109,6 +1117,113 @@ export class TedarikService {
       )
   }
 
+  // Kaynak seçimi ekranı: malzeme bazında tamamlanmış, renksiz, sipariş kalemine
+  // bağlı olmayan giriş satırları. Kalan = satır miktarı − mevcut stok tahsisleri.
+  async tahsisKaynakListesi(malzemeler: { malzemeId: number; birim?: string }[]) {
+    const istenen = new Map<number, string>()
+    for (const m of Array.isArray(malzemeler) ? malzemeler : []) {
+      const id = Number(m?.malzemeId)
+      if (Number.isFinite(id) && id > 0) istenen.set(id, String(m?.birim ?? ''))
+    }
+    if (istenen.size === 0) return []
+
+    const sonuc: {
+      irsaliyeKalemId: number
+      irsaliyeId: number
+      fisNo: string
+      fisTipi: string
+      fisTarihi: Date | null
+      depoKod: string | null
+      depoAd: string | null
+      cariAd: string | null
+      malzemeId: number
+      malzemeKod: string
+      malzemeAd: string
+      birim: string | null
+      miktar: number
+      tahsisli: number
+      kalan: number
+      aciklama: string | null
+    }[] = []
+
+    for (const [malzemeId, birim] of istenen) {
+      const qty = this.stokMiktarIfadesi(birim, 'ik')
+      const rows = await this.prisma.$queryRawUnsafe<
+        {
+          irsaliyeKalemId: number
+          irsaliyeId: number
+          fisNo: string
+          fisTipi: string
+          fisTarihi: Date | null
+          depoKod: string | null
+          depoAd: string | null
+          cariAd: string | null
+          malzemeId: number
+          malzemeKod: string
+          malzemeAd: string
+          birim: string | null
+          miktar: unknown
+          tahsisli: unknown
+          aciklama: string | null
+        }[]
+      >(`
+        SELECT
+          ik.id              AS irsaliyeKalemId,
+          i.id               AS irsaliyeId,
+          i.irsaliye_no      AS fisNo,
+          i.irsaliye_tipi    AS fisTipi,
+          i.irsaliye_tarihi  AS fisTarihi,
+          d.kod              AS depoKod,
+          d.ad               AS depoAd,
+          ch.ad              AS cariAd,
+          ik.malzeme_id      AS malzemeId,
+          m.kod              AS malzemeKod,
+          m.ad               AS malzemeAd,
+          ik.olcu_birimi     AS birim,
+          ${qty}             AS miktar,
+          ISNULL((SELECT SUM(st.miktar) FROM stok_tahsis st WHERE st.irsaliye_kalem_id = ik.id), 0) AS tahsisli,
+          ik.aciklama        AS aciklama
+        FROM irsaliye_kalem ik
+        JOIN irsaliye i   ON i.id = ik.irsaliye_id
+        JOIN malzeme m    ON m.id = ik.malzeme_id
+        LEFT JOIN depo d  ON d.id = i.depo_id
+        LEFT JOIN cari_hesap ch ON ch.id = i.cari_hesap_id
+        WHERE i.tamamlandi = 1
+          AND i.irsaliye_tipi IN ${STOK_GIRIS_TIPLERI}
+          AND ik.malzeme_id = ${malzemeId}
+          AND ik.varyant1_renk_id IS NULL
+          AND ik.siparis_kalem_id IS NULL
+        ORDER BY i.irsaliye_tarihi ASC, i.id ASC
+      `)
+
+      for (const r of rows) {
+        const miktar = this.yuvarla(Number(r.miktar) || 0)
+        const tahsisli = this.yuvarla(Number(r.tahsisli) || 0)
+        const kalan = this.yuvarla(miktar - tahsisli)
+        if (kalan <= 0.00005) continue
+        sonuc.push({
+          irsaliyeKalemId: r.irsaliyeKalemId,
+          irsaliyeId: r.irsaliyeId,
+          fisNo: r.fisNo,
+          fisTipi: r.fisTipi,
+          fisTarihi: r.fisTarihi,
+          depoKod: r.depoKod,
+          depoAd: r.depoAd,
+          cariAd: r.cariAd,
+          malzemeId: r.malzemeId,
+          malzemeKod: r.malzemeKod,
+          malzemeAd: r.malzemeAd,
+          birim: r.birim,
+          miktar,
+          tahsisli,
+          kalan,
+          aciklama: r.aciklama,
+        })
+      }
+    }
+    return sonuc
+  }
+
   // Serbest ham stoktan sipariş kalemine elle tahsis. Kaynak: tamamlanmış, renksiz,
   // hiçbir siparişe bağlı olmayan giriş kalemleri (en eski fiş önce).
   async tahsisEt(satirlar: TahsisSatirDto[]) {
@@ -1117,6 +1232,9 @@ export class TedarikService {
     }
     return this.prisma.$transaction(async (tx) => {
       const kalanFree = new Map<number, number>()
+      // Aynı kaynak satırı birden fazla hedefe dağıtılabilir; transaction içinde
+      // kullanılan miktar takip edilir, kaynağın kalanı aşılamaz.
+      const kaynakKullanim = new Map<number, number>()
       const sonuc: {
         siparisKalemId: number
         malzemeId: number
@@ -1129,6 +1247,33 @@ export class TedarikService {
         const istenen = this.yuvarla(Number(s.miktar) || 0)
         // Renksiz ihtiyaçta ham stok zaten renkli havuzda sayıldığı için tahsis tutulmaz.
         if (!s.siparisKalemId || !s.malzemeId || s.renkId == null || istenen <= 0) continue
+
+        // Elle seçilen kaynaklar varsa FIFO yerine yalnızca bunlardan yazılır.
+        const seciliKaynaklar = (Array.isArray(s.kaynaklar) ? s.kaynaklar : [])
+          .map((k) => ({
+            irsaliyeKalemId: Number(k?.irsaliyeKalemId),
+            miktar: this.yuvarla(Number(k?.miktar) || 0),
+          }))
+          .filter((k) => Number.isFinite(k.irsaliyeKalemId) && k.irsaliyeKalemId > 0 && k.miktar > 0)
+        if (seciliKaynaklar.length > 0) {
+          const tahsisEdilen = await this.seciliKaynaklardanTahsisle(
+            tx,
+            s,
+            istenen,
+            seciliKaynaklar,
+            kaynakKullanim,
+          )
+          // Aynı malzemede sonraki FIFO satırı bayat önbellek kullanmasın.
+          kalanFree.delete(s.malzemeId)
+          sonuc.push({
+            siparisKalemId: s.siparisKalemId,
+            malzemeId: s.malzemeId,
+            renkId: s.renkId ?? null,
+            tahsisEdilen,
+            kalan: this.yuvarla(istenen - tahsisEdilen),
+          })
+          continue
+        }
 
         if (kalanFree.get(s.malzemeId) == null) {
           kalanFree.set(s.malzemeId, await this.serbestHam(tx, s.malzemeId, s.birim ?? ''))
@@ -1179,6 +1324,97 @@ export class TedarikService {
 
       return { satirlar: sonuc }
     })
+  }
+
+  // Kullanıcının seçtiği giriş satırlarından tahsis yazar. Her kaynak; satır miktarı,
+  // mevcut tahsisler ve bu istekteki diğer kullanımlarla sınırlıdır. Hedef ihtiyaç
+  // dolduğunda kalan seçimler yazılmaz (fazla seçim ihtiyaç kadar kırpılır).
+  private async seciliKaynaklardanTahsisle(
+    tx: Prisma.TransactionClient,
+    s: TahsisSatirDto,
+    istenen: number,
+    kaynaklar: { irsaliyeKalemId: number; miktar: number }[],
+    kaynakKullanim: Map<number, number>,
+  ) {
+    const idler = [...new Set(kaynaklar.map((k) => k.irsaliyeKalemId))]
+    const kalemler = await tx.irsaliyeKalem.findMany({
+      where: { id: { in: idler } },
+      select: {
+        id: true,
+        malzemeId: true,
+        varyant1RenkId: true,
+        siparisKalemId: true,
+        brutAgirlik: true,
+        netAgirlik: true,
+        brutMetre: true,
+        netMetre: true,
+        adet: true,
+        irsaliye: { select: { irsaliyeNo: true, irsaliyeTipi: true, tamamlandi: true } },
+      },
+    })
+    const kalemMap = new Map(kalemler.map((k) => [k.id, k]))
+
+    const mevcut = await tx.stokTahsis.findMany({
+      where: { irsaliyeKalemId: { in: idler } },
+      select: { irsaliyeKalemId: true, miktar: true },
+    })
+    const tahsisliMap = new Map<number, number>()
+    for (const t of mevcut) {
+      tahsisliMap.set(t.irsaliyeKalemId, (tahsisliMap.get(t.irsaliyeKalemId) ?? 0) + (Number(t.miktar) || 0))
+    }
+
+    let kalanHedef = istenen
+    let tahsisEdilen = 0
+    for (const secim of kaynaklar) {
+      if (kalanHedef <= 0.00005) break
+      const kaynak = kalemMap.get(secim.irsaliyeKalemId)
+      if (!kaynak) {
+        throw new BadRequestException(`Seçilen kaynak satır bulunamadı (#${secim.irsaliyeKalemId}).`)
+      }
+      const fisNo = kaynak.irsaliye?.irsaliyeNo ?? `#${secim.irsaliyeKalemId}`
+      if (!kaynak.irsaliye?.tamamlandi || !STOK_GIRIS_TIP_SETI.has(String(kaynak.irsaliye?.irsaliyeTipi))) {
+        throw new BadRequestException(`${fisNo}: kaynak yalnızca tamamlanmış bir giriş fişi olabilir.`)
+      }
+      if (kaynak.malzemeId !== s.malzemeId) {
+        throw new BadRequestException(`${fisNo}: kaynak satırın malzemesi hedefle uyuşmuyor.`)
+      }
+      if (kaynak.varyant1RenkId != null || kaynak.siparisKalemId != null) {
+        throw new BadRequestException(`${fisNo}: kaynak satır renksiz ve siparişe bağlı olmayan bir giriş olmalı.`)
+      }
+
+      const kaynakMiktar = this.yuvarla(this.kalemMiktari(kaynak, s.birim ?? ''))
+      const kalanKaynak = this.yuvarla(
+        kaynakMiktar - (tahsisliMap.get(kaynak.id) ?? 0) - (kaynakKullanim.get(kaynak.id) ?? 0),
+      )
+      if (kalanKaynak <= 0.00005) continue
+
+      const pay = this.yuvarla(Math.min(secim.miktar, kalanHedef, kalanKaynak))
+      if (pay <= 0.00005) continue
+
+      await tx.stokTahsis.create({
+        data: {
+          irsaliyeKalemId: kaynak.id,
+          siparisKalemId: s.siparisKalemId,
+          malzemeId: s.malzemeId,
+          renkId: s.renkId ?? null,
+          siparisNo: s.siparisNo ?? null,
+          modelKod: s.modelKod ?? null,
+          miktar: new Prisma.Decimal(pay),
+        },
+      })
+      kaynakKullanim.set(kaynak.id, this.yuvarla((kaynakKullanim.get(kaynak.id) ?? 0) + pay))
+      kalanHedef = this.yuvarla(kalanHedef - pay)
+      tahsisEdilen = this.yuvarla(tahsisEdilen + pay)
+    }
+    return tahsisEdilen
+  }
+
+  // Kaynak satır miktarı, hedef satırın biriminden okunur (SQL stokMiktarIfadesi ile aynı).
+  private kalemMiktari(k: any, birim: string) {
+    const b = (birim || '').toLowerCase()
+    if (b.includes('kg')) return Number(k.brutAgirlik) || Number(k.netAgirlik) || 0
+    if (b.includes('adet')) return Number(k.adet) || 0
+    return Number(k.brutMetre) || Number(k.netMetre) || 0
   }
 
   // Tahsis edilmiş serbest stoğu geri bırakır (satır: sipariş kalemi + malzeme + renk).

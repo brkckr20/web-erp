@@ -1,10 +1,11 @@
 'use client'
 
-import { Table, Tag, Dropdown, Button, Spin } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import { Tag, Dropdown, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import { useState, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
+import DataGrid from '@/components/shared/DataGrid'
 import { isEmriApi, type IsEmri } from '@/lib/is-emri-api'
 
 interface IsEmriRow {
@@ -12,6 +13,9 @@ interface IsEmriRow {
   id: number
   isEmriNo: string
   siparisNo: string | null
+  musteriSiparisNo: string | null
+  aciklama: string | null
+  kalemSayisi: number
   durum: string | null
 }
 
@@ -20,100 +24,163 @@ interface IsEmriListesiProps {
   onNew?: () => void
 }
 
+const mapIsEmri = (d: IsEmri): IsEmriRow => ({
+  key: String(d.id),
+  id: d.id,
+  isEmriNo: d.isEmriNo,
+  siparisNo: d.siparisNo,
+  musteriSiparisNo: d.musteriSiparisNo,
+  aciklama: d.aciklama,
+  kalemSayisi: (d.kalemler ?? []).length,
+  durum: d.durum,
+})
+
 export default function IsEmriListesi({ onSelect, onNew }: IsEmriListesiProps) {
   const [data, setData] = useState<IsEmriRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(() => {
     setLoading(true)
-    try {
-      const list = await isEmriApi.list()
-      setData(
-        list.map((d: IsEmri) => ({
-          key: String(d.id),
-          id: d.id,
-          isEmriNo: d.isEmriNo,
-          siparisNo: d.siparisNo,
-          durum: d.durum,
-        })),
-      )
-    } catch {
-      setData([])
-    } finally {
-      setLoading(false)
-    }
-  }
+    isEmriApi
+      .list()
+      .then((list) => setData(list.map(mapIsEmri)))
+      .catch(() => setData([]))
+      .finally(() => setLoading(false))
+  }, [])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
-    { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
+    {
+      key: 'duzenle',
+      label: 'Düzenle',
+      disabled: !selectedRow,
+      onClick: () => {
+        const row = data.find((d) => d.key === selectedRow)
+        if (row) onSelect?.(row.isEmriNo)
+      },
+    },
     { type: 'divider' },
     { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
   ]
 
-  const columns: ColumnsType<IsEmriRow> = [
-    {
-      title: 'İş Emri No',
-      dataIndex: 'isEmriNo',
-      key: 'isEmriNo',
-      width: 140,
-      render: (text) => <span className="!text-[11px] !font-medium !text-[#f57c00]">{text}</span>,
-    },
-    {
-      title: 'Sipariş No',
-      dataIndex: 'siparisNo',
-      key: 'siparisNo',
-      width: 140,
-      render: (text) => <span className="!text-[11px]">{text ?? '-'}</span>,
-    },
-    {
-      title: 'Durum',
-      dataIndex: 'durum',
-      key: 'durum',
-      width: 100,
-      render: (text) => <Tag color={text ? 'blue' : 'default'} className="!text-[10px]">{text ?? '-'}</Tag>,
-    },
-  ]
+  const columns = useMemo<ColDef<IsEmriRow>[]>(
+    () => [
+      {
+        headerName: 'İş Emri No',
+        field: 'isEmriNo',
+        width: 120,
+        resizable: true,
+        cellClass: '!text-[#f57c00] !font-medium',
+      },
+      {
+        headerName: 'Sipariş No',
+        field: 'siparisNo',
+        width: 110,
+        resizable: true,
+        valueFormatter: (p) => p.value || '-',
+      },
+      {
+        headerName: 'Müşteri Sip. No',
+        field: 'musteriSiparisNo',
+        width: 130,
+        resizable: true,
+        valueFormatter: (p) => p.value || '-',
+      },
+      {
+        headerName: 'Açıklama',
+        field: 'aciklama',
+        flex: 1,
+        minWidth: 160,
+        resizable: true,
+        valueFormatter: (p) => p.value || '-',
+      },
+      {
+        headerName: 'Kalem',
+        field: 'kalemSayisi',
+        width: 80,
+        resizable: true,
+        type: 'rightAligned',
+      },
+      {
+        headerName: 'Durum',
+        field: 'durum',
+        width: 100,
+        resizable: true,
+        cellRenderer: (p: { value: string | null }) => (
+          <Tag color={p.value ? 'blue' : 'default'} className="!text-[10px]">
+            {p.value ?? '-'}
+          </Tag>
+        ),
+      },
+    ],
+    [],
+  )
 
   return (
     <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
-      <div className="!p-3">
+      <div className="!p-3 !flex !flex-col !h-full">
         <div className="!flex !items-center !justify-between !mb-3">
           <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
             İş Emri Tanımları Listesi
           </div>
           <div className="!flex !items-center !gap-1.5">
-            <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onNew} className="!text-[11px] !h-7">
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={load}
+              className="!text-[12px] !h-7"
+            />
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={onNew}
+              className="!text-[12px] !h-7"
+            >
               Yeni
             </Button>
           </div>
         </div>
 
-        <div className="!bg-white !rounded-sm">
-          <Spin spinning={loading}>
-            <Table
-              columns={columns}
-              dataSource={data}
-              size="small"
-              pagination={false}
-              rowSelection={{
-                type: 'radio',
-                selectedRowKeys: selectedRow ? [selectedRow] : [],
-                onChange: (keys) => setSelectedRow(keys[0] as string),
-              }}
-              onRow={(record) => ({
-                onDoubleClick: () => onSelect?.(record.isEmriNo),
-                className: '!cursor-pointer',
-              })}
-              className="[&_.ant-table-thead>tr>th]:!text-[10px] [&_.ant-table-thead>tr>th]:!font-semibold [&_.ant-table-thead>tr>th]:!text-[#6b7280] [&_.ant-table-thead>tr>th]:!uppercase [&_.ant-table-thead>tr>th]:!bg-[#f9fafb] [&_.ant-table-tbody>tr>td]:!text-[11px] [&_.ant-table-tbody>tr>td]:!py-1.5"
-            />
-          </Spin>
+        <div className="!flex-1 !min-h-0" style={{ minHeight: 300 }}>
+          <div className="!bg-white !rounded-sm !h-full !flex !flex-col">
+            <div className="!flex-1 !min-h-0" style={{ minHeight: 250 }}>
+              <DataGrid
+                loading={loading}
+                rowData={data}
+                columnDefs={columns}
+                domLayout="normal"
+                exportFileName="is-emri-tanimlari"
+                storageKey="isEmriTanimlari"
+                rowSelection="single"
+                onCellDoubleClicked={(e: CellDoubleClickedEvent<IsEmriRow>) => {
+                  const row = e.data as IsEmriRow | undefined
+                  if (row?.isEmriNo) onSelect?.(row.isEmriNo)
+                }}
+                onCellContextMenu={(e: CellContextMenuEvent<IsEmriRow>) => {
+                  const row = e.data as IsEmriRow | undefined
+                  if (row?.key) {
+                    e.node?.setSelected(true)
+                    setSelectedRow(row.key)
+                  }
+                }}
+                onSelectionChanged={(e: SelectionChangedEvent<IsEmriRow>) => {
+                  const sel = e.api.getSelectedRows()
+                  setSelectedRow(sel[0]?.key ?? null)
+                }}
+              />
+            </div>
+
+            <div className="!border-t !border-gray-200 !px-3 !py-2 !flex !items-center !justify-between !bg-[#fafafa] !flex-shrink-0">
+              <span className="!text-[11px] !text-[#9ca3af]">Çift tık veya sağ tık → Düzenle</span>
+              <span className="!text-[11px] !text-[#9ca3af] !tabular-nums">{data.length} kayıt</span>
+            </div>
+          </div>
         </div>
       </div>
     </Dropdown>

@@ -92,6 +92,21 @@ export class TedarikController {
     return this.service.karsilamaDepo(malzemeKod, renkKod, malzemeId ? Number(malzemeId) : undefined)
   }
 
+  // Ham stok tahsisi için kaynak giriş satırları. malzemeler=id:birim,id:birim
+  @Get('planlama/tahsis-kaynaklari')
+  tahsisKaynaklari(@Query('malzemeler') malzemeler?: string) {
+    const liste = String(malzemeler ?? '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => {
+        const [id, birim] = p.split(':')
+        return { malzemeId: Number(id), birim: birim ?? '' }
+      })
+      .filter((m) => Number.isFinite(m.malzemeId) && m.malzemeId > 0)
+    return this.service.tahsisKaynakListesi(liste)
+  }
+
   @Get('planlama/iplik/hareketler')
   planlamaIplikHareketler(
     @Query('siparisNo') siparisNo: string,

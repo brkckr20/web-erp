@@ -7,7 +7,7 @@ import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
-import { PlusOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, SettingOutlined, CloseOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
@@ -333,6 +333,14 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       return prev.map((k) => (k.key === key ? { ...emptyKalem(), key: k.key } : k))
     })
 
+  // Barkod bağlantısını satırdan kaldırır; miktar ve diğer alanlar korunur.
+  // Kaydet ile takipNo null'a düşer, barkod yeniden seçilebilir hale gelir.
+  const handleBarkodKaldir = (key: string, aciklama: string) =>
+    updateKalem(key, {
+      barkod: '',
+      aciklama: (aciklama ?? '').startsWith('Barkod:') ? '' : aciklama,
+    })
+
   // Yeni satır ekle ve yeni satırın Malzeme Kodu hücresine odaklan
   const addKalemAndFocusMalzeme = () => {
     let newIndex = 0
@@ -387,8 +395,9 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       )
 
       const mevcutId = id ?? kayitliId
+      let kaydedilen: any = null
       if (mevcutId) {
-        await malzemeYonetimFisleriApi.update(mevcutId, {
+        kaydedilen = await malzemeYonetimFisleriApi.update(mevcutId, {
           irsaliyeTarihi: fisTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi.format('YYYY-MM-DD'),
           tamamlandi: true,
@@ -411,9 +420,19 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
           kayitYapan,
           kalemler: kalemPayload,
         } as any)
+        kaydedilen = created
         setKayitliId(created.id)
         message.success('Fiş ve kalemler kaydedildi')
         temizle()
+      }
+
+      // KK'dan gelen üretim satırları sunucuda siparişe otomatik bağlanır (10 fiş).
+      const tahsis = kaydedilen?.tahsis
+      if (tahsis && (tahsis.baglanan > 0 || tahsis.belirsiz > 0)) {
+        const belirsizNot = tahsis.belirsiz > 0
+          ? `, ${tahsis.belirsiz} satır belirsiz (aynı malzemeye birden fazla sipariş kalemi) — Kumaş Planlama'dan elle tahsis edin`
+          : ''
+        message.info(`Otomatik sipariş tahsisi: ${tahsis.baglanan} satır bağlandı${belirsizNot}`)
       }
     } catch (err: any) {
       message.error('Hata: ' + (err?.message || err))
@@ -495,13 +514,19 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       adet: s.adet,
       aciklama: `KK:${s.kkFisNo}`,
     }))
-    const varOlan = new Set(kalemler.filter((k) => k.malzemeKod).map((k) => k.malzemeKod))
-    const eklenecek = yeniKalemler.filter((k) => !varOlan.has(k.malzemeKod))
+    // Aynı malzemenin farklı topları ayrı satırdır; tekilleştirme barkod bazlı yapılır.
+    const anahtar = (k: KalemRow) => `${k.malzemeKod}|${k.barkod}`
+    const varOlan = new Set(kalemler.filter((k) => k.malzemeKod).map(anahtar))
+    const eklenecek = yeniKalemler.filter((k) => !varOlan.has(anahtar(k)))
     if (eklenecek.length === 0) {
       message.info('Seçilen kalemler zaten listede mevcut')
       return
     }
     setKalemler((prev) => [...prev, ...eklenecek])
+    const atlanan = yeniKalemler.length - eklenecek.length
+    if (atlanan > 0) {
+      message.info(`${eklenecek.length} kalem aktarıldı, ${atlanan} kalem listede zaten vardı`)
+    }
   }
 
   const handleSil = () => {
@@ -671,7 +696,29 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       ),
     },
     { headerName: 'Malzeme Adı', field: 'malzemeAd' },
-    { headerName: 'Barkod', field: 'barkod', width: 120, valueFormatter: (p) => p.value ?? '-' },
+    {
+      headerName: 'Barkod', field: 'barkod', width: 140, cellClass: '!p-0',
+      cellRenderer: (p: { data: KalemRow }) => (
+        <div className="!flex !items-center !h-full !w-full !gap-1 !px-1">
+          <span className="flex-1 truncate">{p.data.barkod || '-'}</span>
+          {isCikis && p.data.barkod && (
+            <Popconfirm
+              title="Barkodu kaldır"
+              description="Satırdaki barkod bağlantısı kaldırılsın mı? Miktarlar korunur."
+              okText="Evet, kaldır"
+              cancelText="Vazgeç"
+              okButtonProps={{ danger: true, size: 'small' }}
+              cancelButtonProps={{ size: 'small' }}
+              onConfirm={() => handleBarkodKaldir(p.data.key, p.data.aciklama)}
+            >
+              <Tooltip title="Barkodu Kaldır">
+                <Button type="text" danger size="small" icon={<CloseOutlined />} />
+              </Tooltip>
+            </Popconfirm>
+          )}
+        </div>
+      ),
+    },
     {
       headerName: 'Varyant 1 Kod', field: 'varyant1RenkKod', width: 130, cellClass: '!p-0',
       cellRenderer: (p: { data: KalemRow }) => (

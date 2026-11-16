@@ -1,3 +1,9 @@
+// Elle seçilen kaynak giriş satırı ve ondan kullanılacak miktar.
+export class TahsisKaynakDto {
+  irsaliyeKalemId: number
+  miktar: number
+}
+
 // Serbest ham stoktan sipariş kalemine elle tahsis isteği (planlama satırı başına).
 export class TahsisSatirDto {
   siparisKalemId: number
@@ -9,4 +15,6 @@ export class TahsisSatirDto {
   birim?: string
   /** Tahsis edilecek miktar (ihtiyaç kadar). Free stok yetmezse kısmi yapılır. */
   miktar: number
+  /** Seçilen kaynak giriş satırları. Boşsa en eski uygun giriş satırından FIFO dağıtılır. */
+  kaynaklar?: TahsisKaynakDto[]
 }

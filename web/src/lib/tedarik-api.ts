@@ -54,6 +54,8 @@ export type KarsilamaOneri = 'STOK' | 'BOYADA' | 'HAM_BOYA' | 'FREE_TAHSIS' | 'T
 
 export interface KumasPlanlamaSatir {
   siparisNo: string
+  /** Siparişin müşteri sipariş numarası (iş emrine taşınır). */
+  musteriSiparisNo?: string | null
   /** Fason talimatı (202) kalemini siparişe bağlamak için. */
   siparisId?: number | null
   siparisKalemId?: number | null
@@ -90,6 +92,11 @@ export interface KumasPlanlamaSatir {
   oneri: KarsilamaOneri
 }
 
+export interface TahsisKaynak {
+  irsaliyeKalemId: number
+  miktar: number
+}
+
 export interface TahsisSatir {
   siparisKalemId: number
   siparisNo?: string | null
@@ -98,6 +105,28 @@ export interface TahsisSatir {
   renkId?: number | null
   birim?: string
   miktar: number
+  /** Seçilen kaynak giriş satırları; boşsa sunucu FIFO dağıtır. */
+  kaynaklar?: TahsisKaynak[]
+}
+
+/** Kaynak seçim ekranındaki uygun ham stok giriş satırı. */
+export interface TahsisKaynakSatir {
+  irsaliyeKalemId: number
+  irsaliyeId: number
+  fisNo: string
+  fisTipi: string
+  fisTarihi: string | null
+  depoKod: string | null
+  depoAd: string | null
+  cariAd: string | null
+  malzemeId: number
+  malzemeKod: string
+  malzemeAd: string
+  birim: string | null
+  miktar: number
+  tahsisli: number
+  kalan: number
+  aciklama: string | null
 }
 
 export interface TahsisSonucSatir {
@@ -197,6 +226,12 @@ export const tedarikApi = {
     ),
   tahsisEt: (satirlar: TahsisSatir[]) =>
     api.post<TahsisSonuc>('/tedarik/planlama/tahsis', { satirlar }),
+  tahsisKaynaklari: (malzemeler: { malzemeId: number; birim?: string }[]) =>
+    api.get<TahsisKaynakSatir[]>(
+      `/tedarik/planlama/tahsis-kaynaklari?malzemeler=${encodeURIComponent(
+        malzemeler.map((m) => `${m.malzemeId}:${m.birim ?? ''}`).join(','),
+      )}`,
+    ),
   tahsisKaldir: (siparisKalemId: number, malzemeId: number, renkId?: number | null) =>
     api.delete<{ silinen: number }>(
       `/tedarik/planlama/tahsis?siparisKalemId=${siparisKalemId}&malzemeId=${malzemeId}${renkId ? `&renkId=${renkId}` : ''}`,

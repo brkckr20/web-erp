@@ -18,6 +18,9 @@ export interface KaliteKontrolKalem {
   /** Bu top 11-Fasondan Giriş kalemine aktarıldı mı? */
   aktarildi?: boolean
   aktarimTarihi?: string | null
+  /** Bu topu stoğa sokan giriş fişi no'su (10/11). Boşsa henüz stokta değil. */
+  stokFisNo?: string | null
+  stoktaMi?: boolean
 }
 
 export interface KaliteKontrol {
@@ -110,7 +113,6 @@ export const kaliteKontrolApi = {
   update: (id: number, data: Partial<KaliteKontrolFormData>) =>
     api.put<KaliteKontrol>(`/kalite-kontrol/${id}`, data),
   remove: (id: number) => api.delete<void>(`/kalite-kontrol/${id}`),
-  stogaAl: (id: number) => api.post<any>(`/kalite-kontrol/${id}/stoga-al`, {}),
   stogaAlinmamis: () => api.get<any[]>(`/kalite-kontrol/stoga-alinmamis`),
   transfer: (kalemIds: number[]) => api.post<any>('/kalite-kontrol/transfer', { kalemIds }),
 
