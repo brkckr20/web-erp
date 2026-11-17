@@ -506,7 +506,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [cariKod, setCariKod] = useState<string>(() => baslangicKalemler?.[0]?.cariHesapKod ?? '')
   const [depoKod, setDepoKod] = useState<string>(() => baslangicKalemler?.[0]?.depoKod ?? '')
   const [irsaliyeTarihi, setIrsaliyeTarihi] = useState(dayjs())
-  const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
+  // Sevk tarihi alanı görünen tiplerde (201/202'de yerine Termin Tarihi var) yeni kayıt bugünü default alır.
+  const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(() =>
+    !propId && irsaliyeTipi !== '201' && irsaliyeTipi !== '202' ? dayjs() : null,
+  )
   // 201-Yeni kayıtta Termin Tarihi bugünü default alır.
   const [terminTarihi, setTerminTarihi] = useState<dayjs.Dayjs | null>(() => (irsaliyeTipi === '201' && !propId ? dayjs() : null))
   const [belgeNo, setBelgeNo] = useState('')
@@ -707,7 +710,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           if (cancelled) return
           setIrsaliyeNo(i.irsaliyeNo)
           if (i.irsaliyeTarihi) setIrsaliyeTarihi(dayjs(i.irsaliyeTarihi))
-           if (i.sevkTarihi) setSevkTarihi(dayjs(i.sevkTarihi))
+           setSevkTarihi(i.sevkTarihi ? dayjs(i.sevkTarihi) : null)
            if (i.terminTarihi) setTerminTarihi(dayjs(i.terminTarihi))
            // Eski 201 kayıtları tarihi sevk_tarihi'ne yazıyordu; termin boşsa oradan devral.
            else if (irsaliyeTipi === '201' && i.sevkTarihi) setTerminTarihi(dayjs(i.sevkTarihi))

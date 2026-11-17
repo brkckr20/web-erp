@@ -220,7 +220,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const [cariKod, setCariKod] = useState('')
   const [depoKod, setDepoKod] = useState('')
   const [faturaTarihi, setFaturaTarihi] = useState(dayjs())
-  const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(null)
+  // Yeni faturada sevk tarihi bugünü default alır; mevcut kayıtta sunucudaki değer yüklenir.
+  const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(() => (propId ? null : dayjs()))
   const [belgeNo, setBelgeNo] = useState('')
   const [bagliIrsaliyeler, setBagliIrsaliyeler] = useState<{ id: number; irsaliyeTipi: string; irsaliyeNo: string | null }[]>([])
   const [aciklama, setAciklama] = useState('')
@@ -265,7 +266,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           if (cancelled) return
           setFaturaNo(f.faturaNo)
           if (f.faturaTarihi) setFaturaTarihi(dayjs(f.faturaTarihi))
-          if (f.sevkTarihi) setSevkTarihi(dayjs(f.sevkTarihi))
+          setSevkTarihi(f.sevkTarihi ? dayjs(f.sevkTarihi) : null)
           setBelgeNo(f.sevkNo ?? '')
           setAciklama(f.aciklama ?? '')
           setYetkili(f.yetkili ?? '')
@@ -490,6 +491,9 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
       .then((list) => {
         if (cancelled) return
         if (list[0]?.cariHesap?.kod) setCariKod(list[0].cariHesap.kod)
+        // Faturaya taşınan ilk irsaliyenin deposu varsayılan olur.
+        const depo = list.find((i) => i.depo?.kod)?.depo
+        if (depo?.kod) setDepoKod(depo.kod)
         setKalemler(irsaliyelerdenSatirlar(list))
       })
       .catch((err) => message.error('İrsaliye kalemleri alınamadı: ' + (err?.message || err)))
@@ -509,6 +513,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
       return
     }
     if (!cariKod && secilen[0]?.cariHesap?.kod) setCariKod(secilen[0].cariHesap.kod)
+    const depo = secilen.find((i) => i.depo?.kod)?.depo
+    if (!depoKod && depo?.kod) setDepoKod(depo.kod)
     const rows = irsaliyelerdenSatirlar(secilen)
     setKalemler((prev) => {
       const bosMu = prev.every((p) => !p.malzemeKod)
@@ -1088,7 +1094,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   )
 
   return (
-    <Spin spinning={loading} className="!h-full">
+    <Spin spinning={loading} classNames={{ root: '!h-full [&_.ant-spin-container]:!h-full' }}>
       <div className="!px-3 !flex !flex-col !h-full !overflow-hidden">
         <div style={{ marginLeft: -12, marginRight: -12 }}>
           <CardToolbar
@@ -1209,7 +1215,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                 </Button>
               </div>
             </div>
-            <div style={{ height: 220, width: '100%' }} className="kalemler-grid">
+            <div style={{ width: '100%' }} className="kalemler-grid !h-full">
               <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
                 <div style={{ height: '100%', width: '100%' }}>
                   <AgGridReact

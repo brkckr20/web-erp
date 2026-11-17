@@ -29,6 +29,8 @@ import KaliteKontrolListesi from '@/components/pages/KaliteKontrolListesi'
 import KaliteKontrolKarti from '@/components/pages/KaliteKontrolKarti'
 import HataTanimKarti from '@/components/pages/HataTanimKarti'
 import HataTanimListesi from '@/components/pages/HataTanimListesi'
+import NakliyeciKarti from '@/components/pages/NakliyeciKarti'
+import NakliyeciListesi from '@/components/pages/NakliyeciListesi'
 import IsEmriKarti from '@/components/pages/IsEmriKarti'
 import IsEmriListesi from '@/components/pages/IsEmriListesi'
 import KumasListesi from '@/components/pages/KumasListesi'
@@ -556,6 +558,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'hata-tanim-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Hata Tanım Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openNakliyeciKarti = useCallback((id: number) => {
+    const key = 'nakliyeci-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Nakliyeci Kartı - ' + id, moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniNakliyeci = useCallback(() => {
+    const key = 'nakliyeci-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Nakliyeci Kartı', moduleKey: 'stok', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -1240,6 +1264,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('hata-tanim-karti-')) {
       return <HataTanimKarti kod={tab.key.replace('hata-tanim-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key === 'nakliyeci-tanimlari') {
+      return <NakliyeciListesi onSelect={openNakliyeciKarti} onNew={openYeniNakliyeci} />
+    }
+    if (tab.key === 'nakliyeci-karti-yeni') {
+      return <NakliyeciKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('nakliyeci-karti-')) {
+      return <NakliyeciKarti id={Number(tab.key.replace('nakliyeci-karti-', ''))} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'renk-kartlari') {
       return <RenkListesi onSelect={openRenkKarti} onNew={openYeniRenk} />

@@ -1,3 +1,3 @@
 import { CreateKullaniciDto } from './create-kullanici.dto'
 
-export class UpdateKullaniciDto implements Partial<CreateKullaniciDto> {}
+export type UpdateKullaniciDto = Partial<CreateKullaniciDto>

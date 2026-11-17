@@ -1,3 +1,18 @@
+export class KullaniciSeriDto {
+  id?: number
+  belgeTuru: string
+  seri: string
+  aktif?: boolean
+}
+
+export class KullaniciTasarimDto {
+  ad: string
+  xsltDosyaAdi: string
+  varsayilan?: boolean
+  sira?: number
+  aktif?: boolean
+}
+
 export class CreateKullaniciDto {
   kod: string
   ad: string
@@ -18,4 +33,6 @@ export class CreateKullaniciDto {
   satisElemani?: boolean
   mobilKullanici?: boolean
   hizmetSunucusu?: boolean
+  seriler?: KullaniciSeriDto[]
+  tasarimlar?: KullaniciTasarimDto[]
 }

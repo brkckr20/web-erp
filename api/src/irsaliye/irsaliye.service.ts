@@ -132,6 +132,7 @@ export class IrsaliyeService {
         cariHesap: true,
         depo: true,
         fasonTipi: true,
+        nakliyeci: true,
         kalemler: { include: kalemInclude },
       },
     })
@@ -144,6 +145,7 @@ export class IrsaliyeService {
         cariHesap: true,
         depo: true,
         fasonTipi: true,
+        nakliyeci: true,
         kalemler: { include: kalemInclude },
       },
     })
@@ -316,6 +318,7 @@ export class IrsaliyeService {
           cariHesap: true,
           depo: true,
           fasonTipi: true,
+          nakliyeci: true,
           kalemler: { include: kalemInclude },
         },
       })
@@ -347,6 +350,12 @@ export class IrsaliyeService {
     data.cariHesap = cariHesapId ? { connect: { id: cariHesapId } } : { disconnect: true }
     data.depo = depoId ? { connect: { id: depoId } } : { disconnect: true }
     data.fasonTipi = fasonTipiId ? { connect: { id: fasonTipiId } } : { disconnect: true }
+    // Nakliyeci yalnızca gönderildiğinde dokunulur; alanı taşımayan kısmi
+    // güncellemeler mevcut bağı koparmasın.
+    if ('nakliyeciId' in dto) {
+      data.nakliyeci = dto.nakliyeciId ? { connect: { id: dto.nakliyeciId } } : { disconnect: true }
+      delete data.nakliyeciId
+    }
 
     return this.prisma.$transaction(async (tx) => {
       await tx.irsaliye.update({ where: { id }, data })
@@ -424,6 +433,7 @@ export class IrsaliyeService {
           cariHesap: true,
           depo: true,
           fasonTipi: true,
+          nakliyeci: true,
           kalemler: { include: kalemInclude },
         },
       })

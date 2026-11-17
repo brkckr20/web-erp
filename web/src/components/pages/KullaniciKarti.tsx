@@ -1,11 +1,20 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Tabs, Input, Checkbox, Row, Col, Select, App, Spin } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { Tabs, Input, Checkbox, Row, Col, Select, App, Spin, Button } from 'antd'
+import { SearchOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { kullaniciApi } from '@/lib/kullanici-api'
-import type { CreateKullanici } from '@/lib/kullanici-api'
+import type { CreateKullanici, KullaniciSeri, KullaniciTasarim } from '@/lib/kullanici-api'
+import { hataMetni } from '@/lib/hata'
+
+const belgeTuruOptions = [
+  { value: 'E_IRSALIYE', label: 'e-İrsaliye' },
+  { value: 'E_ARSIV', label: 'e-Arşiv' },
+]
+
+const bosSeri: KullaniciSeri = { belgeTuru: 'E_IRSALIYE', seri: '', sonSira: 0, sonYil: null, aktif: true }
+const bosTasarim: KullaniciTasarim = { ad: '', xsltDosyaAdi: 'Default.xslt', varsayilan: false, sira: 0, aktif: true }
 
 const emptyData: CreateKullanici = {
   kod: '',
@@ -27,6 +36,8 @@ const emptyData: CreateKullanici = {
   satisElemani: false,
   mobilKullanici: false,
   hizmetSunucusu: false,
+  seriler: [],
+  tasarimlar: [],
 }
 
 const kullaniciTipiOptions = [
@@ -84,6 +95,8 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
         satisElemani: data.satisElemani,
         mobilKullanici: data.mobilKullanici,
         hizmetSunucusu: data.hizmetSunucusu,
+        seriler: data.seriler ?? [],
+        tasarimlar: data.tasarimlar ?? [],
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -94,6 +107,41 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
 
   const set = <K extends keyof CreateKullanici>(key: K, value: CreateKullanici[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
+
+  const seriler = form.seriler ?? []
+  const tasarimlar = form.tasarimlar ?? []
+
+  const setSeri = (index: number, patch: Partial<KullaniciSeri>) =>
+    setForm((prev) => ({
+      ...prev,
+      seriler: (prev.seriler ?? []).map((s, i) => (i === index ? { ...s, ...patch } : s)),
+    }))
+
+  const setTasarim = (index: number, patch: Partial<KullaniciTasarim>) =>
+    setForm((prev) => ({
+      ...prev,
+      tasarimlar: (prev.tasarimlar ?? []).map((t, i) => {
+        if (i !== index) {
+          return patch.varsayilan === true ? { ...t, varsayilan: false } : t
+        }
+        return { ...t, ...patch }
+      }),
+    }))
+
+  const seriEkle = () =>
+    setForm((prev) => ({ ...prev, seriler: [...(prev.seriler ?? []), { ...bosSeri }] }))
+
+  const seriSil = (index: number) =>
+    setForm((prev) => ({ ...prev, seriler: (prev.seriler ?? []).filter((_, i) => i !== index) }))
+
+  const tasarimEkle = () =>
+    setForm((prev) => ({
+      ...prev,
+      tasarimlar: [...(prev.tasarimlar ?? []), { ...bosTasarim, varsayilan: (prev.tasarimlar ?? []).length === 0 }],
+    }))
+
+  const tasarimSil = (index: number) =>
+    setForm((prev) => ({ ...prev, tasarimlar: (prev.tasarimlar ?? []).filter((_, i) => i !== index) }))
 
   const handleKodAra = async () => {
     if (!form.kod.trim()) return
@@ -120,16 +168,37 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
     }
     setSaving(true)
     try {
+      // Seri satırları büyük harf ve 3 hane olarak gönderilir; boş satırlar atlanır.
+      const seriPayload = seriler
+        .filter((s) => String(s.seri ?? '').trim())
+        .map((s) => ({
+          id: s.id,
+          belgeTuru: s.belgeTuru,
+          seri: String(s.seri).trim().toUpperCase(),
+          aktif: s.aktif !== false,
+        }))
+      const tasarimPayload = tasarimlar
+        .filter((t) => String(t.ad ?? '').trim() || String(t.xsltDosyaAdi ?? '').trim())
+        .map((t, i) => ({
+          ad: String(t.ad ?? '').trim(),
+          xsltDosyaAdi: String(t.xsltDosyaAdi ?? '').trim(),
+          varsayilan: t.varsayilan === true,
+          sira: i,
+          aktif: t.aktif !== false,
+        }))
+      const payload = { ...form, seriler: seriPayload, tasarimlar: tasarimPayload }
+
       if (id) {
-        await kullaniciApi.update(id, form)
+        await kullaniciApi.update(id, payload)
         message.success('Kullanıcı başarıyla güncellendi')
       } else {
-        const created = await kullaniciApi.create(form)
+        const created = await kullaniciApi.create(payload)
         setId(created.id)
         message.success('Kullanıcı başarıyla oluşturuldu')
       }
-    } catch {
-      message.error('Kayıt sırasında hata oluştu')
+      if (id) await loadByKod(form.kod.trim())
+    } catch (e) {
+      message.error(hataMetni(e))
     } finally {
       setSaving(false)
     }
@@ -307,6 +376,100 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
                       </div>
                     </Col>
                   </Row>
+                ),
+              },
+              {
+                key: 'ebelge',
+                label: 'e-Belge',
+                children: (
+                  <div className="!space-y-3">
+                    <div className="!border !border-gray-200 !rounded-sm !p-3">
+                      <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">e-Belge Serileri</div>
+                      <div className="!text-[10px] !text-[#6b7280] !mb-2">
+                        Seri 3 hanelidir (örn. I01). Numara: seri + fiş yılı + 9 haneli sıra.
+                      </div>
+                      <div className="!space-y-1.5">
+                        {seriler.map((s, index) => (
+                          <div key={index} className="!flex !items-center !gap-2">
+                            <Select
+                              size="small"
+                              value={s.belgeTuru}
+                              onChange={(v) => setSeri(index, { belgeTuru: v })}
+                              options={belgeTuruOptions}
+                              className="!w-32 !text-[11px]"
+                            />
+                            <Input
+                              size="small"
+                              value={s.seri}
+                              maxLength={3}
+                              placeholder="I01"
+                              onChange={(e) => setSeri(index, { seri: e.target.value.toUpperCase() })}
+                              className="!w-20 !text-[11px]"
+                            />
+                            <span className="!text-[11px] !text-[#6b7280] !w-40">
+                              Son Sıra: {s.sonSira ? `${s.sonYil ?? '-'} / ${s.sonSira}` : '-'}
+                            </span>
+                            <Checkbox
+                              checked={s.aktif !== false}
+                              onChange={(e) => setSeri(index, { aktif: e.target.checked })}
+                              className="!text-[11px]"
+                            >
+                              Aktif
+                            </Checkbox>
+                            <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => seriSil(index)} />
+                          </div>
+                        ))}
+                        <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={seriEkle} className="!text-[11px] !h-7">
+                          Seri Ekle
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="!border !border-gray-200 !rounded-sm !p-3">
+                      <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">e-İrsaliye Tasarımları</div>
+                      <div className="!text-[10px] !text-[#6b7280] !mb-2">
+                        XSLT dosya adı serbest metindir; dosyalar web/public/xslt altında olmalıdır. Varsayılan tasarım fişte otomatik seçilir.
+                      </div>
+                      <div className="!space-y-1.5">
+                        {tasarimlar.map((t, index) => (
+                          <div key={index} className="!flex !items-center !gap-2">
+                            <Input
+                              size="small"
+                              value={t.ad}
+                              placeholder="Tasarım adı"
+                              onChange={(e) => setTasarim(index, { ad: e.target.value })}
+                              className="!w-48 !text-[11px]"
+                            />
+                            <Input
+                              size="small"
+                              value={t.xsltDosyaAdi}
+                              placeholder="Default.xslt"
+                              onChange={(e) => setTasarim(index, { xsltDosyaAdi: e.target.value })}
+                              className="!w-56 !text-[11px]"
+                            />
+                            <Checkbox
+                              checked={t.varsayilan === true}
+                              onChange={(e) => setTasarim(index, { varsayilan: e.target.checked })}
+                              className="!text-[11px]"
+                            >
+                              Varsayılan
+                            </Checkbox>
+                            <Checkbox
+                              checked={t.aktif !== false}
+                              onChange={(e) => setTasarim(index, { aktif: e.target.checked })}
+                              className="!text-[11px]"
+                            >
+                              Aktif
+                            </Checkbox>
+                            <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => tasarimSil(index)} />
+                          </div>
+                        ))}
+                        <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={tasarimEkle} className="!text-[11px] !h-7">
+                          Tasarım Ekle
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 ),
               },
             ]}

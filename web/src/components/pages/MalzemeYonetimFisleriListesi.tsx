@@ -2,11 +2,24 @@
 
 import { Input, Select, Button, Tag, Dropdown, App, Modal } from 'antd'
 import type { MenuProps } from 'antd'
-import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useState, useMemo, useEffect } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { malzemeYonetimFisleriApi, type MalzemeYonetimFisi } from '@/lib/malzeme-yonetim-fisleri-api'
+import { eIrsaliyeApi } from '@/lib/e-irsaliye-api'
+import { hataMetni } from '@/lib/hata'
+import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
+
+// e-İrsaliye yalnızca çıkış tipli fişlerde oluşturulur.
+const cikisTipleri = new Set(['130', '131', '132', '135', '136', '137', '140', '99'])
+
+const eIrsaliyeDurumRengi = (durum: string | null) => {
+  if (durum === 'Onaylandı') return 'green'
+  if (durum === 'İptal') return 'red'
+  if (durum === 'Dosya Oluşturuldu' || durum === 'Gönderildi') return 'blue'
+  return 'default'
+}
 
 interface FisRow {
   key: string
@@ -18,6 +31,8 @@ interface FisRow {
   aciklama: string
   depo: string
   kayitEden: string
+  eIrsaliyeDurum: string | null
+  eIrsaliyeNo: string | null
 }
 
 const formatTarih = (d: string | null) => {
@@ -37,6 +52,8 @@ const mapFis = (f: MalzemeYonetimFisi): FisRow => ({
   aciklama: f.aciklama ?? '',
   depo: f.depo?.kod ?? '',
   kayitEden: f.kayitYapan ?? '-',
+  eIrsaliyeDurum: f.eIrsaliyeDurum ?? null,
+  eIrsaliyeNo: f.eIrsaliyeNo ?? null,
 })
 
 const fisTipiMap: Record<string, string> = {
@@ -68,9 +85,67 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
   const [data, setData] = useState<FisRow[]>([])
   const [yeniFisTipi, setYeniFisTipi] = useState('10')
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
+  const [eIrsaliyeModal, setEIrsaliyeModal] = useState<{
+    open: boolean
+    fisId: number | null
+    otomatik: boolean
+    yeniden: boolean
+  }>({
+    open: false,
+    fisId: null,
+    otomatik: false,
+    yeniden: false,
+  })
   const { modal, message } = App.useApp()
 
+  const secili = data.find((d) => d.key === selectedRow)
+  const seciliCikis = Boolean(secili && cikisTipleri.has(secili.irsaliyeTipi))
+
   const handleNew = () => onNew?.(yeniFisTipi)
+
+  const eIrsaliyeAc = (otomatik: boolean) => {
+    if (!secili || !seciliCikis) return
+    const no = secili.eIrsaliyeNo
+    if (!no) {
+      setEIrsaliyeModal({ open: true, fisId: secili.id, otomatik, yeniden: false })
+      return
+    }
+    if (secili.eIrsaliyeDurum === 'Onaylandı') {
+      message.warning('GİB onaylı e-İrsaliye yeniden oluşturulamaz; onaylı belgenin içeriği değiştirilemez')
+      return
+    }
+    const fis = secili
+    modal.confirm({
+      title: 'e-İrsaliye Yeniden Oluştur',
+      content: `${no} numaralı e-İrsaliye, güncel fiş bilgileriyle yeniden üretilecek. Belge no ve ETTN değişmez. Devam?`,
+      okText: 'Yeniden Oluştur',
+      cancelText: 'Vazgeç',
+      onOk: () => setEIrsaliyeModal({ open: true, fisId: fis.id, otomatik: true, yeniden: true }),
+    })
+  }
+
+  const eIrsaliyeGonder = () => {
+    if (!secili?.eIrsaliyeNo) {
+      message.warning('Önce e-İrsaliye oluşturmalısınız')
+      return
+    }
+    const fis = secili
+    modal.confirm({
+      title: 'e-İrsaliye Gönder',
+      content: `${fis.eIrsaliyeNo} numaralı e-İrsaliye gönderilsin mi? (simülasyon)`,
+      okText: 'Gönder',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.gonder(fis.id)
+          message.success('e-İrsaliye gönderildi, GİB onayı alındı (simülasyon)')
+          load()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
 
   const handleSil = () => {
     const r = data.find((d) => d.key === selectedRow)
@@ -107,6 +182,26 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.(r) } },
+    {
+      key: 'e-irsaliye-islemleri',
+      label: 'e-İrsaliye İşlemleri',
+      icon: <FileTextOutlined />,
+      disabled: !secili,
+      children: [
+        {
+          key: 'e-irsaliye-olustur',
+          label: secili?.eIrsaliyeNo ? 'Yeniden Oluştur' : 'e-İrsaliye Oluştur',
+          disabled: !seciliCikis,
+          onClick: () => eIrsaliyeAc(true),
+        },
+        {
+          key: 'e-irsaliye-gonder',
+          label: 'Gönder',
+          disabled: !secili?.eIrsaliyeNo,
+          onClick: eIrsaliyeGonder,
+        },
+      ],
+    },
     { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
   ]
@@ -141,6 +236,17 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
     {
       headerName: 'Depo', field: 'depo', width: 100, resizable: true,
       valueFormatter: (p) => p.value || '-',
+    },
+    {
+      headerName: 'e-İrsaliye', field: 'eIrsaliyeDurum', width: 130, resizable: true,
+      cellRenderer: (p: { value: string | null; data?: FisRow }) =>
+        p.value ? (
+          <Tag color={eIrsaliyeDurumRengi(p.value)} title={p.data?.eIrsaliyeNo ?? undefined} className="!text-[11px]">
+            {p.value}
+          </Tag>
+        ) : (
+          <span className="!text-[#9ca3af]">-</span>
+        ),
     },
     {
       headerName: 'Kayıt Eden', field: 'kayitEden', width: 110, resizable: true,
@@ -234,6 +340,15 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
             </div>
           </div>
         </div>
+
+        <EIrsaliyeOnizlemeModal
+          open={eIrsaliyeModal.open}
+          fisId={eIrsaliyeModal.fisId}
+          otomatikOlustur={eIrsaliyeModal.otomatik}
+          yenidenOlustur={eIrsaliyeModal.yeniden}
+          onClose={() => setEIrsaliyeModal((m) => ({ ...m, open: false, yeniden: false }))}
+          onChanged={load}
+        />
       </div>
     </Dropdown>
   )

@@ -48,6 +48,7 @@ export const modules: Module[] = [
           { key: 'raf-tanimlari', label: 'Raf Tanımları', isForm: true },
           { key: 'makina-kartlari', label: 'Makina Kartları', isForm: true },
           { key: 'hata-tanimlari', label: 'Hata Tanımları', isForm: true },
+          { key: 'nakliyeci-tanimlari', label: 'Nakliyeci Tanımları', isForm: true },
           { key: 'numarator-tanimlari', label: 'Numaratör Tanımları', isForm: true },
         ],
       },

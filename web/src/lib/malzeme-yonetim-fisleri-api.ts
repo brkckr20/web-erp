@@ -20,8 +20,19 @@ export interface MalzemeYonetimFisi {
   guncellemeTarihi: string | null
   cariHesapId: number | null
   depoId: number | null
+  eIrsaliyeDurum: string | null
+  ettnNo: string | null
+  eIrsaliyeNo: string | null
+  xsltDosyaAdi: string | null
+  nakliyeciId: number | null
+  nakliyeciUnvan: string | null
+  nakliyeciAd: string | null
+  nakliyeciSoyad: string | null
+  nakliyeciTc: string | null
+  nakliyeciPlaka: string | null
   cariHesap?: { id: number; kod: string; ad: string } | null
   depo?: { id: number; kod: string; ad: string } | null
+  nakliyeci?: { id: number; unvan: string } | null
   kalemler?: MalzemeYonetimFisiKalem[]
   /** 10-Üretim fişi kaydında sunucunun otomatik sipariş tahsisi özeti. */
   tahsis?: { baglanan: number; belirsiz: number }

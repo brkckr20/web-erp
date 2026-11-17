@@ -18,6 +18,7 @@ interface SearchableSelectProps<T extends SearchableItem> {
   fetchList: () => Promise<T[]>
   fetchSearch?: (search: string) => Promise<T[]>
   searchLabel?: (item: T) => string
+  adLabel?: (item: T) => string
   hideAdLabel?: boolean
   onIconClick?: () => void
 }
@@ -31,6 +32,7 @@ export default function SearchableSelect<T extends SearchableItem>({
   fetchList,
   fetchSearch,
   searchLabel,
+  adLabel,
   hideAdLabel,
   onIconClick,
 }: SearchableSelectProps<T>) {
@@ -38,6 +40,9 @@ export default function SearchableSelect<T extends SearchableItem>({
   const [loading, setLoading] = useState(false)
   const [selectedAd, setSelectedAd] = useState<string>('')
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Seçili değerin yanında gösterilecek metin; verilmezse kaydın ad alanı kullanılır.
+  const displayLabel = (item: T) => (adLabel ? adLabel(item) : item.ad)
 
   useEffect(
     () => () => {
@@ -95,7 +100,7 @@ export default function SearchableSelect<T extends SearchableItem>({
     }
     const rec = options.find((d) => d.kod === value)
     if (rec) {
-      setSelectedAd(rec.ad)
+      setSelectedAd(displayLabel(rec))
       return
     }
     if (!fetchSearch) return
@@ -103,13 +108,13 @@ export default function SearchableSelect<T extends SearchableItem>({
     fetchSearch(value)
       .then((list) => {
         const hit = list.find((d) => d.kod === value)
-        if (active && hit) setSelectedAd(hit.ad)
+        if (active && hit) setSelectedAd(displayLabel(hit))
       })
       .catch(() => {})
     return () => {
       active = false
     }
-  }, [value, options, fetchSearch])
+  }, [value, options, fetchSearch, adLabel])
 
   return (
     <div className={`!flex !items-center !gap-2 !min-w-0 ${className ?? ''}`}>
@@ -141,7 +146,7 @@ export default function SearchableSelect<T extends SearchableItem>({
         )}
         onChange={(kod: string) => {
           const rec = options.find((d) => d.kod === kod)
-          setSelectedAd(rec?.ad ?? '')
+          setSelectedAd(rec ? displayLabel(rec) : '')
           onChange?.(kod, rec)
         }}
         filterOption={

@@ -70,6 +70,16 @@ export class CreateIrsaliyeDto {
   depoId?: number
   fasonTipiId?: number
   yetkili?: string
+  eIrsaliyeDurum?: string
+  ettnNo?: string
+  eIrsaliyeNo?: string
+  xsltDosyaAdi?: string
+  nakliyeciId?: number | null
+  nakliyeciUnvan?: string
+  nakliyeciAd?: string
+  nakliyeciSoyad?: string
+  nakliyeciTc?: string
+  nakliyeciPlaka?: string
   kalemler?: CreateIrsaliyeKalemDto[]
 }
 

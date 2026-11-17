@@ -1,5 +1,25 @@
 import { api } from './api'
 
+export interface KullaniciSeri {
+  id?: number
+  kullaniciId?: number
+  belgeTuru: string
+  seri: string
+  sonSira?: number
+  sonYil?: number | null
+  aktif: boolean
+}
+
+export interface KullaniciTasarim {
+  id?: number
+  kullaniciId?: number
+  ad: string
+  xsltDosyaAdi: string
+  varsayilan: boolean
+  sira: number
+  aktif: boolean
+}
+
 export interface Kullanici {
   id: number
   kod: string
@@ -21,6 +41,8 @@ export interface Kullanici {
   satisElemani: boolean
   mobilKullanici: boolean
   hizmetSunucusu: boolean
+  seriler?: KullaniciSeri[]
+  tasarimlar?: KullaniciTasarim[]
 }
 
 export type CreateKullanici = Omit<Kullanici, 'id'>

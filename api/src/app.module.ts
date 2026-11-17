@@ -47,9 +47,10 @@ import { IslemModule } from './islem/islem.module';
 import { RotaModule } from './rota/rota.module';
 import { AuditModule } from './audit/audit.module';
 import { SirketModule } from './sirket/sirket.module';
+import { NakliyeciModule } from './nakliyeci/nakliyeci.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FaturaModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule, SirketModule],
+  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FaturaModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule, SirketModule, NakliyeciModule],
   controllers: [AppController],
   providers: [AppService],
 })

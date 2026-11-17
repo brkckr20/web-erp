@@ -190,7 +190,52 @@ model Kullanici {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
+  seriler           KullaniciSeri[]
+  tasarimlar        KullaniciTasarim[]
+
   @@map("kullanici")
+}
+
+// e-Belge numaratörü: seri kullanıcıya ve belge türüne bağlıdır.
+// Numara = seri (3) + yıl (4) + sıra (9). Aynı seri iki kullanıcıya verilemez;
+// yoksa iki kullanıcı aynı numarayı üretir.
+model KullaniciSeri {
+  id          Int       @id @default(autoincrement())
+  kullaniciId Int       @map("kullanici_id")
+  kullanici   Kullanici @relation(fields: [kullaniciId], references: [id], onDelete: Cascade)
+
+  belgeTuru   String    @map("belge_turu") @db.VarChar(20)
+  seri        String    @db.VarChar(10)
+  sonSira     Int       @default(0) @map("son_sira")
+  sonYil      Int?      @map("son_yil")
+  aktif       Boolean   @default(true)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([belgeTuru, seri])
+  @@index([kullaniciId])
+  @@map("kullanici_seri")
+}
+
+// Kullanıcının e-İrsaliye tasarımları. XSLT dosya adı serbest metindir;
+// dosya web/public/xslt altında aranır.
+model KullaniciTasarim {
+  id           Int       @id @default(autoincrement())
+  kullaniciId  Int       @map("kullanici_id")
+  kullanici    Kullanici @relation(fields: [kullaniciId], references: [id], onDelete: Cascade)
+
+  ad           String    @db.NVarChar(100)
+  xsltDosyaAdi String    @map("xslt_dosya_adi") @db.NVarChar(200)
+  varsayilan   Boolean   @default(false)
+  sira         Int       @default(0)
+  aktif        Boolean   @default(true)
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([kullaniciId])
+  @@map("kullanici_tasarim")
 }
 
 model Malzeme {
@@ -492,6 +537,36 @@ model CariHesapAdres {
   @@map("cari_hesap_adres")
 }
 
+model Nakliyeci {
+  id        Int      @id @default(autoincrement())
+  unvan     String   @unique @db.NVarChar(200)
+  ad        String?  @db.NVarChar(100)
+  soyad     String?  @db.NVarChar(100)
+  tc        String?  @db.NVarChar(11)
+  aktif     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  irsaliyeler Irsaliye[]       @relation("IrsaliyeNakliyeci")
+  plakalar    NakliyeciPlaka[]
+
+  @@map("nakliyeci")
+}
+
+// Bir şoför birden fazla araç kullanabildiği için plakalar ayrı satırlarda tutulur.
+// Aynı plaka aynı şoföre iki kez bağlanamaz; farklı şoförlerde tekrar edebilir.
+model NakliyeciPlaka {
+  id          Int       @id @default(autoincrement())
+  nakliyeciId Int       @map("nakliyeci_id")
+  nakliyeci   Nakliyeci @relation(fields: [nakliyeciId], references: [id], onDelete: Cascade)
+  plaka       String    @db.NVarChar(20)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([nakliyeciId, plaka])
+  @@map("nakliyeci_plaka")
+}
+
 model Irsaliye {
   id                Int      @id @default(autoincrement())
   irsaliyeNo        String?  @map("irsaliye_no") @db.VarChar(50)
@@ -517,6 +592,23 @@ model Irsaliye {
   guncellemeTarihi  DateTime? @map("guncelleme_tarihi")
   yetkili           String?  @db.VarChar(200)
 
+  // e-İrsaliye gönderim bilgileri (çıkış tipli stok fişlerinde kullanılır).
+  eIrsaliyeDurum    String?  @map("e_irsaliye_durum") @db.VarChar(30)
+  ettnNo            String?  @map("ettn_no") @db.VarChar(50)
+  eIrsaliyeNo       String?  @map("e_irsaliye_no") @db.VarChar(50)
+  xsltDosyaAdi      String?  @map("xslt_dosya_adi") @db.VarChar(200)
+  // Oluşturma anındaki UBL-TR belgesi (Görüntüle aynı XML'i kullanır).
+  eIrsaliyeXml      String?  @map("e_irsaliye_xml") @db.NVarChar(MAX)
+
+  // Nakliyeci: seçilen tanım kaydı bağlanır, bilgiler fişte snapshot olarak tutulur.
+  nakliyeciId       Int?     @map("nakliyeci_id")
+  nakliyeci         Nakliyeci? @relation("IrsaliyeNakliyeci", fields: [nakliyeciId], references: [id])
+  nakliyeciUnvan    String?  @map("nakliyeci_unvan") @db.NVarChar(200)
+  nakliyeciAd       String?  @map("nakliyeci_ad") @db.NVarChar(100)
+  nakliyeciSoyad    String?  @map("nakliyeci_soyad") @db.NVarChar(100)
+  nakliyeciTc       String?  @map("nakliyeci_tc") @db.NVarChar(11)
+  nakliyeciPlaka    String?  @map("nakliyeci_plaka") @db.NVarChar(20)
+
   cariHesapId       Int?     @map("cari_hesap_id")
   cariHesap         CariHesap? @relation("IrsaliyeCariHesap", fields: [cariHesapId], references: [id])
   depoId            Int?     @map("depo_id")
@@ -527,12 +619,32 @@ model Irsaliye {
 
   kalemler          IrsaliyeKalem[] @relation("IrsaliyeKalemleri")
   kkFisleri         KaliteKontrol[] @relation("KKIrsaliye")
+  eIrsaliyeLoglari  EIrsaliyeLog[] @relation("EIrsaliyeLoglari")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@unique([irsaliyeTipi, irsaliyeNo])
   @@map("irsaliye")
+}
+
+model EIrsaliyeLog {
+  id          Int      @id @default(autoincrement())
+  irsaliyeId  Int      @map("irsaliye_id")
+  irsaliye    Irsaliye @relation("EIrsaliyeLoglari", fields: [irsaliyeId], references: [id], onDelete: Cascade)
+
+  islem       String   @db.VarChar(30)
+  durum       String?  @db.VarChar(30)
+  ettnNo      String?  @map("ettn_no") @db.VarChar(50)
+  eIrsaliyeNo String?  @map("e_irsaliye_no") @db.VarChar(50)
+  mesaj       String?  @db.NVarChar(1000)
+  kullaniciId Int?     @map("kullanici_id")
+  kullaniciAd String?  @map("kullanici_ad") @db.NVarChar(200)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([irsaliyeId])
+  @@map("e_irsaliye_log")
 }
 
 model IrsaliyeKalem {
