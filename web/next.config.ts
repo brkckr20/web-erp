@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   transpilePackages: ["jspdf"],
   turbopack: {},
+  // Next 16 dev sunucusu, localhost dışından gelen /_next isteklerini varsayılan olarak 403 ile engelliyor.
+  allowedDevOrigins: ["192.168.1.*", "192.168.1.16"],
+  async rewrites() {
+    return [
+      { source: "/api/:path*", destination: "http://127.0.0.1:3001/api/:path*" },
+      { source: "/uploads/:path*", destination: "http://127.0.0.1:3001/uploads/:path*" },
+    ];
+  },
   async headers() {
     return [
       {
