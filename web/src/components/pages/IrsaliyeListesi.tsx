@@ -2,11 +2,14 @@
 
 import { Input, Select, Button, Tag, Dropdown, App } from 'antd'
 import type { MenuProps } from 'antd'
-import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useState, useMemo, useEffect } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { irsaliyeApi, type Irsaliye } from '@/lib/irsaliye-api'
+import { eIrsaliyeApi } from '@/lib/e-irsaliye-api'
+import { hataMetni } from '@/lib/hata'
+import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
 
 interface IrsaliyeRow {
@@ -21,6 +24,8 @@ interface IrsaliyeRow {
   aciklama: string
   irsaliyeToplam: number
   eIrsaliye: string
+  eIrsaliyeDurum: string | null
+  eIrsaliyeNo: string | null
   kayitEden: string
   onaylandi: boolean
   tamamlandi: boolean
@@ -52,6 +57,8 @@ const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
       : i.onaylandi
         ? (i.irsaliyeTipi === '201' || i.irsaliyeTipi === '202' ? 'Kesinleşti' : 'Onaylandı')
         : 'Taslak',
+    eIrsaliyeDurum: i.eIrsaliyeDurum ?? null,
+    eIrsaliyeNo: i.eIrsaliyeNo ?? null,
     kayitEden: i.kayitYapan ?? '-',
     onaylandi: !!i.onaylandi,
     tamamlandi: !!i.tamamlandi,
@@ -103,6 +110,13 @@ const satinalmaSiparisTipleri = Object.keys(satinalmaSiparisTipiMap)
 // Fason hareket fişleri: yalnızca 202-Fason Talimatı (201-Satın Alma Siparişini çıkarır).
 const fasonHareketTipleri = ['202']
 
+const eIrsaliyeDurumRengi = (durum: string | null) => {
+  if (durum === 'Dosya Gönderildi') return 'green'
+  if (durum === 'İptal') return 'red'
+  if (durum === 'Dosya Oluşturuldu') return 'blue'
+  return 'default'
+}
+
 interface IrsaliyeListesiProps {
   mod?: 'satis' | 'satinalma' | 'satinalma-siparis' | 'fason-hareket'
   onNew?: (irsaliyeTipi: string, fasonTipiId?: number | null) => void
@@ -130,7 +144,14 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
   const [yeniFasonTipiId, setYeniFasonTipiId] = useState<number | null>(null)
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
+  const [eIrsaliyeModal, setEIrsaliyeModal] = useState<{ open: boolean; fisId: number | null; otomatik: boolean; yeniden: boolean }>({
+    open: false,
+    fisId: null,
+    otomatik: false,
+    yeniden: false,
+  })
   const { modal, message } = App.useApp()
+  const seciliRow = data.find((d) => d.key === selectedRow) ?? null
 
   const handleNew = () => onNew?.(yeniIrsaliyeTipi, fasonFisTipleri[mod].includes(yeniIrsaliyeTipi) ? yeniFasonTipiId : null)
 
@@ -180,6 +201,155 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
     load()
   }, [])
 
+  const eIrsaliyeAc = () => {
+    const r = seciliRow
+    if (!r) return
+    const iptalMi = r.eIrsaliyeDurum === 'İptal'
+    if (!r.eIrsaliyeNo || iptalMi) {
+      modal.confirm({
+        title: 'e-İrsaliye Oluştur',
+        content: iptalMi
+          ? `${r.eIrsaliyeNo} numaralı e-İrsaliye iptal edilmiş. Yeni belge no ve ETTN ile oluşturulacak. Devam?`
+          : `${r.irsaliyeNo} numaralı fiş için e-İrsaliye oluşturulacak ve belge numarası alınacak. Onaylıyor musunuz?`,
+        okText: 'Oluştur',
+        cancelText: 'Vazgeç',
+        onOk: () => setEIrsaliyeModal({ open: true, fisId: r.id, otomatik: true, yeniden: iptalMi }),
+      })
+      return
+    }
+    if (r.eIrsaliyeDurum === 'Dosya Gönderildi') {
+      message.warning('Gönderilmiş e-İrsaliye yeniden oluşturulamaz; belgenin içeriği değiştirilemez')
+      return
+    }
+    modal.confirm({
+      title: 'e-İrsaliye Yeniden Oluştur',
+      content: `${r.eIrsaliyeNo} numaralı e-İrsaliye, güncel fiş bilgileriyle yeniden üretilecek. Belge no ve ETTN değişmez. Devam?`,
+      okText: 'Yeniden Oluştur',
+      cancelText: 'Vazgeç',
+      onOk: () => setEIrsaliyeModal({ open: true, fisId: r.id, otomatik: true, yeniden: true }),
+    })
+  }
+
+  const eIrsaliyeGonder = () => {
+    const r = seciliRow
+    if (!r?.eIrsaliyeNo) {
+      message.warning('Önce e-İrsaliye oluşturmalısınız')
+      return
+    }
+    if (r.eIrsaliyeDurum === 'İptal') {
+      message.warning('İptal edilmiş e-İrsaliye gönderilemez; önce yeniden oluşturun')
+      return
+    }
+    modal.confirm({
+      title: 'e-İrsaliye Gönder',
+      content: `${r.eIrsaliyeNo} numaralı e-İrsaliye gönderilsin mi? (simülasyon)`,
+      okText: 'Gönder',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.gonder(r.id)
+          message.success('e-İrsaliye gönderildi (simülasyon)')
+          load()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeIptal = () => {
+    const r = seciliRow
+    if (!r?.eIrsaliyeNo) return
+    if (r.eIrsaliyeDurum !== 'Dosya Oluşturuldu' && r.eIrsaliyeDurum !== 'Dosya Gönderildi') {
+      message.warning('e-İrsaliye bu durumda iptal edilemez')
+      return
+    }
+    modal.confirm({
+      title: 'e-İrsaliyeyi Boşa Düşür',
+      content: `${r.eIrsaliyeNo} numaralı e-İrsaliye iptal edilecek. Belge listede "İptal" durumunda kalır; yeniden oluşturulursa yeni belge no ve ETTN alınır. Devam?`,
+      okText: 'İptal Et',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.iptal(r.id)
+          message.success('e-İrsaliye iptal edildi')
+          load()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeBelgeNoSifirla = () => {
+    const r = seciliRow
+    if (!r) return
+    if (r.eIrsaliyeDurum !== 'Dosya Oluşturuldu') {
+      message.warning('Yalnızca gönderilmemiş belgenin numarası sıfırlanabilir')
+      return
+    }
+    modal.confirm({
+      title: 'Belge No Sıfırla',
+      content: `${r.eIrsaliyeNo} numaralı gönderilmemiş belge iptal edilecek ve sayaç 1 geri alınacak; numara bir sonraki e-İrsaliye'de kullanılacak. Bu numaradan sonra belge varsa işlem yapılamaz. Devam?`,
+      okText: 'Sıfırla',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.belgeNoSifirla(r.id)
+          message.success('Belge no sıfırlandı; numara sayaçtan geri alındı')
+          load()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeMenuItems: NonNullable<MenuProps['items']> = [
+    {
+      key: 'e-irsaliye-goruntule',
+      label: 'e-İrsaliye Görüntüle',
+      disabled: !seciliRow?.eIrsaliyeNo || seciliRow?.eIrsaliyeDurum === 'İptal',
+      onClick: () => {
+        if (!seciliRow) return
+        setEIrsaliyeModal({ open: true, fisId: seciliRow.id, otomatik: false, yeniden: false })
+      },
+    },
+    {
+      key: 'e-irsaliye-olustur',
+      label:
+        seciliRow?.eIrsaliyeNo && seciliRow?.eIrsaliyeDurum !== 'İptal'
+          ? 'Yeniden Oluştur'
+          : 'e-İrsaliye Oluştur',
+      disabled: !seciliRow,
+      onClick: eIrsaliyeAc,
+    },
+    {
+      key: 'e-irsaliye-gonder',
+      label: 'Gönder',
+      disabled:
+        !seciliRow?.eIrsaliyeNo ||
+        seciliRow?.eIrsaliyeDurum === 'Dosya Gönderildi' ||
+        seciliRow?.eIrsaliyeDurum === 'İptal',
+      onClick: eIrsaliyeGonder,
+    },
+    {
+      key: 'e-irsaliye-belge-no-sifirla',
+      label: 'Belge No Sıfırla',
+      disabled: !seciliRow?.eIrsaliyeNo || seciliRow?.eIrsaliyeDurum !== 'Dosya Oluşturuldu',
+      onClick: eIrsaliyeBelgeNoSifirla,
+    },
+    {
+      key: 'e-irsaliye-iptal',
+      label: 'Boşa Düşür (İptal)',
+      danger: true,
+      disabled: !seciliRow?.eIrsaliyeNo || seciliRow?.eIrsaliyeDurum === 'İptal',
+      onClick: eIrsaliyeIptal,
+    },
+  ]
+
   const handleOnay = async (onaylandi: boolean) => {
     const r = data.find((d) => d.key === selectedRow)
     if (!r || r.irsaliyeTipi !== '201') return
@@ -195,6 +365,15 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.({ ...r, ekranAdi }) } },
+    ...(mod === 'satis'
+      ? [{
+          key: 'e-irsaliye-islemleri',
+          label: 'e-İrsaliye İşlemleri',
+          icon: <FileTextOutlined />,
+          disabled: !selectedRow,
+          children: eIrsaliyeMenuItems,
+        }]
+      : []),
     ...(mod !== 'satinalma-siparis'
       ? [{
           key: 'fatura-olustur',
@@ -262,6 +441,25 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
       valueFormatter: (p) =>
         `${(p.value as number).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺`,
     },
+    ...(mod === 'satis'
+      ? [
+          {
+            headerName: 'e-İrsaliye No', field: 'eIrsaliyeNo', width: 150, resizable: true,
+            valueFormatter: (p) => p.value || '-',
+          },
+          {
+            headerName: 'e-İrsaliye', field: 'eIrsaliyeDurum', width: 130, resizable: true,
+            cellRenderer: (p: { value: string | null }) =>
+              p.value ? (
+                <Tag color={eIrsaliyeDurumRengi(p.value)} className="!text-[11px]">
+                  {p.value}
+                </Tag>
+              ) : (
+                <span className="!text-[#9ca3af]">-</span>
+              ),
+          },
+        ]
+      : []),
     {
       headerName: 'Durum', field: 'eIrsaliye', width: 110, resizable: true,
       cellRenderer: (p: { value: string }) => (
@@ -273,11 +471,19 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
     {
       headerName: 'Kayıt Eden', field: 'kayitEden', width: 110, resizable: true,
     },
-  ], [])
+  ], [mod])
 
   return (
     <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
       <div className="!p-3 !flex !flex-col !h-full">
+        <EIrsaliyeOnizlemeModal
+          open={eIrsaliyeModal.open}
+          fisId={eIrsaliyeModal.fisId}
+          otomatikOlustur={eIrsaliyeModal.otomatik}
+          yenidenOlustur={eIrsaliyeModal.yeniden}
+          onClose={() => setEIrsaliyeModal((m) => ({ ...m, open: false, yeniden: false }))}
+          onChanged={load}
+        />
         <div className="!flex !items-center !justify-between !mb-3">
           <div className="!text-[10px] !font-semibold !text-[#9ca3af] !uppercase !tracking-wider">
             {baslik}

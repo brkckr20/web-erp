@@ -2,13 +2,17 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 
-// e-İrsaliye yalnızca çıkış tipli fişlerde oluşturulur (kullanıcı tarafıyla aynı liste).
+// e-İrsaliye oluşturulabilen tipler: depo çıkış fişleri + satış irsaliyelerinin
+// tamamı (iade, konsinye, fason ve hizmet tipleri dahil).
 const CIKIS_TIPLERI = new Set(['130', '131', '132', '135', '136', '137', '140', '99'])
+const SATIS_TIPLERI = new Set(['2', '3', '4', '8', '12', '23', '120', '121', '123', '125', '126', '134', '138', '192'])
+const E_IRSALIYE_TIPLERI = new Set([...CIKIS_TIPLERI, ...SATIS_TIPLERI])
 
 const BELGE_TURU = 'E_IRSALIYE'
 const VARSAYILAN_XSLT = 'Default.xslt'
 const DURUM_OLUSTURULDU = 'Dosya Oluşturuldu'
-const DURUM_ONAYLANDI = 'Onaylandı'
+const DURUM_GONDERILDI = 'Dosya Gönderildi'
+const DURUM_IPTAL = 'İptal'
 
 interface AktifKullanici {
   id: number
@@ -362,20 +366,22 @@ export class EIrsaliyeService {
     body: { xsltDosyaAdi?: string; seriId?: number; yenile?: boolean },
   ) {
     const fis = await this.fisYukle(fisId)
-    if (!CIKIS_TIPLERI.has(String(fis.irsaliyeTipi))) {
-      throw new BadRequestException('e-İrsaliye yalnızca çıkış tipli fişlerde oluşturulur')
+    if (!E_IRSALIYE_TIPLERI.has(String(fis.irsaliyeTipi))) {
+      throw new BadRequestException('e-İrsaliye bu fiş tipinde oluşturulmaz')
     }
     // yenile=true: gönderilmemiş belge, aynı belge no ve ETTN korunarak güncel fişten üretilir.
+    // İptal edilmiş belge yok sayılır: oluşturma yeni belge no ve ETTN alır.
     const yenile = body?.yenile === true
-    if (fis.eIrsaliyeNo && !yenile) {
+    const iptalEdilmis = fis.eIrsaliyeDurum === DURUM_IPTAL
+    if (fis.eIrsaliyeNo && !yenile && !iptalEdilmis) {
       throw new BadRequestException(`Bu fiş için e-İrsaliye zaten oluşturulmuş: ${fis.eIrsaliyeNo}`)
     }
-    if (fis.eIrsaliyeNo && fis.eIrsaliyeDurum === DURUM_ONAYLANDI) {
+    if (fis.eIrsaliyeNo && fis.eIrsaliyeDurum === DURUM_GONDERILDI) {
       throw new BadRequestException(
-        'GİB onaylı e-İrsaliye yeniden oluşturulamaz; onaylı belgenin içeriği değiştirilemez',
+        'Gönderilmiş e-İrsaliye yeniden oluşturulamaz; belgenin içeriği değiştirilemez',
       )
     }
-    const mevcutNo = fis.eIrsaliyeNo
+    const mevcutNo = iptalEdilmis ? null : fis.eIrsaliyeNo
     if (!fis.cariHesapId || !fis.cariHesap) {
       throw new BadRequestException('Fişte cari hesap seçili değil')
     }
@@ -410,7 +416,9 @@ export class EIrsaliyeService {
     })
 
     const yil = new Date(fis.irsaliyeTarihi).getFullYear()
-    const olusturma = new Date()
+    // Belge tarihi/saati fişin ilk kayıt anıdır; e-İrsaliye sonradan üretilse
+    // ya da yeniden oluşturulsa da değişmez.
+    const olusturma = fis.createdAt
     const kullaniciAd = await this.kullaniciLog(kullanici)
 
     const sonuc = await this.prisma.$transaction(async (tx) => {
@@ -426,7 +434,11 @@ export class EIrsaliyeService {
       const xml = xmlOlustur({ fis, sirket, cari: fis.cariHesap, eIrsaliyeNo, ettn, olusturma })
 
       const yazilan = await tx.irsaliye.updateMany({
-        where: mevcutNo ? { id: fisId, eIrsaliyeNo: mevcutNo } : { id: fisId, eIrsaliyeNo: null },
+        where: mevcutNo
+          ? { id: fisId, eIrsaliyeNo: mevcutNo }
+          : iptalEdilmis
+            ? { id: fisId, eIrsaliyeNo: fis.eIrsaliyeNo, eIrsaliyeDurum: DURUM_IPTAL }
+            : { id: fisId, eIrsaliyeNo: null },
         data: {
           eIrsaliyeDurum: DURUM_OLUSTURULDU,
           ettnNo: ettn,
@@ -437,7 +449,7 @@ export class EIrsaliyeService {
       })
       if (yazilan.count === 0) {
         throw new BadRequestException(
-          mevcutNo
+          mevcutNo || iptalEdilmis
             ? 'e-İrsaliye bu sırada başka bir kullanıcı tarafından değiştirildi, listeyi yenileyip tekrar deneyin'
             : 'Bu fiş için e-İrsaliye başka bir kullanıcı tarafından oluşturulmuş',
         )
@@ -452,7 +464,9 @@ export class EIrsaliyeService {
           eIrsaliyeNo,
           mesaj: mevcutNo
             ? 'e-İrsaliye güncel fiş bilgileriyle yeniden üretildi (aynı belge no ve ETTN)'
-            : 'e-İrsaliye dosyası oluşturuldu (simülasyon)',
+            : iptalEdilmis
+              ? 'İptal edilen e-İrsaliye yerine yeni belge no ve ETTN ile oluşturuldu (simülasyon)'
+              : 'e-İrsaliye dosyası oluşturuldu (simülasyon)',
           kullaniciId: kullanici.id,
           kullaniciAd,
         },
@@ -465,6 +479,32 @@ export class EIrsaliyeService {
     return this.payload(fisId, kullanici.id)
   }
 
+  // Belge no'su seri + yıl(4) + 9 hane sıra'dır. Aynı seri/yılda bu numaradan
+  // küçük ve hâlâ gönderilmemiş bir belge varsa onun numarasını döndürür.
+  // İptal edilen belgelerin durumu 'İptal' olduğu için engel oluşturmaz.
+  private async bekleyenOncekiBelge(eIrsaliyeNo: string): Promise<string | null> {
+    if (!/^\d{13}$/.test(eIrsaliyeNo.slice(-13))) return null
+    const onek = eIrsaliyeNo.slice(0, -13)
+    const yil = eIrsaliyeNo.slice(-13, -9)
+    if (!onek) return null
+    const adaylar = await this.prisma.irsaliye.findMany({
+      where: { eIrsaliyeDurum: DURUM_OLUSTURULDU, eIrsaliyeNo: { not: null } },
+      select: { eIrsaliyeNo: true },
+    })
+    return (
+      adaylar
+        .map((a) => a.eIrsaliyeNo as string)
+        .filter(
+          (no) =>
+            no.length === eIrsaliyeNo.length &&
+            no.startsWith(onek) &&
+            no.slice(-13, -9) === yil &&
+            no < eIrsaliyeNo,
+        )
+        .sort()[0] ?? null
+    )
+  }
+
   async gonder(fisId: number, kullanici: AktifKullanici) {
     const fis = await this.prisma.irsaliye.findUnique({
       where: { id: fisId },
@@ -472,29 +512,167 @@ export class EIrsaliyeService {
     })
     if (!fis) throw new NotFoundException('İrsaliye bulunamadı')
     if (!fis.eIrsaliyeNo) throw new BadRequestException('Önce e-İrsaliye oluşturulmalı')
-    if (fis.eIrsaliyeDurum === DURUM_ONAYLANDI) {
-      throw new BadRequestException('e-İrsaliye zaten onaylandı')
+    if (fis.eIrsaliyeDurum === DURUM_IPTAL) {
+      throw new BadRequestException('İptal edilmiş e-İrsaliye gönderilemez; önce yeniden oluşturun')
+    }
+    if (fis.eIrsaliyeDurum === DURUM_GONDERILDI) {
+      throw new BadRequestException('e-İrsaliye zaten gönderildi')
+    }
+    const onceki = await this.bekleyenOncekiBelge(fis.eIrsaliyeNo)
+    if (onceki) {
+      throw new BadRequestException(
+        `Sıralı gönderim: önce ${onceki} numaralı e-İrsaliye gönderilmeli. ` +
+          'Göndermek istemiyorsanız o belgeyi boşa düşürün.',
+      )
     }
 
     const kullaniciAd = await this.kullaniciLog(kullanici)
     await this.prisma.$transaction([
       this.prisma.irsaliye.update({
         where: { id: fisId },
-        data: { eIrsaliyeDurum: DURUM_ONAYLANDI },
+        data: { eIrsaliyeDurum: DURUM_GONDERILDI },
       }),
       this.prisma.eIrsaliyeLog.create({
         data: {
           irsaliyeId: fisId,
           islem: 'GONDER',
-          durum: DURUM_ONAYLANDI,
+          durum: DURUM_GONDERILDI,
           ettnNo: fis.ettnNo,
           eIrsaliyeNo: fis.eIrsaliyeNo,
-          mesaj: 'GİB onayı alındı (simülasyon)',
+          mesaj: 'Dosya gönderildi (simülasyon)',
           kullaniciId: kullanici.id,
           kullaniciAd,
         },
       }),
     ])
+
+    return this.payload(fisId, kullanici.id)
+  }
+
+  // İptal edilen belge silinmez: durum 'İptal' olur; belge no ve ETTN listede iz
+  // olarak kalır, XML temizlenir. Sayaç geri alınmaz; yeniden oluşturma yeni
+  // belge no ve ETTN alır. Simülasyonda gönderilmiş belge de iptal edilebilir.
+  async iptal(fisId: number, kullanici: AktifKullanici) {
+    const fis = await this.prisma.irsaliye.findUnique({
+      where: { id: fisId },
+      select: { id: true, eIrsaliyeNo: true, eIrsaliyeDurum: true, ettnNo: true },
+    })
+    if (!fis) throw new NotFoundException('İrsaliye bulunamadı')
+    if (!fis.eIrsaliyeNo) throw new BadRequestException('Bu fişte iptal edilecek e-İrsaliye yok')
+    if (fis.eIrsaliyeDurum !== DURUM_OLUSTURULDU && fis.eIrsaliyeDurum !== DURUM_GONDERILDI) {
+      throw new BadRequestException('e-İrsaliye bu durumda iptal edilemez')
+    }
+
+    const eIrsaliyeNo = fis.eIrsaliyeNo
+    const ettnNo = fis.ettnNo
+    const kullaniciAd = await this.kullaniciLog(kullanici)
+
+    await this.prisma.$transaction(async (tx) => {
+      const yazilan = await tx.irsaliye.updateMany({
+        where: { id: fisId, eIrsaliyeNo, eIrsaliyeDurum: fis.eIrsaliyeDurum },
+        data: {
+          eIrsaliyeDurum: DURUM_IPTAL,
+          eIrsaliyeXml: null,
+        },
+      })
+      if (yazilan.count === 0) {
+        throw new BadRequestException(
+          'e-İrsaliye bu sırada başka bir kullanıcı tarafından değiştirildi, listeyi yenileyip tekrar deneyin',
+        )
+      }
+
+      await tx.eIrsaliyeLog.create({
+        data: {
+          irsaliyeId: fisId,
+          islem: 'IPTAL',
+          durum: DURUM_IPTAL,
+          ettnNo,
+          eIrsaliyeNo,
+          mesaj:
+            fis.eIrsaliyeDurum === DURUM_GONDERILDI
+              ? 'Gönderilmiş e-İrsaliye iptal edildi; belge İptal durumunda listede kalır'
+              : 'e-İrsaliye iptal edildi; belge İptal durumunda listede kalır',
+          kullaniciId: kullanici.id,
+          kullaniciAd,
+        },
+      })
+    })
+
+    return this.payload(fisId, kullanici.id)
+  }
+
+  // Gönderilmemiş belgenin numarası yalnız sayaçtaki son numara ise geri alınır:
+  // numara bir sonraki belgede yeniden kullanılır. Sonraki numaralarda belge varsa
+  // sayaç geri alınamaz (numaralar çakışır).
+  async belgeNoSifirla(fisId: number, kullanici: AktifKullanici) {
+    const fis = await this.prisma.irsaliye.findUnique({
+      where: { id: fisId },
+      select: { id: true, eIrsaliyeNo: true, eIrsaliyeDurum: true, ettnNo: true },
+    })
+    if (!fis) throw new NotFoundException('İrsaliye bulunamadı')
+    if (!fis.eIrsaliyeNo) throw new BadRequestException('Bu fişte sıfırlanacak e-İrsaliye yok')
+    if (fis.eIrsaliyeDurum !== DURUM_OLUSTURULDU) {
+      throw new BadRequestException(
+        'Yalnızca gönderilmemiş (Dosya Oluşturuldu) belgenin numarası sıfırlanabilir',
+      )
+    }
+
+    const no = fis.eIrsaliyeNo
+    if (!/^\d{13}$/.test(no.slice(-13))) {
+      throw new BadRequestException('Belge no biçimi çözümlenemedi')
+    }
+    const seri = no.slice(0, -13)
+    const yil = Number(no.slice(-13, -9))
+    const sira = Number(no.slice(-9))
+
+    const seriKaydi = await this.prisma.kullaniciSeri.findFirst({
+      where: { belgeTuru: BELGE_TURU, seri },
+      select: { id: true, sonSira: true, sonYil: true },
+    })
+    if (!seriKaydi) throw new BadRequestException('Belge no serisi bulunamadı')
+    if (seriKaydi.sonYil !== yil || seriKaydi.sonSira !== sira) {
+      throw new BadRequestException(
+        'Bu numaradan sonra kullanılmış belge var; yalnızca sayaçtaki son numara sıfırlanabilir',
+      )
+    }
+
+    const ettnNo = fis.ettnNo
+    const kullaniciAd = await this.kullaniciLog(kullanici)
+
+    await this.prisma.$transaction(async (tx) => {
+      const yazilan = await tx.irsaliye.updateMany({
+        where: { id: fisId, eIrsaliyeNo: no, eIrsaliyeDurum: DURUM_OLUSTURULDU },
+        data: { eIrsaliyeNo: null, ettnNo: null, eIrsaliyeDurum: null, eIrsaliyeXml: null },
+      })
+      if (yazilan.count === 0) {
+        throw new BadRequestException(
+          'e-İrsaliye bu sırada başka bir kullanıcı tarafından değiştirildi, listeyi yenileyip tekrar deneyin',
+        )
+      }
+
+      const sayac = await tx.kullaniciSeri.updateMany({
+        where: { id: seriKaydi.id, sonYil: yil, sonSira: sira },
+        data: { sonSira: { decrement: 1 } },
+      })
+      if (sayac.count === 0) {
+        throw new BadRequestException(
+          'Sayaç bu sırada değişti; listeyi yenileyip tekrar deneyin',
+        )
+      }
+
+      await tx.eIrsaliyeLog.create({
+        data: {
+          irsaliyeId: fisId,
+          islem: 'BELGE_NO_SIFIRLA',
+          durum: null,
+          ettnNo,
+          eIrsaliyeNo: no,
+          mesaj: `${no} numaralı gönderilmemiş belgenin numarası sıfırlandı; sayaç geri alındı, bir sonraki belgede kullanılacak`,
+          kullaniciId: kullanici.id,
+          kullaniciAd,
+        },
+      })
+    })
 
     return this.payload(fisId, kullanici.id)
   }

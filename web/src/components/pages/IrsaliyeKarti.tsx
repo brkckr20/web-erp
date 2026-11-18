@@ -1,19 +1,25 @@
 'use client'
 
-import { Input, InputNumber, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown, Tag, Switch } from 'antd'
+import { Input, InputNumber, DatePicker, Select, Button, App, Spin, Popconfirm, Tooltip, Popover, Checkbox, Modal, Dropdown, Tag, Switch, Tabs } from 'antd'
 import type { MenuProps } from 'antd'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
-import { PlusOutlined, DeleteOutlined, SettingOutlined, SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, SettingOutlined, SearchOutlined, FileTextOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
+import SearchableNakliyeciSelect from '@/components/shared/SearchableNakliyeciSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { irsaliyeApi, type Irsaliye, type IrsaliyeKalem, type IrsaliyeFormData } from '@/lib/irsaliye-api'
+import { eIrsaliyeApi } from '@/lib/e-irsaliye-api'
+import { hataMetni } from '@/lib/hata'
+import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
+import { kullaniciApi } from '@/lib/kullanici-api'
+import { nakliyeciApi } from '@/lib/nakliyeci-api'
 import { islemApi, type Islem } from '@/lib/islem-api'
 import { faturaApi } from '@/lib/fatura-api'
 import { kaliteKontrolApi, type KaliteKontrolKalemDetay } from '@/lib/kalite-kontrol-api'
@@ -36,6 +42,35 @@ const HAM_STOK_GIRIS_TIPLERI = new Set([
   '1', '5', '6', '9', '10', '11', '16', '17', '18', '20', '21', '22', '40', '101',
   '122', '124', '125', '133', '139',
 ])
+
+// e-İrsaliye sekmesi satış irsaliyelerinin tamamında görünür (sunucu izin listesiyle aynı).
+const satisEIrsaliyeTipleri = new Set(['2', '3', '4', '8', '12', '23', '120', '121', '123', '125', '126', '134', '138', '192'])
+
+interface EIrsaliyeForm {
+  durum: string
+  ettnNo: string
+  eIrsaliyeNo: string
+  xsltDosyaAdi: string
+  nakliyeciId: number | null
+  nakliyeciUnvan: string
+  nakliyeciAd: string
+  nakliyeciSoyad: string
+  nakliyeciTc: string
+  nakliyeciPlaka: string
+}
+
+const bosEIrsaliye: EIrsaliyeForm = {
+  durum: '',
+  ettnNo: '',
+  eIrsaliyeNo: '',
+  xsltDosyaAdi: '',
+  nakliyeciId: null,
+  nakliyeciUnvan: '',
+  nakliyeciAd: '',
+  nakliyeciSoyad: '',
+  nakliyeciTc: '',
+  nakliyeciPlaka: '',
+}
 
 const antTheme = themeQuartz.withParams({
   fontFamily: 'inherit',
@@ -520,6 +555,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [yetkili, setYetkili] = useState('')
   const [onaylandi, setOnaylandi] = useState(false)
   const [tamamlandi, setTamamlandi] = useState(false)
+  const [eIrsaliye, setEIrsaliye] = useState<EIrsaliyeForm>({ ...bosEIrsaliye })
+  const [nakliyeciPlakalar, setNakliyeciPlakalar] = useState<string[]>([])
+  const [eIrsaliyeModal, setEIrsaliyeModal] = useState<{ open: boolean; otomatik: boolean; yeniden: boolean }>({
+    open: false,
+    otomatik: false,
+    yeniden: false,
+  })
+  const satisEIrsaliyeMi = satisEIrsaliyeTipleri.has(irsaliyeTipi)
   const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
     !id && baslangicKalemler && baslangicKalemler.length > 0
       ? baslangicKalemler.map(baslangicKalemToRow)
@@ -556,12 +599,54 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     yetkili,
     onaylandi,
     tamamlandi,
+    eIrsaliye,
     kalemlerForKirli,
   ])
 
   useEffect(() => {
     onKirliChange?.(kirli)
   }, [kirli, onKirliChange])
+
+  // Yeni fişte XSLT adı kullanıcının varsayılan e-İrsaliye tasarımından dolar.
+  useEffect(() => {
+    if (id || !kullanici?.id) return
+    let active = true
+    kullaniciApi
+      .getById(kullanici.id)
+      .then((k) => {
+        if (!active) return
+        const tasarimlar = k.tasarimlar ?? []
+        const varsayilan = tasarimlar.find((t) => t.varsayilan) ?? tasarimlar[0]
+        if (varsayilan) {
+          setEIrsaliye((prev) => (prev.xsltDosyaAdi ? prev : { ...prev, xsltDosyaAdi: varsayilan.xsltDosyaAdi }))
+        }
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [id, kullanici?.id])
+
+  // Nakliyeci değişince plaka listesi tazelenir.
+  useEffect(() => {
+    const nakliyeciId = eIrsaliye.nakliyeciId
+    if (!nakliyeciId) {
+      setNakliyeciPlakalar([])
+      return
+    }
+    let active = true
+    nakliyeciApi
+      .get(nakliyeciId)
+      .then((n) => {
+        if (active) setNakliyeciPlakalar((n.plakalar ?? []).map((p) => p.plaka))
+      })
+      .catch(() => {
+        if (active) setNakliyeciPlakalar([])
+      })
+    return () => {
+      active = false
+    }
+  }, [eIrsaliye.nakliyeciId])
   const [raporModalAcik, setRaporModalAcik] = useState(false)
   const gridApiRef = useRef<GridApi<KalemRow> | null>(null)
   // Sağ tık menüsü hangi satırda açıldıysa Tahsis Detayları onu gösterir (yoksa seçili satır).
@@ -729,6 +814,18 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           setYetkili((i as Irsaliye).yetkili ?? '')
           setOnaylandi(!!i.onaylandi)
           setTamamlandi(!!i.tamamlandi)
+          setEIrsaliye({
+            durum: i.eIrsaliyeDurum ?? '',
+            ettnNo: i.ettnNo ?? '',
+            eIrsaliyeNo: i.eIrsaliyeNo ?? '',
+            xsltDosyaAdi: i.xsltDosyaAdi ?? '',
+            nakliyeciId: i.nakliyeciId ?? null,
+            nakliyeciUnvan: i.nakliyeciUnvan ?? '',
+            nakliyeciAd: i.nakliyeciAd ?? '',
+            nakliyeciSoyad: i.nakliyeciSoyad ?? '',
+            nakliyeciTc: i.nakliyeciTc ?? '',
+            nakliyeciPlaka: i.nakliyeciPlaka ?? '',
+          })
           setFasonTipiKayit((i as Irsaliye).fasonTipiId ?? null)
           setFasonTipiAd((i as Irsaliye).fasonTipi?.ad ?? '')
           setCariKod((i as Irsaliye).cariHesap?.kod ?? String((i as Irsaliye).cariHesapId ?? ''))
@@ -1013,6 +1110,20 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         tahsisler: k.tahsis,
       })) as IrsaliyeKalem[]
 
+      // e-İrsaliye alanları yalnızca satış tiplerinde gönderilir. Durum/ETTN/belge
+      // no sunucuda yalnızca Oluştur/Gönder ile yazılır; kart kaydı bunları ezmez.
+      const eIrsaliyePayload = satisEIrsaliyeMi
+        ? {
+            xsltDosyaAdi: eIrsaliye.xsltDosyaAdi || null,
+            nakliyeciId: eIrsaliye.nakliyeciId,
+            nakliyeciUnvan: eIrsaliye.nakliyeciUnvan || null,
+            nakliyeciAd: eIrsaliye.nakliyeciAd || null,
+            nakliyeciSoyad: eIrsaliye.nakliyeciSoyad || null,
+            nakliyeciTc: eIrsaliye.nakliyeciTc || null,
+            nakliyeciPlaka: eIrsaliye.nakliyeciPlaka || null,
+          }
+        : {}
+
       if (id) {
         await irsaliyeApi.update(id, {
           irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
@@ -1028,6 +1139,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           fasonTipiId: fasonTipiKayit,
           yetkili: yetkili || null,
           guncelleyen: kayitYapan,
+          ...eIrsaliyePayload,
           kalemler: kalemPayload,
          } as Irsaliye)
       message.success('İrsaliye güncellendi')
@@ -1050,6 +1162,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         kayitYapan,
         // 202'den açılan 134: kaynak talimatın id'si yazılır.
         talimatId: irsaliyeTipi === '134' ? (baslangicTalimatId ?? null) : null,
+        ...eIrsaliyePayload,
         kalemler: kalemPayload,
       } as IrsaliyeFormData & { kalemler: IrsaliyeKalem[] })
       setLocalId(created.id)
@@ -1547,7 +1660,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     [kullanici?.id, storageKey],
   )
   const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
-  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: true }), [])
+  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: false }), [])
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return defaultHiddenColsFor(irsaliyeTipi)
     try {
@@ -1578,7 +1691,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   }, [])
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
-    applyKolonDurumu(api, kayitlar)
+    // Kalem gridinde sıralama kapalı: yeni satır her zaman listenin sonuna eklenir.
+    applyKolonDurumu(api, kayitlar, false)
   }, [])
 
   // Kayıtlı kolon durumunu (localStorage) grid'e uygular; firstDataRendered'da
@@ -1586,7 +1700,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
     try {
       const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
-      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar, false)
     } catch { /* sessiz */ }
   }, [kolonLayoutKey])
 
@@ -1802,7 +1916,147 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     onCreateIrsaliye?.(irsaliyeTipi === '202' ? '134' : '1', kalemlerOut, irsaliyeTipi === '202' ? fasonTipiKayit : null, irsaliyeTipi === '202' ? (id ?? null) : null)
   }
 
-  const contextMenuItems: MenuProps['items'] =
+  // e-İrsaliye işlemleri sunucudaki kayıtlı fiş üzerinden çalışır; karttaki
+  // durum/no alanları işlem sonrası tazelenir.
+  const eIrsaliyeTazele = () => {
+    if (!id) return
+    eIrsaliyeApi
+      .get(id)
+      .then((p) =>
+        setEIrsaliye((prev) => ({
+          ...prev,
+          durum: p.eIrsaliye.durum ?? '',
+          ettnNo: p.eIrsaliye.ettnNo ?? '',
+          eIrsaliyeNo: p.eIrsaliye.eIrsaliyeNo ?? '',
+          xsltDosyaAdi: p.eIrsaliye.xsltDosyaAdi ?? prev.xsltDosyaAdi,
+        })),
+      )
+      .catch(() => {})
+  }
+
+  const eIrsaliyeAc = () => {
+    if (!id) {
+      message.warning('Önce fişi kaydedin')
+      return
+    }
+    if (kirli) {
+      message.warning('Fişte kaydedilmemiş değişiklikler var, önce kaydedin')
+      return
+    }
+    const iptalMi = eIrsaliye.durum === 'İptal'
+    if (!eIrsaliye.eIrsaliyeNo || iptalMi) {
+      modal.confirm({
+        title: 'e-İrsaliye Oluştur',
+        content: iptalMi
+          ? `${eIrsaliye.eIrsaliyeNo} numaralı e-İrsaliye iptal edilmiş. Yeni belge no ve ETTN ile oluşturulacak. Devam?`
+          : 'Bu fiş için e-İrsaliye oluşturulacak ve belge numarası alınacak. Onaylıyor musunuz?',
+        okText: 'Oluştur',
+        cancelText: 'Vazgeç',
+        onOk: () => setEIrsaliyeModal({ open: true, otomatik: true, yeniden: iptalMi }),
+      })
+      return
+    }
+    if (eIrsaliye.durum === 'Dosya Gönderildi') {
+      message.warning('Gönderilmiş e-İrsaliye yeniden oluşturulamaz; belgenin içeriği değiştirilemez')
+      return
+    }
+    const mevcutNo = eIrsaliye.eIrsaliyeNo
+    modal.confirm({
+      title: 'e-İrsaliye Yeniden Oluştur',
+      content: `${mevcutNo} numaralı e-İrsaliye, güncel fiş bilgileriyle yeniden üretilecek. Belge no ve ETTN değişmez. Devam?`,
+      okText: 'Yeniden Oluştur',
+      cancelText: 'Vazgeç',
+      onOk: () => setEIrsaliyeModal({ open: true, otomatik: true, yeniden: true }),
+    })
+  }
+
+  const eIrsaliyeGonder = () => {
+    if (!id) return
+    if (!eIrsaliye.eIrsaliyeNo) {
+      message.warning('Önce e-İrsaliye oluşturmalısınız')
+      return
+    }
+    if (eIrsaliye.durum === 'İptal') {
+      message.warning('İptal edilmiş e-İrsaliye gönderilemez; önce yeniden oluşturun')
+      return
+    }
+    const no = eIrsaliye.eIrsaliyeNo
+    modal.confirm({
+      title: 'e-İrsaliye Gönder',
+      content: `${no} numaralı e-İrsaliye gönderilsin mi? (simülasyon)`,
+      okText: 'Gönder',
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.gonder(id)
+          message.success('e-İrsaliye gönderildi (simülasyon)')
+          eIrsaliyeTazele()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeIptal = () => {
+    if (!id) return
+    if (!eIrsaliye.eIrsaliyeNo) {
+      message.warning('Bu fişte iptal edilecek e-İrsaliye yok')
+      return
+    }
+    if (eIrsaliye.durum !== 'Dosya Oluşturuldu' && eIrsaliye.durum !== 'Dosya Gönderildi') {
+      message.warning('e-İrsaliye bu durumda iptal edilemez')
+      return
+    }
+    const no = eIrsaliye.eIrsaliyeNo
+    modal.confirm({
+      title: 'e-İrsaliyeyi Boşa Düşür',
+      content: `${no} numaralı e-İrsaliye iptal edilecek. Belge listede "İptal" durumunda kalır; yeniden oluşturulursa yeni belge no ve ETTN alınır. Devam?`,
+      okText: 'İptal Et',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.iptal(id)
+          message.success('e-İrsaliye iptal edildi')
+          eIrsaliyeTazele()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeBelgeNoSifirla = () => {
+    if (!id) return
+    if (!eIrsaliye.eIrsaliyeNo) {
+      message.warning('Bu fişte sıfırlanacak e-İrsaliye yok')
+      return
+    }
+    if (eIrsaliye.durum !== 'Dosya Oluşturuldu') {
+      message.warning('Yalnızca gönderilmemiş belgenin numarası sıfırlanabilir')
+      return
+    }
+    const no = eIrsaliye.eIrsaliyeNo
+    modal.confirm({
+      title: 'Belge No Sıfırla',
+      content: `${no} numaralı gönderilmemiş belge iptal edilecek ve sayaç 1 geri alınacak; numara bir sonraki e-İrsaliye'de kullanılacak. Bu numaradan sonra belge varsa işlem yapılamaz. Devam?`,
+      okText: 'Sıfırla',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.belgeNoSifirla(id)
+          message.success('Belge no sıfırlandı; numara sayaçtan geri alındı')
+          eIrsaliyeTazele()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const temelMenuItems: MenuProps['items'] =
     irsaliyeTipi === '11'
       ? [
           { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
@@ -1841,6 +2095,58 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                   { key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }
                 ]
               : [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }]
+
+  const eIrsaliyeMenuItems: NonNullable<MenuProps['items']> = [
+    {
+      key: 'e-irsaliye-goruntule',
+      label: 'e-İrsaliye Görüntüle',
+      disabled: !eIrsaliye.eIrsaliyeNo || eIrsaliye.durum === 'İptal',
+      onClick: () => setEIrsaliyeModal({ open: true, otomatik: false, yeniden: false }),
+    },
+    {
+      key: 'e-irsaliye-olustur',
+      label:
+        eIrsaliye.eIrsaliyeNo && eIrsaliye.durum !== 'İptal'
+          ? 'Yeniden Oluştur'
+          : 'e-İrsaliye Oluştur',
+      onClick: eIrsaliyeAc,
+    },
+    {
+      key: 'e-irsaliye-gonder',
+      label: 'Gönder',
+      disabled:
+        !eIrsaliye.eIrsaliyeNo ||
+        eIrsaliye.durum === 'Dosya Gönderildi' ||
+        eIrsaliye.durum === 'İptal',
+      onClick: eIrsaliyeGonder,
+    },
+    {
+      key: 'e-irsaliye-belge-no-sifirla',
+      label: 'Belge No Sıfırla',
+      disabled: !eIrsaliye.eIrsaliyeNo || eIrsaliye.durum !== 'Dosya Oluşturuldu',
+      onClick: eIrsaliyeBelgeNoSifirla,
+    },
+    {
+      key: 'e-irsaliye-iptal',
+      label: 'Boşa Düşür (İptal)',
+      danger: true,
+      disabled: !eIrsaliye.eIrsaliyeNo || eIrsaliye.durum === 'İptal',
+      onClick: eIrsaliyeIptal,
+    },
+  ]
+
+  const contextMenuItems: MenuProps['items'] =
+    satisEIrsaliyeMi && id
+      ? [
+          ...(temelMenuItems ?? []),
+          {
+            key: 'e-irsaliye-islemleri',
+            label: 'e-İrsaliye İşlemleri',
+            icon: <FileTextOutlined />,
+            children: eIrsaliyeMenuItems,
+          },
+        ]
+      : temelMenuItems
 
   const iceriAktar = () => {
     const secili = fasonGidenGridRef.current?.getSelectedRows() ?? []
@@ -2285,6 +2591,17 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           />
         </div>
         <div className="!flex-1 !min-h-0 !flex !flex-col">
+          <Tabs
+            defaultActiveKey="genel"
+            size="small"
+            tabBarGutter={2}
+            className={`!flex-1 !flex !flex-col !min-h-0 !overflow-hidden [&_.ant-tabs-body-holder]:!min-h-0 [&_.ant-tabs-body-holder]:!overflow-hidden [&_.ant-tabs-body]:!h-full [&_.ant-tabs-body]:!min-h-0 [&_.ant-tabs-body]:!overflow-hidden [&_.ant-tabs-content]:!h-full [&_.ant-tabs-content]:!min-h-0 [&_.ant-tabs-content]:!overflow-hidden [&_.ant-tabs-nav]:!mb-2 [&_.ant-tabs-nav]:!border-b [&_.ant-tabs-nav]:!border-gray-200 [&_.ant-tabs-nav]:!flex-shrink-0 [&_.ant-tabs-tab]:!text-[12px] [&_.ant-tabs-tab]:!px-2 [&_.ant-tabs-tab]:!py-1 [&_.ant-tabs-tab]:!bg-[#E0E0E0] [&_.ant-tabs-tab]:!border [&_.ant-tabs-tab]:!border-gray-200 [&_.ant-tabs-tab]:!text-[#333] [&_.ant-tabs-tab-active]:!bg-white [&_.ant-tabs-tab-active]:!border-t-2 [&_.ant-tabs-tab-active]:!border-t-[#FF9933] [&_.ant-tabs-tab-active]:!text-[#FF9933] [&_.ant-tabs-ink-bar]:!hidden${satisEIrsaliyeMi ? '' : ' [&_.ant-tabs-nav]:!hidden'}`}
+            items={[
+              {
+                key: 'genel',
+                label: 'Genel',
+                children: (
+                  <div className="!flex !flex-col !h-full">
           <div className="!flex-shrink-0 !space-y-1.5">
             <div className="!flex !gap-2">
               <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
@@ -2309,7 +2626,16 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                   {irsaliyeTipi !== '201' && (
                     <div className="!flex !items-center !gap-3">
                       <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Belge No</div>
-                      <Input size="small" value={belgeNo} onChange={(e) => setBelgeNo(e.target.value)} className="!w-48 !text-[12px]" />
+                      {irsaliyeTipi === '134' && eIrsaliye.eIrsaliyeNo ? (
+                        <Input
+                          size="small"
+                          readOnly
+                          value={eIrsaliye.eIrsaliyeNo}
+                          className="!w-48 !text-[12px] !bg-[#f5f5f5]"
+                        />
+                      ) : (
+                        <Input size="small" value={belgeNo} onChange={(e) => setBelgeNo(e.target.value)} className="!w-48 !text-[12px]" />
+                      )}
                     </div>
                   )}
                   <div className="!flex !items-center !gap-3">
@@ -2477,6 +2803,129 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
               </div>
             </div>
           </div>
+                  </div>
+                ),
+              },
+              ...(satisEIrsaliyeMi
+                ? [
+                    {
+                      key: 'e-irsaliye',
+                      label: 'e-İrsaliye',
+                      children: (
+                        <div className="!h-full !overflow-auto !p-2">
+                          <div className="!flex !gap-2">
+                            <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
+                              <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">e-İrsaliye Bilgileri</div>
+                              <div className="!space-y-0.5">
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Durum</div>
+                                  <Input size="small" readOnly value={eIrsaliye.durum} placeholder="-" className="!w-48 !text-[12px] !bg-[#f5f5f5]" />
+                                </div>
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">ETTN No</div>
+                                  <Input size="small" readOnly value={eIrsaliye.ettnNo} placeholder="-" className="!w-72 !text-[12px] !bg-[#f5f5f5]" />
+                                </div>
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">İrsaliye No</div>
+                                  <Input size="small" readOnly value={eIrsaliye.eIrsaliyeNo} placeholder="-" className="!w-48 !text-[12px] !bg-[#f5f5f5]" />
+                                </div>
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">XSLT Dosya Adı</div>
+                                  <Input
+                                    size="small"
+                                    value={eIrsaliye.xsltDosyaAdi}
+                                    onChange={(e) => setEIrsaliye((prev) => ({ ...prev, xsltDosyaAdi: e.target.value }))}
+                                    placeholder="XSLT dosya adı"
+                                    className="!w-48 !text-[12px]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="!flex-1 !border !border-gray-200 !rounded-sm !p-2">
+                              <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Nakliyeci Bilgileri</div>
+                              <div className="!space-y-0.5">
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Ünvan</div>
+                                  <SearchableNakliyeciSelect
+                                    value={eIrsaliye.nakliyeciUnvan}
+                                    onChange={(unvan, kayit) => {
+                                      if (!kayit) {
+                                        setEIrsaliye((prev) => ({
+                                          ...prev,
+                                          nakliyeciId: null,
+                                          nakliyeciUnvan: '',
+                                          nakliyeciAd: '',
+                                          nakliyeciSoyad: '',
+                                          nakliyeciTc: '',
+                                          nakliyeciPlaka: '',
+                                        }))
+                                        return
+                                      }
+                                      setEIrsaliye((prev) => ({
+                                        ...prev,
+                                        nakliyeciId: kayit.id,
+                                        nakliyeciUnvan: unvan,
+                                        nakliyeciAd: kayit.ad ?? '',
+                                        nakliyeciSoyad: kayit.soyad ?? '',
+                                        nakliyeciTc: kayit.tc ?? '',
+                                        // Tek plakalı şoförde otomatik seçilir; birden fazlaysa kullanıcı seçer.
+                                        nakliyeciPlaka: kayit.plakalar?.length === 1 ? kayit.plakalar[0].plaka : '',
+                                      }))
+                                    }}
+                                  />
+                                </div>
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Ad</div>
+                                  <Input
+                                    size="small"
+                                    value={eIrsaliye.nakliyeciAd}
+                                    onChange={(e) => setEIrsaliye((prev) => ({ ...prev, nakliyeciAd: e.target.value }))}
+                                    className="!w-48 !text-[12px]"
+                                  />
+                                </div>
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Soyad</div>
+                                  <Input
+                                    size="small"
+                                    value={eIrsaliye.nakliyeciSoyad}
+                                    onChange={(e) => setEIrsaliye((prev) => ({ ...prev, nakliyeciSoyad: e.target.value }))}
+                                    className="!w-48 !text-[12px]"
+                                  />
+                                </div>
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">TC</div>
+                                  <Input
+                                    size="small"
+                                    value={eIrsaliye.nakliyeciTc}
+                                    onChange={(e) => setEIrsaliye((prev) => ({ ...prev, nakliyeciTc: e.target.value }))}
+                                    maxLength={11}
+                                    className="!w-48 !text-[12px]"
+                                  />
+                                </div>
+                                <div className="!flex !items-center !gap-3">
+                                  <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Plaka</div>
+                                  <Select
+                                    size="small"
+                                    allowClear
+                                    disabled={!eIrsaliye.nakliyeciId}
+                                    value={eIrsaliye.nakliyeciPlaka || undefined}
+                                    onChange={(v) => setEIrsaliye((prev) => ({ ...prev, nakliyeciPlaka: v ?? '' }))}
+                                    options={nakliyeciPlakalar.map((p) => ({ value: p, label: p }))}
+                                    placeholder={eIrsaliye.nakliyeciId ? 'Plaka seçin' : 'Önce nakliyeci seçin'}
+                                    className="!w-48 !text-[12px]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       </div>
 
@@ -2601,6 +3050,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         ekranAdi={ekranAdi || 'irsaliye'}
         parametreler={id ? { id } : undefined}
         onCancel={() => setRaporModalAcik(false)}
+      />
+      <EIrsaliyeOnizlemeModal
+        open={eIrsaliyeModal.open}
+        fisId={id ?? null}
+        otomatikOlustur={eIrsaliyeModal.otomatik}
+        yenidenOlustur={eIrsaliyeModal.yeniden}
+        onClose={() => setEIrsaliyeModal({ open: false, otomatik: false, yeniden: false })}
+        onChanged={eIrsaliyeTazele}
       />
       <Modal
         open={tahsisSatir != null}

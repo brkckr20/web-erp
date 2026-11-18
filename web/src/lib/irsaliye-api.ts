@@ -26,6 +26,17 @@ export interface Irsaliye {
   depoId: number | null
   fasonTipiId: number | null
   yetkili: string | null
+  eIrsaliyeDurum?: string | null
+  ettnNo?: string | null
+  eIrsaliyeNo?: string | null
+  xsltDosyaAdi?: string | null
+  nakliyeciId?: number | null
+  nakliyeciUnvan?: string | null
+  nakliyeciAd?: string | null
+  nakliyeciSoyad?: string | null
+  nakliyeciTc?: string | null
+  nakliyeciPlaka?: string | null
+  nakliyeci?: { id: number; unvan: string } | null
   cariHesap?: { id: number; kod: string; ad: string } | null
   depo?: { id: number; kod: string; ad: string } | null
   fasonTipi?: { id: number; ad: string } | null

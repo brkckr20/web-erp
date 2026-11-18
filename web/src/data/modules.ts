@@ -57,6 +57,7 @@ export const modules: Module[] = [
         items: [
           { key: 'kalite-kontrol-giris', label: 'Kalite Kontrol Girişleri', isForm: true },
           { key: 'stok-hareket-fisleri', label: 'Malzeme Yönetim Fişleri', isForm: true },
+          { key: 'e-irsaliye-listesi', label: 'e-İrsaliye Listesi' },
         ],
       },
       {

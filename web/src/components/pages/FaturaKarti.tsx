@@ -952,7 +952,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     [kullanici?.id, storageKey],
   )
   const [kolonChooserOpen, setKolonChooserOpen] = useState(false)
-  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: true }), [])
+  const kalemGridDefaultColDef = useMemo(() => ({ resizable: true, sortable: false }), [])
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return defaultHiddenColsFor()
     try {
@@ -984,7 +984,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   }, [])
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
-    applyKolonDurumu(api, kayitlar)
+    // Kalem gridinde sıralama kapalı: yeni satır her zaman listenin sonuna eklenir.
+    applyKolonDurumu(api, kayitlar, false)
   }, [])
 
   // Kayıtlı kolon durumunu (localStorage) grid'e uygular; firstDataRendered'da
@@ -992,7 +993,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
     try {
       const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
-      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar, false)
     } catch { /* sessiz */ }
   }, [kolonLayoutKey])
 

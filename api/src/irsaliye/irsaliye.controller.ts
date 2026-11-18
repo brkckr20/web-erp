@@ -36,6 +36,12 @@ export class IrsaliyeController {
     return this.service.findAll(irsaliyeTipi)
   }
 
+  // :id rotasından ÖNCE tanımlı olmalı; aksi halde ParseIntPipe 400 döndürür.
+  @Get('e-irsaliye-listesi')
+  eIrsaliyeListesi() {
+    return this.service.eIrsaliyeListesi()
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id)
@@ -81,6 +87,18 @@ export class IrsaliyeController {
   @UseGuards(JwtAuthGuard)
   eIrsaliyeGonder(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
     return this.eIrsaliyeService.gonder(id, req.user)
+  }
+
+  @Post(':id/e-irsaliye/iptal')
+  @UseGuards(JwtAuthGuard)
+  eIrsaliyeIptal(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.eIrsaliyeService.iptal(id, req.user)
+  }
+
+  @Post(':id/e-irsaliye/belge-no-sifirla')
+  @UseGuards(JwtAuthGuard)
+  eIrsaliyeBelgeNoSifirla(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.eIrsaliyeService.belgeNoSifirla(id, req.user)
   }
 
   @Put(':id/e-irsaliye/tasarim')

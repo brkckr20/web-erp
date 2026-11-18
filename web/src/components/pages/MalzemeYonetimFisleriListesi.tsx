@@ -15,9 +15,9 @@ import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
 const cikisTipleri = new Set(['130', '131', '132', '135', '136', '137', '140', '99'])
 
 const eIrsaliyeDurumRengi = (durum: string | null) => {
-  if (durum === 'Onaylandı') return 'green'
+  if (durum === 'Dosya Gönderildi') return 'green'
   if (durum === 'İptal') return 'red'
-  if (durum === 'Dosya Oluşturuldu' || durum === 'Gönderildi') return 'blue'
+  if (durum === 'Dosya Oluşturuldu') return 'blue'
   return 'default'
 }
 
@@ -106,12 +106,22 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
   const eIrsaliyeAc = (otomatik: boolean) => {
     if (!secili || !seciliCikis) return
     const no = secili.eIrsaliyeNo
-    if (!no) {
-      setEIrsaliyeModal({ open: true, fisId: secili.id, otomatik, yeniden: false })
+    const iptalMi = secili.eIrsaliyeDurum === 'İptal'
+    if (!no || iptalMi) {
+      const fis = secili
+      modal.confirm({
+        title: 'e-İrsaliye Oluştur',
+        content: iptalMi
+          ? `${no} numaralı e-İrsaliye iptal edilmiş. Yeni belge no ve ETTN ile oluşturulacak. Devam?`
+          : `${fis.irsaliyeNo} numaralı fiş için e-İrsaliye oluşturulacak ve belge numarası alınacak. Onaylıyor musunuz?`,
+        okText: 'Oluştur',
+        cancelText: 'Vazgeç',
+        onOk: () => setEIrsaliyeModal({ open: true, fisId: fis.id, otomatik, yeniden: iptalMi }),
+      })
       return
     }
-    if (secili.eIrsaliyeDurum === 'Onaylandı') {
-      message.warning('GİB onaylı e-İrsaliye yeniden oluşturulamaz; onaylı belgenin içeriği değiştirilemez')
+    if (secili.eIrsaliyeDurum === 'Dosya Gönderildi') {
+      message.warning('Gönderilmiş e-İrsaliye yeniden oluşturulamaz; belgenin içeriği değiştirilemez')
       return
     }
     const fis = secili
@@ -129,6 +139,10 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
       message.warning('Önce e-İrsaliye oluşturmalısınız')
       return
     }
+    if (secili.eIrsaliyeDurum === 'İptal') {
+      message.warning('İptal edilmiş e-İrsaliye gönderilemez; önce yeniden oluşturun')
+      return
+    }
     const fis = secili
     modal.confirm({
       title: 'e-İrsaliye Gönder',
@@ -138,7 +152,32 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
       onOk: async () => {
         try {
           await eIrsaliyeApi.gonder(fis.id)
-          message.success('e-İrsaliye gönderildi, GİB onayı alındı (simülasyon)')
+          message.success('e-İrsaliye gönderildi (simülasyon)')
+          load()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeIptal = () => {
+    if (!secili?.eIrsaliyeNo) return
+    if (secili.eIrsaliyeDurum !== 'Dosya Oluşturuldu' && secili.eIrsaliyeDurum !== 'Dosya Gönderildi') {
+      message.warning('e-İrsaliye bu durumda iptal edilemez')
+      return
+    }
+    const fis = secili
+    modal.confirm({
+      title: 'e-İrsaliyeyi Boşa Düşür',
+      content: `${fis.eIrsaliyeNo} numaralı e-İrsaliye iptal edilecek. Belge listede "İptal" durumunda kalır; yeniden oluşturulursa yeni belge no ve ETTN alınır. Devam?`,
+      okText: 'İptal Et',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.iptal(fis.id)
+          message.success('e-İrsaliye iptal edildi')
           load()
         } catch (e) {
           message.error(hataMetni(e))
@@ -189,16 +228,38 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
       disabled: !secili,
       children: [
         {
+          key: 'e-irsaliye-goruntule',
+          label: 'e-İrsaliye Görüntüle',
+          disabled: !secili?.eIrsaliyeNo || secili?.eIrsaliyeDurum === 'İptal',
+          onClick: () => {
+            if (!secili) return
+            setEIrsaliyeModal({ open: true, fisId: secili.id, otomatik: false, yeniden: false })
+          },
+        },
+        {
           key: 'e-irsaliye-olustur',
-          label: secili?.eIrsaliyeNo ? 'Yeniden Oluştur' : 'e-İrsaliye Oluştur',
+          label:
+            secili?.eIrsaliyeNo && secili?.eIrsaliyeDurum !== 'İptal'
+              ? 'Yeniden Oluştur'
+              : 'e-İrsaliye Oluştur',
           disabled: !seciliCikis,
           onClick: () => eIrsaliyeAc(true),
         },
         {
           key: 'e-irsaliye-gonder',
           label: 'Gönder',
-          disabled: !secili?.eIrsaliyeNo,
+          disabled:
+            !secili?.eIrsaliyeNo ||
+            secili?.eIrsaliyeDurum === 'Dosya Gönderildi' ||
+            secili?.eIrsaliyeDurum === 'İptal',
           onClick: eIrsaliyeGonder,
+        },
+        {
+          key: 'e-irsaliye-iptal',
+          label: 'Boşa Düşür (İptal)',
+          danger: true,
+          disabled: !secili?.eIrsaliyeNo || secili?.eIrsaliyeDurum === 'İptal',
+          onClick: eIrsaliyeIptal,
         },
       ],
     },
@@ -235,6 +296,10 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
     },
     {
       headerName: 'Depo', field: 'depo', width: 100, resizable: true,
+      valueFormatter: (p) => p.value || '-',
+    },
+    {
+      headerName: 'İrsaliye No', field: 'eIrsaliyeNo', width: 150, resizable: true,
       valueFormatter: (p) => p.value || '-',
     },
     {

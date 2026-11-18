@@ -42,11 +42,29 @@ export interface EIrsaliyePayload {
   varsayilanXslt: string | null
 }
 
+export interface EIrsaliyeListeSatiri {
+  id: number
+  irsaliyeNo: string | null
+  irsaliyeTipi: string
+  irsaliyeTarihi: string | null
+  kayitYapan: string | null
+  eIrsaliyeNo: string | null
+  eIrsaliyeDurum: string | null
+  ettnNo: string | null
+  xsltDosyaAdi: string | null
+  cariHesap: { kod: string; ad: string } | null
+  depo: { kod: string } | null
+}
+
 export const eIrsaliyeApi = {
+  liste: () => api.get<EIrsaliyeListeSatiri[]>('/irsaliye/e-irsaliye-listesi'),
   get: (fisId: number) => api.get<EIrsaliyePayload>(`/irsaliye/${fisId}/e-irsaliye`),
   olustur: (fisId: number, body?: { xsltDosyaAdi?: string; seriId?: number; yenile?: boolean }) =>
     api.post<EIrsaliyePayload>(`/irsaliye/${fisId}/e-irsaliye/olustur`, body ?? {}),
   gonder: (fisId: number) => api.post<EIrsaliyePayload>(`/irsaliye/${fisId}/e-irsaliye/gonder`),
+  iptal: (fisId: number) => api.post<EIrsaliyePayload>(`/irsaliye/${fisId}/e-irsaliye/iptal`),
+  belgeNoSifirla: (fisId: number) =>
+    api.post<EIrsaliyePayload>(`/irsaliye/${fisId}/e-irsaliye/belge-no-sifirla`),
   tasarimSec: (fisId: number, xsltDosyaAdi: string) =>
     api.put<EIrsaliyePayload>(`/irsaliye/${fisId}/e-irsaliye/tasarim`, { xsltDosyaAdi }),
 }

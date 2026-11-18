@@ -971,7 +971,8 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
   const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
     try {
       const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
-      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+      // Kalem gridinde sıralama kapalı: yeni satır her zaman listenin sonuna eklenir.
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar, false)
     } catch { /* sessiz */ }
   }, [kolonLayoutKey])
 
@@ -981,13 +982,13 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
       lsKayitlar = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
     } catch { lsKayitlar = [] }
     if (lsKayitlar.length > 0) {
-      applyKolonDurumu(api, lsKayitlar)
+      applyKolonDurumu(api, lsKayitlar, false)
       syncHiddenFromGrid()
       return
     }
     kolonSecimiApi.get(kolonStorageKey)
       .then((dbKayitlar) => {
-        if (dbKayitlar.length > 0) applyKolonDurumu(api, dbKayitlar)
+        if (dbKayitlar.length > 0) applyKolonDurumu(api, dbKayitlar, false)
         syncHiddenFromGrid()
       })
       .catch(() => { /* sessiz */ })
@@ -1510,7 +1511,7 @@ export default function KaliteKontrolKarti({ id: propId, onDeleted, active = tru
                   rowSelection={{ mode: 'multiRow' }}
                   getRowId={(p) => p.data.key}
                   localeText={agGridLocaleTR}
-                  defaultColDef={{ resizable: true, sortable: true }}
+                  defaultColDef={{ resizable: true, sortable: false }}
                   onGridReady={(e) => {
                     gridApiRef.current = e.api
                     tryLoadKolonFromDb(e.api)

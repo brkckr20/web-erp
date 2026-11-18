@@ -5,8 +5,10 @@ import type { KolonKaydi } from '@/lib/kolon-secimi-api'
  * Kayıtlı kolon durumunu (gizlilik/genişlik/sıra/sıralama) grid'e uygular.
  * Sıralama için moveColumns kullanılır (applyColumnState + applyOrder gridReady
  * sonrasında AG Grid'in kendi kolon işlemesi tarafından ezilebiliyor).
+ * `siralamaUygula` false verilirse kayıtlı sıralama yok sayılır ve mevcut
+ * sıralama temizlenir (fiş kalem gridlerinde satır sırası korunur).
  */
-export function applyKolonDurumu<T>(api: GridApi<T>, kayitlar: KolonKaydi[]): boolean {
+export function applyKolonDurumu<T>(api: GridApi<T>, kayitlar: KolonKaydi[], siralamaUygula = true): boolean {
   if (!kayitlar.length) return false
   const byCol = new Map(kayitlar.map((k) => [k.kolonAdi, k]))
   const colStates = api.getColumnState()
@@ -31,6 +33,11 @@ export function applyKolonDurumu<T>(api: GridApi<T>, kayitlar: KolonKaydi[]): bo
     const fromIdx = allCols.findIndex((c) => c.getColId() === k.kolonAdi)
     if (fromIdx !== idx && fromIdx > -1) api.moveColumns([k.kolonAdi], idx)
   })
+
+  if (!siralamaUygula) {
+    api.applyColumnState({ defaultState: { sort: null } })
+    return true
+  }
 
   const sortState = kayitlar
     .filter((k) => k.siralamaYon === 'asc' || k.siralamaYon === 'desc')

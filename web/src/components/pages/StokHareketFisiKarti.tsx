@@ -1036,7 +1036,8 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   }, [getActiveApi])
 
   const applyKolonKayitlari = useCallback((api: GridApi<KalemRow>, kayitlar: KolonKaydi[]) => {
-    applyKolonDurumu(api, kayitlar)
+    // Kalem gridinde sıralama kapalı: yeni satır her zaman listenin sonuna eklenir.
+    applyKolonDurumu(api, kayitlar, false)
   }, [])
 
   // Kayıtlı kolon durumunu (localStorage) aktif grid'e uygular; firstDataRendered'da
@@ -1044,7 +1045,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   const applyLocalKolonlar = useCallback((api: GridApi<KalemRow>) => {
     try {
       const lsKayitlar: KolonKaydi[] = JSON.parse(localStorage.getItem(kolonLayoutKey()) || '[]')
-      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar)
+      if (lsKayitlar.length > 0) applyKolonDurumu(api, lsKayitlar, false)
     } catch { /* sessiz */ }
   }, [kolonLayoutKey])
 
@@ -1132,12 +1133,21 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       message.warning('Fişte kaydedilmemiş değişiklikler var, önce kaydedin')
       return
     }
-    if (!eIrsaliye.eIrsaliyeNo) {
-      setEIrsaliyeModal({ open: true, otomatik: true, yeniden: false })
+    const iptalMi = eIrsaliye.durum === 'İptal'
+    if (!eIrsaliye.eIrsaliyeNo || iptalMi) {
+      modal.confirm({
+        title: 'e-İrsaliye Oluştur',
+        content: iptalMi
+          ? `${eIrsaliye.eIrsaliyeNo} numaralı e-İrsaliye iptal edilmiş. Yeni belge no ve ETTN ile oluşturulacak. Devam?`
+          : 'Bu fiş için e-İrsaliye oluşturulacak ve belge numarası alınacak. Onaylıyor musunuz?',
+        okText: 'Oluştur',
+        cancelText: 'Vazgeç',
+        onOk: () => setEIrsaliyeModal({ open: true, otomatik: true, yeniden: iptalMi }),
+      })
       return
     }
-    if (eIrsaliye.durum === 'Onaylandı') {
-      message.warning('GİB onaylı e-İrsaliye yeniden oluşturulamaz; onaylı belgenin içeriği değiştirilemez')
+    if (eIrsaliye.durum === 'Dosya Gönderildi') {
+      message.warning('Gönderilmiş e-İrsaliye yeniden oluşturulamaz; belgenin içeriği değiştirilemez')
       return
     }
     const mevcutNo = eIrsaliye.eIrsaliyeNo
@@ -1156,6 +1166,10 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       message.warning('Önce e-İrsaliye oluşturmalısınız')
       return
     }
+    if (eIrsaliye.durum === 'İptal') {
+      message.warning('İptal edilmiş e-İrsaliye gönderilemez; önce yeniden oluşturun')
+      return
+    }
     const no = eIrsaliye.eIrsaliyeNo
     modal.confirm({
       title: 'e-İrsaliye Gönder',
@@ -1165,7 +1179,65 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
       onOk: async () => {
         try {
           await eIrsaliyeApi.gonder(kayitliId)
-          message.success('e-İrsaliye gönderildi, GİB onayı alındı (simülasyon)')
+          message.success('e-İrsaliye gönderildi (simülasyon)')
+          eIrsaliyeTazele()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeIptal = () => {
+    if (!kayitliId) return
+    if (!eIrsaliye.eIrsaliyeNo) {
+      message.warning('Bu fişte iptal edilecek e-İrsaliye yok')
+      return
+    }
+    if (eIrsaliye.durum !== 'Dosya Oluşturuldu' && eIrsaliye.durum !== 'Dosya Gönderildi') {
+      message.warning('e-İrsaliye bu durumda iptal edilemez')
+      return
+    }
+    const no = eIrsaliye.eIrsaliyeNo
+    modal.confirm({
+      title: 'e-İrsaliyeyi Boşa Düşür',
+      content: `${no} numaralı e-İrsaliye iptal edilecek. Belge listede "İptal" durumunda kalır; yeniden oluşturulursa yeni belge no ve ETTN alınır. Devam?`,
+      okText: 'İptal Et',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.iptal(kayitliId)
+          message.success('e-İrsaliye iptal edildi')
+          eIrsaliyeTazele()
+        } catch (e) {
+          message.error(hataMetni(e))
+        }
+      },
+    })
+  }
+
+  const eIrsaliyeBelgeNoSifirla = () => {
+    if (!kayitliId) return
+    if (!eIrsaliye.eIrsaliyeNo) {
+      message.warning('Bu fişte sıfırlanacak e-İrsaliye yok')
+      return
+    }
+    if (eIrsaliye.durum !== 'Dosya Oluşturuldu') {
+      message.warning('Yalnızca gönderilmemiş belgenin numarası sıfırlanabilir')
+      return
+    }
+    const no = eIrsaliye.eIrsaliyeNo
+    modal.confirm({
+      title: 'Belge No Sıfırla',
+      content: `${no} numaralı gönderilmemiş belge iptal edilecek ve sayaç 1 geri alınacak; numara bir sonraki e-İrsaliye'de kullanılacak. Bu numaradan sonra belge varsa işlem yapılamaz. Devam?`,
+      okText: 'Sıfırla',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await eIrsaliyeApi.belgeNoSifirla(kayitliId)
+          message.success('Belge no sıfırlandı; numara sayaçtan geri alındı')
           eIrsaliyeTazele()
         } catch (e) {
           message.error(hataMetni(e))
@@ -1177,15 +1249,34 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   const eIrsaliyeMenuItems: MenuProps['items'] = [
     {
       key: 'e-irsaliye-olustur',
-      label: eIrsaliye.eIrsaliyeNo ? 'Yeniden Oluştur' : 'e-İrsaliye Oluştur',
+      label:
+        eIrsaliye.eIrsaliyeNo && eIrsaliye.durum !== 'İptal'
+          ? 'Yeniden Oluştur'
+          : 'e-İrsaliye Oluştur',
       disabled: !kayitliId,
       onClick: eIrsaliyeAc,
     },
     {
       key: 'e-irsaliye-gonder',
       label: 'Gönder',
-      disabled: !eIrsaliye.eIrsaliyeNo || eIrsaliye.durum === 'Onaylandı',
+      disabled:
+        !eIrsaliye.eIrsaliyeNo ||
+        eIrsaliye.durum === 'Dosya Gönderildi' ||
+        eIrsaliye.durum === 'İptal',
       onClick: eIrsaliyeGonder,
+    },
+    {
+      key: 'e-irsaliye-belge-no-sifirla',
+      label: 'Belge No Sıfırla',
+      disabled: !eIrsaliye.eIrsaliyeNo || eIrsaliye.durum !== 'Dosya Oluşturuldu',
+      onClick: eIrsaliyeBelgeNoSifirla,
+    },
+    {
+      key: 'e-irsaliye-iptal',
+      label: 'Boşa Düşür (İptal)',
+      danger: true,
+      disabled: !eIrsaliye.eIrsaliyeNo || eIrsaliye.durum === 'İptal',
+      onClick: eIrsaliyeIptal,
     },
   ]
 

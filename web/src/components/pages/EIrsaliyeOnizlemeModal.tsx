@@ -19,9 +19,9 @@ interface EIrsaliyeOnizlemeModalProps {
 }
 
 const durumRengi = (durum: string | null) => {
-  if (durum === 'Onaylandı') return 'green'
+  if (durum === 'Dosya Gönderildi') return 'green'
   if (durum === 'İptal') return 'red'
-  if (durum === 'Dosya Oluşturuldu' || durum === 'Gönderildi') return 'blue'
+  if (durum === 'Dosya Oluşturuldu') return 'blue'
   return 'default'
 }
 
@@ -153,7 +153,7 @@ export default function EIrsaliyeOnizlemeModal({
   }
 
   const hazir = Boolean(payload?.eIrsaliye.eIrsaliyeNo) && !renderHata
-  const onaylandi = payload?.eIrsaliye.durum === 'Onaylandı'
+  const gonderildi = payload?.eIrsaliye.durum === 'Dosya Gönderildi'
   const xmlVar = Boolean(payload?.eIrsaliye.xml)
 
   // XML, harici XSLT editörlerinde tasarım denemek için kopyalanabilir/indirilebilir.
@@ -199,7 +199,7 @@ export default function EIrsaliyeOnizlemeModal({
     try {
       const p = await eIrsaliyeApi.gonder(fisId)
       setPayload(p)
-      message.success('e-İrsaliye gönderildi, GİB onayı alındı (simülasyon)')
+      message.success('e-İrsaliye gönderildi (simülasyon)')
       onChanged?.()
     } catch (e) {
       message.error(hataMetni(e))
@@ -234,7 +234,7 @@ export default function EIrsaliyeOnizlemeModal({
           key="gonder"
           type="primary"
           icon={<SendOutlined />}
-          disabled={!hazir || onaylandi}
+          disabled={!hazir || gonderildi}
           loading={sending}
           onClick={gonder}
         >

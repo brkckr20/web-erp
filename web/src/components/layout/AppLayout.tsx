@@ -73,6 +73,7 @@ import KumasPlanlama from '@/components/pages/KumasPlanlama'
 import KumasTedarikRaporu from '@/components/pages/KumasTedarikRaporu'
 import IplikPlanlama from '@/components/pages/IplikPlanlama'
 import IrsaliyeListesi from '@/components/pages/IrsaliyeListesi'
+import EIrsaliyeListesi from '@/components/pages/EIrsaliyeListesi'
 import IrsaliyeKarti from '@/components/pages/IrsaliyeKarti'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
 import FaturaListesi, { faturaTipiLabelMap } from '@/components/pages/FaturaListesi'
@@ -392,6 +393,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setActiveTab(key)
     },
     [],
+  )
+
+  // e-İrsaliye listesi karışık tipler taşır: malzeme fişleri (130 vb.) Stok Hareket
+  // Fişi kartında, satış tipleri İrsaliye kartında açılır. Tüm e-İrsaliye tipleri
+  // satış irsaliyeleri ekranına ait olduğu için rapor şablonları da o ekrandan gelir.
+  const openFisKarti = useCallback(
+    (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => {
+      if (fisTipiLabelMap[info.irsaliyeTipi]) openMalzemeYonetimFisiKarti(info)
+      else openIrsaliyeKarti({ ...info, ekranAdi: 'satis-irsaliyeleri' })
+    },
+    [fisTipiLabelMap, openMalzemeYonetimFisiKarti, openIrsaliyeKarti],
   )
 
   const handleMalzemeYonetimFisiDeleted = useCallback((irsaliyeTipi: string) => {
@@ -1147,6 +1159,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'stok-hareket-fisleri') {
       return <MalzemeYonetimFisleriListesi onNew={openYeniMalzemeYonetimFisi} onSelect={openMalzemeYonetimFisiKarti} />
+    }
+    if (tab.key === 'e-irsaliye-listesi') {
+      return <EIrsaliyeListesi active={activeTab === tab.key} onFisGoruntule={openFisKarti} />
     }
     if (tab.key === 'depo-bazli-stok') {
       return <DepoBazliStok onStokEkstresi={openMalzemeStokEkstresi} />

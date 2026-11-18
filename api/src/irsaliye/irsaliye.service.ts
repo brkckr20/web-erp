@@ -138,6 +138,29 @@ export class IrsaliyeService {
     })
   }
 
+  // e-İrsaliye listesi: tüm modüllerdeki (malzeme fişleri + satış irsaliyeleri)
+  // e-İrsaliye oluşturulmuş kayıtlar. Ekran yalnızca belge başlığını gösterir,
+  // kalemler taşınmaz.
+  eIrsaliyeListesi() {
+    return this.prisma.irsaliye.findMany({
+      where: { eIrsaliyeNo: { not: null } },
+      orderBy: [{ eIrsaliyeNo: 'desc' }],
+      select: {
+        id: true,
+        irsaliyeNo: true,
+        irsaliyeTipi: true,
+        irsaliyeTarihi: true,
+        kayitYapan: true,
+        eIrsaliyeNo: true,
+        eIrsaliyeDurum: true,
+        ettnNo: true,
+        xsltDosyaAdi: true,
+        cariHesap: { select: { kod: true, ad: true } },
+        depo: { select: { kod: true } },
+      },
+    })
+  }
+
   async findOne(id: number) {
     const irsaliye = await this.prisma.irsaliye.findUnique({
       where: { id },
