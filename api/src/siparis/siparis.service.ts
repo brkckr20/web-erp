@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSiparisDto } from './dto/create-siparis.dto';
@@ -10,6 +10,20 @@ const SIPARIS_BAGLI_IRSALIYE_TIPLERI: Record<string, string> = {
   '1': '1-Mal Alım İrsaliyesi',
   '201': '201-Satın Alma Siparişi',
 };
+
+const SIPARIS_DURUM_KODLARI = ['bekliyor', 'onaylandi', 'calisiyor', 'iptal'] as const;
+type SiparisDurumKodu = (typeof SIPARIS_DURUM_KODLARI)[number];
+
+function gecerliDurum(durum: string): SiparisDurumKodu {
+  if (!SIPARIS_DURUM_KODLARI.includes(durum as SiparisDurumKodu)) {
+    throw new BadRequestException('Geçersiz sipariş durumu');
+  }
+  return durum as SiparisDurumKodu;
+}
+
+function onayliDurum(durum: SiparisDurumKodu): boolean {
+  return durum === 'onaylandi' || durum === 'calisiyor';
+}
 
 function tarihTR(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
@@ -324,6 +338,32 @@ export class SiparisService {
         data: { durum: BAYAT },
       });
     }
+  }
+
+  async setDurum(id: number, durum: string) {
+    const kod = gecerliDurum(durum);
+    const mevcut = await this.prisma.siparis.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!mevcut) throw new NotFoundException('Sipariş bulunamadı');
+    return this.prisma.siparis.update({
+      where: { id },
+      data: { durum: kod, onaylandi: onayliDurum(kod) },
+      select: { id: true, siparisNo: true, onaylandi: true, durum: true },
+    });
+  }
+
+  async setDurumToplu(idler: number[], durum: string) {
+    if (!Array.isArray(idler) || idler.length === 0) {
+      return { guncellenen: 0 };
+    }
+    const kod = gecerliDurum(durum);
+    const sonuc = await this.prisma.siparis.updateMany({
+      where: { id: { in: idler } },
+      data: { durum: kod, onaylandi: onayliDurum(kod) },
+    });
+    return { guncellenen: sonuc.count };
   }
 
   async remove(id: number) {

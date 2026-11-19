@@ -885,6 +885,76 @@ model IadeTalep {
   @@map("iade_talep")
 }
 
+model KumasTalep {
+  id                Int      @id @default(autoincrement())
+  talepNo           String   @unique @map("talep_no") @db.VarChar(20)
+  siparisId         Int?     @map("siparis_id")
+  siparisNo         String   @map("siparis_no") @db.VarChar(50)
+  tarih             DateTime @map("tarih")
+  talepEden         String?  @map("talep_eden") @db.NVarChar(100)
+  aciklama          String?  @db.NVarChar(500)
+  durum             String   @default("BEKLEMEDE") @db.VarChar(20)
+  olusturanKullanici Int?    @map("olusturan_kullanici")
+  kalemler          KumasTalepKalem[] @relation("KumasTalepKalemler")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([siparisNo])
+  @@map("kumas_talep")
+}
+
+model KumasTalepKalem {
+  id           Int        @id @default(autoincrement())
+  kumasTalepId Int        @map("kumas_talep_id")
+  kumasTalep   KumasTalep @relation("KumasTalepKalemler", fields: [kumasTalepId], references: [id], onDelete: Cascade)
+  kumasKod     String     @map("kumas_kod") @db.VarChar(50)
+  kumasAd      String?    @map("kumas_ad") @db.VarChar(200)
+  renk         String?    @db.VarChar(100)
+  miktar       Decimal    @db.Decimal(18, 4)
+  birim        String     @default("MT") @db.VarChar(10)
+  aciklama     String?    @db.NVarChar(500)
+  sira         Int        @default(0)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([kumasTalepId])
+  @@map("kumas_talep_kalem")
+}
+
+// Pastal kesim fişi: her satır bir beden kırılımıdır.
+model Kesim {
+  id                 Int      @id @default(autoincrement())
+  siparisNo          String   @map("siparis_no") @db.VarChar(50)
+  modelKod           String   @map("model_kod") @db.VarChar(50)
+  modelAd            String?  @map("model_ad") @db.VarChar(200)
+  renkAd             String   @map("renk_ad") @db.VarChar(100)
+  beden              String   @db.VarChar(20)
+  planlananMiktar    Int      @default(0) @map("planlanan_miktar")
+  kesilenMiktar      Int      @default(0) @map("kesilen_miktar")
+  fireMiktar         Decimal  @default(0) @map("fire_miktar") @db.Decimal(18, 4)
+  kumasAd            String?  @map("kumas_ad") @db.VarChar(200)
+  kumasRenk          String?  @map("kumas_renk") @db.VarChar(100)
+  gerekliMiktar      Decimal  @default(0) @map("gerekli_miktar") @db.Decimal(18, 4)
+  brutMiktar         Decimal  @default(0) @map("brut_miktar") @db.Decimal(18, 4)
+  kumasMiktar        Decimal  @default(0) @map("kumas_miktar") @db.Decimal(18, 4)
+  birimTuketim       Decimal  @default(0) @map("birim_tuketim") @db.Decimal(18, 6)
+  beklenenAdet       Int      @default(0) @map("beklenen_adet")
+  kalanMT            Decimal  @default(0) @map("kalan_mt") @db.Decimal(18, 4)
+  fireOrani          Decimal  @default(0) @map("fire_orani") @db.Decimal(9, 4)
+  iadeTalep          Boolean  @default(false) @map("iade_talep")
+  tarih              DateTime @map("tarih")
+  durum              String   @default("KESILDI") @db.VarChar(20)
+  kaynakFisId        Int?     @map("kaynak_fis_id")
+  kaynakFisNo        String?  @map("kaynak_fis_no") @db.VarChar(50)
+  kaynakKalemId      Int?     @map("kaynak_kalem_id")
+  manuelFire         Boolean  @default(false) @map("manuel_fire")
+  olusturanKullanici Int?     @map("olusturan_kullanici")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([siparisNo])
+  @@map("kesim")
+}
+
 model BarkodEslesme {
   id              Int      @id @default(autoincrement())
   barkodKodu      String   @unique @map("barkod_kodu") @db.NVarChar(10)
@@ -1676,4 +1746,91 @@ model RotaOperasyon {
   birimFiyat    Decimal? @map("birim_fiyat") @db.Decimal(18, 2)
 
   @@map("rota_operasyon")
+}
+
+// Rota operasyonlarına bağlı üretim hareketleri (giden/gelen adet).
+model UretimHareket {
+  id                 Int      @id @default(autoincrement())
+  siparisNo          String   @map("siparis_no") @db.VarChar(50)
+  modelKod           String   @map("model_kod") @db.VarChar(50)
+  modelAd            String?  @map("model_ad") @db.VarChar(200)
+  renkAd             String   @map("renk_ad") @db.VarChar(100)
+  beden              String   @db.VarChar(20)
+  rotaKod            String?  @map("rota_kod") @db.NVarChar(50)
+  rotaOperasyonId    Int?     @map("rota_operasyon_id")
+  islemKod           String   @map("islem_kod") @db.NVarChar(50)
+  islemAd            String   @map("islem_ad") @db.NVarChar(200)
+  yon                String   @default("gidis") @db.VarChar(10)
+  miktar             Int      @default(0)
+  kalite             String   @default("Sağlam") @db.NVarChar(30)
+  birimFiyat         Decimal? @map("birim_fiyat") @db.Decimal(18, 4)
+  dovizCinsi         String   @default("TL") @map("doviz_cinsi") @db.VarChar(10)
+  dovizKuru          Decimal? @map("doviz_kuru") @db.Decimal(18, 6)
+  cariKod            String?  @map("cari_kod") @db.VarChar(50)
+  cariAd             String?  @map("cari_ad") @db.VarChar(200)
+  tarih              DateTime @map("tarih")
+  aciklama           String?  @db.NVarChar(500)
+  barkod             String?  @db.VarChar(100)
+  kayitYapan         String?  @map("kayit_yapan") @db.VarChar(100)
+  olusturanKullanici Int?     @map("olusturan_kullanici")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([siparisNo])
+  @@map("uretim_hareket")
+}
+
+// Satın alma fiyat teklifi (tedarikçiden alınan teklifler).
+model FiyatTeklif {
+  id                 Int      @id @default(autoincrement())
+  teklifNo           String   @unique @map("teklif_no") @db.VarChar(20)
+  tarih              DateTime @map("tarih")
+  gecerlilikTarihi   DateTime? @map("gecerlilik_tarihi")
+  cariKod            String   @map("cari_kod") @db.VarChar(50)
+  cariAd             String?  @map("cari_ad") @db.NVarChar(200)
+  aciklama           String?  @db.NVarChar(500)
+  olusturanKullanici Int?     @map("olusturan_kullanici")
+
+  kalemler           FiyatTeklifKalem[]
+  dosyalar           FiyatTeklifDosya[]
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([cariKod])
+  @@map("fiyat_teklif")
+}
+
+model FiyatTeklifKalem {
+  id            Int         @id @default(autoincrement())
+  fiyatTeklifId Int         @map("fiyat_teklif_id")
+  fiyatTeklif   FiyatTeklif @relation(fields: [fiyatTeklifId], references: [id], onDelete: Cascade)
+  malzemeKod    String      @map("malzeme_kod") @db.VarChar(50)
+  malzemeAd     String?     @map("malzeme_ad") @db.NVarChar(200)
+  miktar        Decimal     @db.Decimal(18, 4)
+  birim         String      @default("ADET") @db.NVarChar(20)
+  birimFiyat    Decimal     @default(0) @map("birim_fiyat") @db.Decimal(18, 4)
+  dovizCinsi    String      @default("TL") @map("doviz_cinsi") @db.VarChar(10)
+  dovizKuru     Decimal?    @map("doviz_kuru") @db.Decimal(18, 6)
+  aciklama      String?     @db.NVarChar(500)
+  sira          Int         @default(0)
+
+  @@index([fiyatTeklifId])
+  @@map("fiyat_teklif_kalem")
+}
+
+// Teklife eklenen dosyalar (PDF vb.) — HizmetTalepDosya deseni: içerik DB'de.
+model FiyatTeklifDosya {
+  id            Int         @id @default(autoincrement())
+  fiyatTeklifId Int         @map("fiyat_teklif_id")
+  fiyatTeklif   FiyatTeklif @relation(fields: [fiyatTeklifId], references: [id], onDelete: Cascade)
+  dosyaAdi      String      @map("dosya_adi") @db.NVarChar(255)
+  mimetype      String?     @db.NVarChar(100)
+  boyut         Int?
+  dosya         Bytes       @db.VarBinary(Max)
+
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([fiyatTeklifId])
+  @@map("fiyat_teklif_dosya")
 }

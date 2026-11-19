@@ -67,6 +67,20 @@ export interface SiparisAciklama {
   metin?: string | null
 }
 
+export type SiparisDurum = 'bekliyor' | 'onaylandi' | 'calisiyor' | 'iptal'
+
+export const SIPARIS_DURUM_ETIKET: Record<SiparisDurum, string> = {
+  bekliyor: 'Onay Bekliyor',
+  onaylandi: 'Onaylandı',
+  calisiyor: 'Başladı-Çalışıyor',
+  iptal: 'İptal Edildi',
+}
+
+export const siparisDurumKodu = (durum?: string | null, onaylandi?: boolean): SiparisDurum => {
+  if (durum === 'onaylandi' || durum === 'calisiyor' || durum === 'iptal' || durum === 'bekliyor') return durum
+  return onaylandi ? 'onaylandi' : 'bekliyor'
+}
+
 export interface Siparis {
   id: number
   siparisNo: string
@@ -116,5 +130,9 @@ export const siparisApi = {
     api.post<Siparis>('/siparis', data),
   update: (id: number, data: Partial<SiparisFormData> & { kalemler?: SiparisKalem[]; aciklamalar?: SiparisAciklama[] }) =>
     api.put<Siparis>(`/siparis/${id}`, data),
+  setDurum: (id: number, durum: SiparisDurum) =>
+    api.patch<{ id: number; siparisNo: string; onaylandi: boolean; durum: string }>(`/siparis/${id}/durum`, { durum }),
+  setDurumToplu: (idler: number[], durum: SiparisDurum) =>
+    api.patch<{ guncellenen: number }>('/siparis/durum', { idler, durum }),
   remove: (id: number) => api.delete<void>(`/siparis/${id}`),
 }

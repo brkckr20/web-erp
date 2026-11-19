@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dayjs from 'dayjs'
-import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal, Switch, Dropdown } from 'antd'
+import { Tabs, Input, Select, DatePicker, Button, App, Spin, Popconfirm, Tooltip, Modal, Switch, Dropdown, Tag } from 'antd'
 import type { MenuProps } from 'antd'
-import { DeleteOutlined, WarningOutlined } from '@ant-design/icons'
+import { DeleteOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import DataGrid from '@/components/shared/DataGrid'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
@@ -16,10 +16,11 @@ import { modelBedenApi, type ModelBeden } from '@/lib/model-beden-api'
 import { modelKumasGrupApi, type ModelKumasGrup } from '@/lib/model-kumas-grup-api'
 import { numaratorApi } from '@/lib/numarator-api'
 import { parametreApi } from '@/lib/parametre-api'
-import { siparisApi, type SiparisKalem, type SiparisRenk } from '@/lib/siparis-api'
+import { siparisApi, SIPARIS_DURUM_ETIKET, siparisDurumKodu, type SiparisKalem, type SiparisRenk, type SiparisDurum } from '@/lib/siparis-api'
 import { barkodApi } from '@/lib/barkod-api'
 import { tedarikApi, type TedarikOzet } from '@/lib/tedarik-api'
 import { parseSayi } from '@/lib/sayi'
+import { useKirli } from '@/lib/kirli'
 import { useAuth } from '@/context/AuthContext'
 import type { ColDef, CellValueChangedEvent, RowClickedEvent, CellDoubleClickedEvent, SuppressKeyboardEventParams } from 'ag-grid-community'
 
@@ -108,6 +109,7 @@ interface SiparisKartiProps {
   isNew?: boolean
   id?: number
   onTedarik?: (tip: 'kumas' | 'iplik' | 'aksesuar', id: number, siparisNo: string) => void
+  onKirliChange?: (kirli: boolean) => void
 }
 
 function imzaSayi(v: string | number | null | undefined): string {
@@ -240,7 +242,14 @@ function siparisYapiImzasi(rows: ModelRow[], cache: Record<string, RenkBedenRow[
 
 const TIP_ADI: Record<string, string> = { kumas: 'Kumaş', iplik: 'İplik', aksesuar: 'Aksesuar' }
 
-export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps) {
+const SIPARIS_DURUM_RENK: Record<SiparisDurum, string> = {
+  bekliyor: 'gold',
+  onaylandi: 'green',
+  calisiyor: 'blue',
+  iptal: 'red',
+}
+
+export default function SiparisKarti({ isNew, id, onTedarik, onKirliChange }: SiparisKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : ''
@@ -248,11 +257,11 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
   const [rows, setRows] = useState<ModelRow[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [isDirty, setIsDirty] = useState(false)
   const [dovizOptions, setDovizOptions] = useState<{ value: string; label: string }[]>([])
   const [aciklamaTip, setAciklamaTip] = useState<string>('genel')
   const [aciklamalarMetin, setAciklamalarMetin] = useState<Record<string, string>>({})
   const [tamamlandi, setTamamlandi] = useState(false)
+  const [durum, setDurum] = useState<SiparisDurum>('bekliyor')
   const [selectedModelKey, setSelectedModelKey] = useState<string | null>(null)
   const [modelBedenler, setModelBedenler] = useState<ModelBeden[]>([])
   const [kumasGruplari, setKumasGruplari] = useState<ModelKumasGrup[]>([])
@@ -266,6 +275,14 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
   const [kayitliId, setKayitliId] = useState<number | null>(null)
   const [raporModalAcik, setRaporModalAcik] = useState(false)
   const lastLoadedRef = useRef<{ key: string; malzemeId: number | undefined } | null>(null)
+
+  // toplamTutar/toplamDoviz satırlardan otomatik hesaplandığı için kirli takibine girmez.
+  const { kirli, temizle } = useKirli([
+    form.siparisNo, form.ozelKod, form.numaratorId, form.musteriOrderNo, form.tarih, form.cariKod,
+    form.cariHesapId, form.istemeTarih, form.mIstemeTarih, form.sertifika, form.kesimFazlasi,
+    form.musteriTemsilcisi, rows, renkBedenCache, stickerData, aciklamalarMetin, tamamlandi,
+  ])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   // props'taki id (mevcut kayıt) yoksa, bu oturumda yeni kaydedilen kaydın id'si kullanılır
   const aktifId = id && !isNew ? id : kayitliId
@@ -447,6 +464,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
         toplamDoviz: s.toplamDoviz ?? '',
       })
       setTamamlandi(s.tamamlandi ?? false)
+      setDurum(siparisDurumKodu(s.durum, s.onaylandi))
 
       const modelRows: ModelRow[] = (s.kalemler ?? []).map((k, i) => ({
         key: k.id ? `k-${k.id}` : `n-${i}`,
@@ -537,6 +555,7 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
       message.warning('Sipariş bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }
 
@@ -544,7 +563,6 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
     try {
       const { siparisNo } = await siparisApi.nextNo(numaratorId)
       setForm((prev) => ({ ...prev, numaratorId, siparisNo }))
-      setIsDirty(true)
     } catch {
       message.warning('Numaratörden sıra alınamadı')
     }
@@ -552,7 +570,6 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
 
   const handleCariChange = (kod: string, rec?: { id: number }) => {
     setForm((prev) => ({ ...prev, cariKod: kod, cariHesapId: rec?.id }))
-    setIsDirty(true)
   }
 
   const tarihRef = useRef(form.tarih)
@@ -601,7 +618,6 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
           }
         }),
       )
-      setIsDirty(true)
     })
   }, [kurGetir, message, fiyatOzetleri])
 
@@ -656,7 +672,6 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
                     : row,
                 ),
               )
-              setIsDirty(true)
               handleModelSelect({
                 ...p.data,
                 malzemeId: rec?.id,
@@ -683,7 +698,6 @@ export default function SiparisKarti({ isNew, id, onTedarik }: SiparisKartiProps
                   row.key === p.data.key ? { ...row, dovizCinsi: val } : row,
                 ),
               )
-              setIsDirty(true)
               dovizKuruUygula(p.data.key, val)
             }}
             onSelect={(val) => {
@@ -1040,6 +1054,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
       defaultKesimFazlasi = ''
     }
     setKayitliId(null)
+    setDurum('bekliyor')
     setForm({ ...emptyData, kesimFazlasi: defaultKesimFazlasi, musteriTemsilcisi: kayitYapan })
     setRows([])
     setRenkBedenRows([])
@@ -1051,7 +1066,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     setKumasGruplari([])
     setAciklamaTip('genel')
     setAciklamalarMetin({})
-    setIsDirty(false)
+    temizle()
   }
 
   const buildKalemler = (): SiparisKalem[] =>
@@ -1162,7 +1177,7 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         }
       }
       setYuklenenImza(siparisYapiImzasi(rows, renkBedenCache))
-      setIsDirty(false)
+      temizle()
     } catch {
       message.error('Kayıt sırasında hata oluştu')
     } finally {
@@ -1235,7 +1250,6 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         return updated
       }),
     )
-    setIsDirty(true)
   }
 
   const hesaplaTutar = (fiyatTl: string, miktar: string): string => {
@@ -1438,6 +1452,8 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
     onNext: handleNext,
     onDelete: handleSil,
     onReport: () => setRaporModalAcik(true),
+  }, {
+    save: { accent: kirli },
   })
 
   const tedarikMenuItems: MenuProps['items'] = [
@@ -1450,9 +1466,59 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
         { key: 'tedarik-aksesuar', label: 'Aksesuar Tedarik' },
       ],
     },
+    { type: 'divider' },
+    {
+      key: 'onay-islemleri',
+      label: 'Onaylama İşlemleri',
+      icon: <CheckCircleOutlined />,
+      disabled: !aktifId,
+      children: [
+        {
+          key: 'siparis-durum:bekliyor',
+          label: SIPARIS_DURUM_ETIKET.bekliyor,
+          icon: <ClockCircleOutlined />,
+          disabled: durum === 'bekliyor',
+        },
+        {
+          key: 'siparis-durum:onaylandi',
+          label: SIPARIS_DURUM_ETIKET.onaylandi,
+          icon: <CheckCircleOutlined />,
+          disabled: durum === 'onaylandi',
+        },
+        {
+          key: 'siparis-durum:calisiyor',
+          label: SIPARIS_DURUM_ETIKET.calisiyor,
+          icon: <PlayCircleOutlined />,
+          disabled: durum === 'calisiyor',
+        },
+        { type: 'divider' },
+        {
+          key: 'siparis-durum:iptal',
+          label: SIPARIS_DURUM_ETIKET.iptal,
+          icon: <StopOutlined />,
+          danger: true,
+          disabled: durum === 'iptal',
+        },
+      ],
+    },
   ]
 
-  const handleTedarikMenuClick: MenuProps['onClick'] = ({ key }) => {
+  const handleTedarikMenuClick: MenuProps['onClick'] = async ({ key }) => {
+    if (key.startsWith('siparis-durum:')) {
+      if (!aktifId) {
+        message.warning('Önce siparişi kaydedin')
+        return
+      }
+      const kod = key.slice('siparis-durum:'.length) as SiparisDurum
+      try {
+        await siparisApi.setDurum(aktifId, kod)
+        setDurum(kod)
+        message.success(`Sipariş durumu "${SIPARIS_DURUM_ETIKET[kod]}" olarak güncellendi`)
+      } catch {
+        message.error('Durum güncellenemedi')
+      }
+      return
+    }
     if (!key.startsWith('tedarik-')) return
     if (!aktifId) {
       message.warning('Önce siparişi kaydedin')
@@ -1650,6 +1716,13 @@ const stickerColDefs = useMemo<ColDef<RenkBedenRow>[]>(() => {
                          />
                        </div>
                        <div className="!h-[2px]" />
+                        <div className="!flex !items-center !gap-2">
+                          <label className="!text-[10px] !font-semibold !uppercase !w-40 !text-right !shrink-0 !whitespace-nowrap">Onay Durumu</label>
+                          <Tag color={SIPARIS_DURUM_RENK[durum]} className="!text-[10px] !m-0">
+                            {SIPARIS_DURUM_ETIKET[durum]}
+                          </Tag>
+                        </div>
+                        <div className="!h-[2px]" />
                         <div className="!flex !items-center !gap-2">
                           <label className="!text-[10px] !font-semibold !uppercase !w-40 !text-right !shrink-0 !whitespace-nowrap">Tamamlandı</label>
                           <Switch size="small" checked={tamamlandi} onChange={setTamamlandi} className="!text-[11px]" />

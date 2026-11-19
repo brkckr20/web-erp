@@ -430,7 +430,11 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
     'Saten Kurdela': ['cinsi', 'ebat', 'renk', 'ozellik1'],
     'Sticker': ['cinsi', 'ebat', 'renk', 'marka', 'ozellik1', 'ozellik2', 'ozellik3'],
   }
-  const fields = tipFields[tipAd] ?? ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'marka', 'ozellik1']
+  const normalizeTipAd = (ad: string) => ad.trim().toLocaleLowerCase('tr')
+  const tipFieldsNormalize = Object.fromEntries(
+    Object.entries(tipFields).map(([ad, alanlar]) => [normalizeTipAd(ad), alanlar]),
+  )
+  const fields = tipFieldsNormalize[normalizeTipAd(tipAd)] ?? ['cinsi', 'renk', 'ebat', 'ureticiKodu', 'marka', 'ozellik1']
 
   const alanSatirlari: Record<string, ReactNode> = {
     cinsi: (

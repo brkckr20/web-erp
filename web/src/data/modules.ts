@@ -17,6 +17,21 @@ export interface Module {
   categories: Category[]
 }
 
+/** Planlamadan açılan üretime çıkış fişine taşınan kalem (yalnız gerekli alanlar). */
+export interface StokFisiBaslangicKalem {
+  malzemeKod: string
+  malzemeAd: string
+  barkod?: string
+  varyant1RenkId?: number | null
+  varyant1RenkKod?: string
+  varyant1RenkAd?: string
+  kg?: number
+  mt?: number
+  adet?: number
+  hesapBirimi?: string
+  aciklama?: string
+}
+
 export interface Tab {
   key: string
   label: string
@@ -26,6 +41,7 @@ export interface Tab {
   faturaTipi?: string
   ekranAdi?: string
   baslangicIrsaliyeIds?: number[]
+  baslangicStokKalemleri?: StokFisiBaslangicKalem[]
   depoKod?: string | null
 }
 
@@ -165,6 +181,7 @@ export const modules: Module[] = [
         title: 'İşlemler',
         items: [
           { key: 'satinalma-siparis', label: 'Satın Alma Siparişi', isForm: true },
+          { key: 'satinalma-fiyat-teklifleri', label: 'Satın Alma Fiyat Teklifleri' },
           { key: 'teslimat-takip', label: 'Teslimat Takibi' },
           { key: 'tedarikci-degerlendirme', label: 'Tedarikçi Değerlendirme' },
         ],

@@ -5,6 +5,7 @@ import { Input, Switch, InputNumber, App, Spin, Upload } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { dovizApi, type Doviz } from '@/lib/doviz-api'
+import { useKirli } from '@/lib/kirli'
 
 export interface DovizFormData {
   kod: string
@@ -27,13 +28,16 @@ const emptyData: DovizFormData = {
 interface DovizKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function DovizKarti({ isNew, kod }: DovizKartiProps) {
+export default function DovizKarti({ isNew, kod, onKirliChange }: DovizKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<DovizFormData>(emptyData)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod && !isNew) {
@@ -59,6 +63,7 @@ export default function DovizKarti({ isNew, kod }: DovizKartiProps) {
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -67,6 +72,7 @@ export default function DovizKarti({ isNew, kod }: DovizKartiProps) {
 
   const handleYeni = () => {
     setForm(emptyData)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -100,6 +106,7 @@ export default function DovizKarti({ isNew, kod }: DovizKartiProps) {
       }
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -160,6 +167,8 @@ export default function DovizKarti({ isNew, kod }: DovizKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

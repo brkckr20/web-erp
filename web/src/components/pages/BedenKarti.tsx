@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Input, InputNumber, Switch, App, Spin } from 'antd'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { bedenApi } from '@/lib/beden-api'
+import { useKirli } from '@/lib/kirli'
 
 interface BedenFormData {
   kod: string
@@ -20,14 +21,17 @@ const emptyData: BedenFormData = {
 interface BedenKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function BedenKarti({ isNew, kod }: BedenKartiProps) {
+export default function BedenKarti({ isNew, kod, onKirliChange }: BedenKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<BedenFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod && !isNew) {
@@ -54,6 +58,7 @@ export default function BedenKarti({ isNew, kod }: BedenKartiProps) {
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -63,6 +68,7 @@ export default function BedenKarti({ isNew, kod }: BedenKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm(emptyData)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -84,6 +90,7 @@ export default function BedenKarti({ isNew, kod }: BedenKartiProps) {
       message.error(e?.message || 'Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -131,6 +138,8 @@ export default function BedenKarti({ isNew, kod }: BedenKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

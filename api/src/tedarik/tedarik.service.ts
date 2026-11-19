@@ -291,25 +291,9 @@ export class TedarikService {
         LEFT JOIN grup gr            ON gr.id         = m.grup_id
         JOIN recete_olcu ro          ON ro.kalem_id  = rk.id
         JOIN siparis_renk sr         ON sr.siparis_kalem_id = sk.id
-        -- Erişim kaleminin kendi varyant_1'i yoksa (ör. koli, etiket, paket) modelin
-        -- ana kumaş kalemi devralınır: metrajı en büyük tip=2 kalemi.
-        OUTER APPLY (
-          SELECT TOP 1 rk2.variant_1 AS variant_1
-          FROM recete_kalem rk2
-          JOIN recete_olcu ro2 ON ro2.kalem_id = rk2.id
-          JOIN siparis_renk_beden srb2 ON srb2.siparis_renk_id = sr.id
-            AND srb2.beden_id = ro2.beden_id
-          WHERE rk2.recete_id = rk.recete_id
-            AND rk2.tip = 2
-            AND ISNULL(rk2.tedarik_hesaplanmayacak, 0) = 0
-            AND rk2.variant_1 IS NOT NULL
-          GROUP BY rk2.variant_1
-          ORDER BY SUM(ISNULL(ro2.miktar, 0) * ISNULL(srb2.miktar, 0)) DESC, rk2.variant_1
-        ) ana_kumas
         -- Reçete varyantı (kumaş grup kodu) LEFT: varyantsız satır renksiz hesaba girer.
-        LEFT JOIN kumas_grup kg      ON kg.kod        = CASE
-          WHEN rk.tip = 4 THEN COALESCE(rk.variant_1, ana_kumas.variant_1)
-          ELSE rk.variant_1 END
+        -- Aksesuarda varyant seçilmemişse ana kumaştan devralınmaz.
+        LEFT JOIN kumas_grup kg      ON kg.kod        = rk.variant_1
         -- Sipariş rengi -> kumaş grup eşleşmesi (kumaş hesabındaki zincirin aynısı).
         -- Renk seçilmemiş grup bu renk satırında kullanılmıyor kabul edilir.
         LEFT JOIN siparis_renk_kumas_grup g ON g.siparis_renk_id = sr.id

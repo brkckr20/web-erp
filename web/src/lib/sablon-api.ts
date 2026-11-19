@@ -45,6 +45,7 @@ export interface SablonOlustur {
   solBosluk?: number
   sagBosluk?: number
   altBilgi?: boolean
+  aktif?: boolean
   filigranMetin?: string | null
   filigranKosul?: string
   sorgular?: { ad: string; sqlIcerik: string; sira?: number }[]

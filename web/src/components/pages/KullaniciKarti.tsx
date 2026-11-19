@@ -6,6 +6,7 @@ import { SearchOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { kullaniciApi } from '@/lib/kullanici-api'
 import type { CreateKullanici, KullaniciSeri, KullaniciTasarim } from '@/lib/kullanici-api'
+import { useKirli } from '@/lib/kirli'
 import { hataMetni } from '@/lib/hata'
 
 const belgeTuruOptions = [
@@ -52,14 +53,17 @@ const kullaniciTipiOptions = [
 interface KullaniciKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
+export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<CreateKullanici>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod) {
@@ -102,6 +106,7 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [message])
 
@@ -155,6 +160,7 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm(emptyData)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -201,6 +207,7 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
       message.error(hataMetni(e))
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -261,6 +268,8 @@ export default function KullaniciKarti({ isNew, kod }: KullaniciKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

@@ -23,8 +23,8 @@ export default function SearchableCariSelect(props: SearchableCariSelectProps) {
     <SearchableSelect<CariHesap>
       {...props}
       searchLabel={(d) => `${d.kod} - ${d.ad}`}
-      fetchList={() => fetchPage()}
-      fetchSearch={(s) => fetchPage(s)}
+      fetchList={fetchPage}
+      fetchSearch={fetchPage}
     />
   )
 }

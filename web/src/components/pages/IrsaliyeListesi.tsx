@@ -10,6 +10,7 @@ import { irsaliyeApi, type Irsaliye } from '@/lib/irsaliye-api'
 import { eIrsaliyeApi } from '@/lib/e-irsaliye-api'
 import { hataMetni } from '@/lib/hata'
 import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
+import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
 
 interface IrsaliyeRow {
@@ -144,6 +145,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
   const [yeniFasonTipiId, setYeniFasonTipiId] = useState<number | null>(null)
   const [fasonTipleri, setFasonTipleri] = useState<FasonTipi[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
+  const [raporModalAcik, setRaporModalAcik] = useState(false)
   const [eIrsaliyeModal, setEIrsaliyeModal] = useState<{ open: boolean; fisId: number | null; otomatik: boolean; yeniden: boolean }>({
     open: false,
     fisId: null,
@@ -474,6 +476,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
   ], [mod])
 
   return (
+    <>
     <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
       <div className="!p-3 !flex !flex-col !h-full">
         <EIrsaliyeOnizlemeModal
@@ -497,6 +500,16 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
               className="!w-52 !text-[12px]"
             />
             <Button size="small" className="!text-[12px] !h-7">Filtre</Button>
+            {mod === 'fason-hareket' && (
+              <Button
+                size="small"
+                icon={<FileTextOutlined />}
+                onClick={() => setRaporModalAcik(true)}
+                className="!text-[12px] !h-7"
+              >
+                Raporlar
+              </Button>
+            )}
             <Button
               size="small"
               icon={<ReloadOutlined />}
@@ -589,5 +602,11 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
         </div>
       </div>
     </Dropdown>
+    <RaporSecimModal
+      open={raporModalAcik}
+      ekranAdi="boyahane-bekleyenler"
+      onCancel={() => setRaporModalAcik(false)}
+    />
+    </>
   )
 }

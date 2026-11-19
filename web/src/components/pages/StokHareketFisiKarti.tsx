@@ -28,6 +28,7 @@ import { nakliyeciApi } from '@/lib/nakliyeci-api'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { cariHesapApi } from '@/lib/cari-hesap-api'
 import { depoApi } from '@/lib/depo-api'
+import type { StokFisiBaslangicKalem } from '@/data/modules'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { applyKolonDurumu } from '@/lib/kolon-durumu'
@@ -64,6 +65,8 @@ interface FisKartiProps {
   fisTipi?: string
   id?: number
   onDeleted?: (fisTipi: string) => void
+  /** Planlamadan gelen hazır kalemler (yeni fiş açılışında bir kez uygulanır). */
+  baslangicKalemler?: StokFisiBaslangicKalem[]
   /** Kaydedilmemiş değişiklik durumu AppLayout'taki sekme rozeti için bildirilir. */
   onKirliChange?: (kirli: boolean) => void
 }
@@ -255,7 +258,24 @@ function CellTextInput({
   )
 }
 
-export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, onKirliChange }: FisKartiProps) {
+const baslangicKalemToRow = (k: StokFisiBaslangicKalem): KalemRow => ({
+  ...emptyKalem(),
+  malzemeKod: k.malzemeKod,
+  malzemeAd: k.malzemeAd,
+  barkod: k.barkod ?? '',
+  varyant1RenkId: k.varyant1RenkId ?? null,
+  varyant1RenkKod: k.varyant1RenkKod ?? '',
+  varyant1RenkAd: k.varyant1RenkAd ?? '',
+  brutKg: k.kg ?? 0,
+  kg: k.kg ?? 0,
+  brutMt: k.mt ?? 0,
+  mt: k.mt ?? 0,
+  adet: k.adet ?? 0,
+  hesapBirimi: k.hesapBirimi ?? 'kg',
+  aciklama: k.aciklama ?? '',
+})
+
+export default function StokHareketFisiKarti({ fisTipi = '10', id, baslangicKalemler, onDeleted, onKirliChange }: FisKartiProps) {
   const { message } = App.useApp()
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
@@ -267,7 +287,9 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
   const [fisTarihi, setFisTarihi] = useState(dayjs())
   const [sevkTarihi, setSevkTarihi] = useState(dayjs())
   const [irsaliyeAciklama, setIrsaliyeAciklama] = useState('')
-  const [kalemler, setKalemler] = useState<KalemRow[]>([])
+  const [kalemler, setKalemler] = useState<KalemRow[]>(() =>
+    id ? [] : (baslangicKalemler ?? []).map(baslangicKalemToRow),
+  )
   const [eIrsaliye, setEIrsaliye] = useState<EIrsaliyeForm>({ ...bosEIrsaliye })
   // Seçili nakliyecinin plakaları; e-İrsaliye sekmesindeki Plaka alanı bu listeden seçilir.
   const [nakliyeciPlakalar, setNakliyeciPlakalar] = useState<string[]>([])
@@ -305,6 +327,8 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
         const varsayilan = tasarimlar.find((t) => t.varsayilan) ?? tasarimlar[0]
         if (varsayilan) {
           setEIrsaliye((prev) => (prev.xsltDosyaAdi ? prev : { ...prev, xsltDosyaAdi: varsayilan.xsltDosyaAdi }))
+          // Varsayılan tasarım otomatik dolar; kullanıcı değişikliği sayılmaz.
+          temizle()
         }
       })
       .catch(() => {
@@ -313,7 +337,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
     return () => {
       active = false
     }
-  }, [id, kullanici?.id])
+  }, [id, kullanici?.id, temizle])
 
   // Nakliyeci seçimi (veya kayıttan yükleme) değiştiğinde plaka listesi tazelenir.
   useEffect(() => {
@@ -669,6 +693,7 @@ export default function StokHareketFisiKarti({ fisTipi = '10', id, onDeleted, on
           setSevkTarihi(dayjs())
           setEIrsaliye({ ...bosEIrsaliye })
           setKalemler([])
+          temizle()
           onDeleted?.(fisTipi)
         } catch (err: any) {
           message.error('Fiş silinirken hata: ' + (err?.message || err))

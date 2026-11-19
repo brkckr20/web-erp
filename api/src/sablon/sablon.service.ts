@@ -37,8 +37,9 @@ export class SablonService {
     solBosluk?: number
     sagBosluk?: number
     altBilgi?: boolean
+    aktif?: boolean
     barkodOneki?: string | null
-    filigranMetin?: string
+    filigranMetin?: string | null
     filigranKosul?: string
     sorgular?: { ad: string; sqlIcerik: string; sira?: number }[]
   }) {
@@ -55,6 +56,7 @@ export class SablonService {
         solBosluk: data.solBosluk ?? 15,
         sagBosluk: data.sagBosluk ?? 15,
         altBilgi: data.altBilgi ?? true,
+        aktif: data.aktif ?? true,
         barkodOneki: data.barkodOneki?.trim() || null,
         filigranMetin: data.filigranMetin ?? null,
         filigranKosul: data.filigranKosul ?? 'kapali',

@@ -10,6 +10,7 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import SearchableKullaniciSelect from '@/components/shared/SearchableKullaniciSelect'
 import { hizmetTalepApi, type HizmetTalep, type HizmetTalepNot, type HizmetTalepDosya } from '@/lib/hizmet-talep-api'
+import { useKirli } from '@/lib/kirli'
 
 const durumOptions = [
   { value: 'Açık', label: 'Açık' },
@@ -50,9 +51,10 @@ interface Props {
   id?: number
   onClose: () => void
   onKaydet?: (yeniId: number) => void
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
+export default function HizmetTalepKarti({ id, onClose, onKaydet, onKirliChange }: Props) {
   const { message } = App.useApp()
   const [loading, setLoading] = useState(Boolean(id))
   const [talep, setTalep] = useState<HizmetTalep | null>(null)
@@ -65,6 +67,8 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
   const [kapanisTarihi, setKapanisTarihi] = useState<dayjs.Dayjs>(dayjs('1900-01-01'))
   const [kullanici, setKullanici] = useState('')
   const [gorusmeKisi, setGorusmeKisi] = useState('')
+  const { kirli, temizle } = useKirli([baslik, aciklama, durum, oncelik, tarih, kapanisTarihi, kullanici, gorusmeKisi])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const [notIcerik, setNotIcerik] = useState('')
   const [notTarih, setNotTarih] = useState<dayjs.Dayjs | null>(dayjs())
@@ -88,7 +92,10 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
           setGorusmeKisi(t.gorusmeKisi ?? '')
         })
         .catch(() => message.error('Talep yüklenemedi'))
-        .finally(() => setLoading(false))
+        .finally(() => {
+          setLoading(false)
+          temizle()
+        })
     }
   }, [id])
 
@@ -106,6 +113,7 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
         message.success('Talep oluşturuldu')
         onKaydet?.(created.id)
       }
+      temizle()
     } catch {
       message.error('Kaydetme hatası')
     }
@@ -196,6 +204,7 @@ export default function HizmetTalepKarti({ id, onClose, onKaydet }: Props) {
     saveDisabled: loading,
     deleteDisabled: loading,
   }, {
+    save: { accent: kirli },
     report: { disabled: !id },
   })
 

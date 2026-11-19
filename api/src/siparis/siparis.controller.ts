@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Param,
   Body,
@@ -50,6 +51,20 @@ export class SiparisController {
   @Put(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSiparisDto) {
     return this.service.update(id, dto);
+  }
+
+  // Toplu durum statik yolda: ':id/durum' ile çakışmaması için önce tanımlı.
+  @Patch('durum')
+  durumToplu(@Body() body: { idler: number[]; durum: string }) {
+    return this.service.setDurumToplu(body?.idler, body?.durum);
+  }
+
+  @Patch(':id/durum')
+  durum(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { durum: string },
+  ) {
+    return this.service.setDurum(id, body?.durum);
   }
 
   @Delete(':id')

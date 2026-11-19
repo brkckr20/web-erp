@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Button, Table, Space, Popconfirm, App, Tag, Input } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { Card, Button, Table, Space, Popconfirm, App, Tag, Input, Modal } from 'antd'
+import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons'
 import { sablonApi, type Sablon } from '@/lib/sablon-api'
 
 interface Props {
@@ -15,6 +15,9 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
   const [sablonlar, setSablonlar] = useState<Sablon[]>([])
   const [yukleniyor, setYukleniyor] = useState(true)
   const [arama, setArama] = useState('')
+  const [kopyalanan, setKopyalanan] = useState<Sablon | null>(null)
+  const [kopyaAd, setKopyaAd] = useState('')
+  const [kopyalaniyor, setKopyalaniyor] = useState(false)
 
   const yukle = async () => {
     setYukleniyor(true)
@@ -42,6 +45,55 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
       yukle()
     } catch {
       message.error('Silinemedi')
+    }
+  }
+
+  const kopyalaAc = (r: Sablon) => {
+    setKopyalanan(r)
+    setKopyaAd(`${r.ad} (Kopya)`)
+  }
+
+  const handleKopyala = async () => {
+    if (!kopyalanan) return
+    const ad = kopyaAd.trim()
+    if (!ad) {
+      message.warning('Rapor şablon adı gerekli')
+      return
+    }
+    const ayniAdVar = sablonlar.some(
+      (s) => s.ekranAdi === kopyalanan.ekranAdi && s.ad.toLocaleLowerCase('tr') === ad.toLocaleLowerCase('tr'),
+    )
+    if (ayniAdVar) {
+      message.warning('Bu ekranda aynı adla bir şablon zaten var')
+      return
+    }
+    setKopyalaniyor(true)
+    try {
+      await sablonApi.create({
+        ad,
+        ekranAdi: kopyalanan.ekranAdi,
+        htmlIcerik: kopyalanan.htmlIcerik,
+        sayfaEn: kopyalanan.sayfaEn,
+        sayfaBoy: kopyalanan.sayfaBoy,
+        yon: kopyalanan.yon,
+        ustBosluk: kopyalanan.ustBosluk,
+        altBosluk: kopyalanan.altBosluk,
+        solBosluk: kopyalanan.solBosluk,
+        sagBosluk: kopyalanan.sagBosluk,
+        altBilgi: kopyalanan.altBilgi,
+        aktif: kopyalanan.aktif,
+        barkodOneki: kopyalanan.barkodOneki,
+        filigranMetin: kopyalanan.filigranMetin,
+        filigranKosul: kopyalanan.filigranKosul,
+        sorgular: kopyalanan.sorgular.map((s) => ({ ad: s.ad, sqlIcerik: s.sqlIcerik, sira: s.sira })),
+      })
+      message.success('Şablon kopyalandı')
+      setKopyalanan(null)
+      yukle()
+    } catch {
+      message.error('Kopyalanamadı')
+    } finally {
+      setKopyalaniyor(false)
     }
   }
 
@@ -85,6 +137,7 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
       render: (_: unknown, r: Sablon) => (
         <Space size="small">
           <Button size="small" icon={<EditOutlined />} onClick={() => onDuzenle(r.id)} />
+          <Button size="small" icon={<CopyOutlined />} title="Kopyala" onClick={() => kopyalaAc(r)} />
           <Popconfirm title="Silmek istediğinize emin misiniz?" onConfirm={() => handleSil(r.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -126,6 +179,30 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
           locale={{ emptyText: 'Henüz rapor oluşturulmadı' }}
         />
       </Card>
+      <Modal
+        open={!!kopyalanan}
+        title={<span className="!text-[13px] !font-semibold">Rapor Şablonunu Kopyala</span>}
+        okText="Tamam"
+        cancelText="Vazgeç"
+        confirmLoading={kopyalaniyor}
+        onOk={handleKopyala}
+        onCancel={() => { if (!kopyalaniyor) setKopyalanan(null) }}
+        destroyOnHidden
+      >
+        <div className="!flex !flex-col !gap-1 !mt-2">
+          <div className="!text-[11px] !text-[#6b7280]">
+            {kopyalanan ? `"${kopyalanan.ad}" şablonunun tüm içeriği birebir kopyalanır.` : ''}
+          </div>
+          <div className="!text-[10px] !text-[#6b7280] !mt-2">Rapor Şablon Adı</div>
+          <Input
+            size="small"
+            value={kopyaAd}
+            onChange={e => setKopyaAd(e.target.value)}
+            onPressEnter={handleKopyala}
+            placeholder="Yeni şablon adı"
+          />
+        </div>
+      </Modal>
     </div>
   )
 }

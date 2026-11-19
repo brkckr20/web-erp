@@ -276,9 +276,9 @@ export default function TedarikEkrani({ tip, baslangicSiparisId }: TedarikEkrani
       for (const s of satirlar) {
         const varyant = s.kumasGrupKod ?? ''
         const renk = s.renkKod ? `${s.renkKod} - ${s.renkAd ?? ''}`.trim() : (s.renkAd ?? '')
-        // Aynı kumaş (varyant + renk) ve aynı birim altındaki erişimler tek satırda
-        // kümülatif toplanır; malzeme kod/ad listesi satır içinde birleştirilir.
-        const key = `${varyant}|${renk}|${s.birim}`
+        // Aynı malzemenin (varyant + renk + birim) satırları tek satırda toplanır.
+        // Malzeme kodu anahtarda: renksiz aksesuarlar birbirine karışmasın.
+        const key = `${s.malzemeKod}|${varyant}|${renk}|${s.birim}`
         const mevcut = ihtiyacTopla.get(key)
         if (mevcut) {
           mevcut.miktar += Number(s.brutMiktar) || 0

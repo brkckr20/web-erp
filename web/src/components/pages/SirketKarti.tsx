@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import { sirketApi, type SirketAdres, type SirketWeb, type SirketIban } from '@/lib/sirket-api'
+import { useKirli } from '@/lib/kirli'
 
 const bosAdres = (): SirketAdres & { key: string } => ({
   key: Math.random().toString(36).slice(2),
@@ -26,9 +27,10 @@ const bosIban = (): SirketIban & { key: string } => ({
 
 interface SirketKartiProps {
   id?: number
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function SirketKarti({ id: propId }: SirketKartiProps) {
+export default function SirketKarti({ id: propId, onKirliChange }: SirketKartiProps) {
   const { message, modal } = App.useApp()
   const [id, setId] = useState<number | null>(propId ?? null)
   const [loading, setLoading] = useState(false)
@@ -47,6 +49,10 @@ export default function SirketKarti({ id: propId }: SirketKartiProps) {
   const [adresler, setAdresler] = useState<(SirketAdres & { key: string })[]>([])
   const [webler, setWebler] = useState<(SirketWeb & { key: string })[]>([])
   const [ibanlar, setIbanlar] = useState<(SirketIban & { key: string })[]>([])
+  const { kirli, temizle: temizleKirli } = useKirli([
+    ad, telefon, fax, eposta, vergiDairesi, vergiNo, mersisNo, eFaturaEtiketi, eIrsaliyeEtiketi, adresler, webler, ibanlar,
+  ])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const doldur = useCallback((s: {
     id: number
@@ -92,6 +98,7 @@ export default function SirketKarti({ id: propId }: SirketKartiProps) {
     setAdresler([])
     setWebler([])
     setIbanlar([])
+    temizleKirli()
   }, [])
 
   useEffect(() => {
@@ -104,7 +111,10 @@ export default function SirketKarti({ id: propId }: SirketKartiProps) {
       .get(propId)
       .then((s) => doldur(s))
       .catch(() => message.warning('Şirket bulunamadı'))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        temizleKirli()
+      })
   }, [propId, doldur, temizle, message])
 
   const handleKaydet = async () => {
@@ -140,6 +150,7 @@ export default function SirketKarti({ id: propId }: SirketKartiProps) {
       message.error('Hata: ' + ((err as Error)?.message ?? String(err)))
     } finally {
       setSaving(false)
+      temizleKirli()
     }
   }
 
@@ -159,6 +170,7 @@ export default function SirketKarti({ id: propId }: SirketKartiProps) {
       message.warning('Kayıt yüklenemedi')
     } finally {
       setLoading(false)
+      temizleKirli()
     }
   }
 
@@ -193,7 +205,7 @@ export default function SirketKarti({ id: propId }: SirketKartiProps) {
     onDelete: handleSil,
     onReport: () => setRaporModalAcik(true),
   }, {
-    save: { disabled: saving },
+    save: { disabled: saving, accent: kirli },
     delete: { disabled: !id },
     report: { disabled: !id },
   })

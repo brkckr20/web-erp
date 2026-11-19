@@ -8,6 +8,7 @@ import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect
 import { isEmriApi } from '@/lib/is-emri-api'
 import type { IsEmri, CreateIsEmri, IsEmriKalem } from '@/lib/is-emri-api'
 import { siparisApi, type Siparis } from '@/lib/siparis-api'
+import { useKirli } from '@/lib/kirli'
 
 const emptyData: CreateIsEmri = {
   aciklama: '',
@@ -41,9 +42,10 @@ const emptyKalem = (): KalemRow => ({ id: null, sira: 0, siparisNo: '', malzemeI
 interface IsEmriKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
+export default function IsEmriKarti({ isNew, kod, onKirliChange }: IsEmriKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<CreateIsEmri>(emptyData)
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
@@ -52,6 +54,8 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
   const [saving, setSaving] = useState(false)
   const [siparisler, setSiparisler] = useState<Siparis[]>([])
   const [siparisYukleniyor, setSiparisYukleniyor] = useState(false)
+  const { kirli, temizle } = useKirli([form, kalemler])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     setSiparisYukleniyor(true)
@@ -69,6 +73,7 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
       setForm(emptyData)
       setKalemler([])
       setId(null)
+      temizle()
     }
   }, [kod])
 
@@ -109,6 +114,7 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
       message.warning('Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -127,6 +133,7 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
     setId(null)
     setForm(emptyData)
     setKalemler([])
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -175,6 +182,7 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
       message.error('Kayıt sırasında hata: ' + detay)
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -235,6 +243,8 @@ export default function IsEmriKarti({ isNew, kod }: IsEmriKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

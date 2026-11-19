@@ -6,6 +6,7 @@ import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import { renkApi, type Renk } from '@/lib/renk-api'
+import { useKirli } from '@/lib/kirli'
 import dayjs from 'dayjs'
 
 export interface RenkFormData {
@@ -44,14 +45,17 @@ interface RenkKartiProps {
   isNew?: boolean
   kod?: string
   tip?: number
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function RenkKarti({ isNew, kod, tip = 1 }: RenkKartiProps) {
+export default function RenkKarti({ isNew, kod, tip = 1, onKirliChange }: RenkKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<RenkFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod && !isNew) {
@@ -85,6 +89,7 @@ export default function RenkKarti({ isNew, kod, tip = 1 }: RenkKartiProps) {
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -94,6 +99,7 @@ export default function RenkKarti({ isNew, kod, tip = 1 }: RenkKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm({ ...emptyData, tip })
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -134,6 +140,7 @@ export default function RenkKarti({ isNew, kod, tip = 1 }: RenkKartiProps) {
       }
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -194,6 +201,8 @@ export default function RenkKarti({ isNew, kod, tip = 1 }: RenkKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   const dovizOptions = [

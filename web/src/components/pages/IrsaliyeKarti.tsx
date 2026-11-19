@@ -569,17 +569,6 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       : [],
   )
   const baslangicUygulandiRef = useRef(false)
-  useEffect(() => {
-    if (id || baslangicUygulandiRef.current) return
-    if (!baslangicKalemler || baslangicKalemler.length === 0) return
-    setKalemler((prev) => {
-      if (prev.length > 0) return prev
-      baslangicUygulandiRef.current = true
-      return baslangicKalemler.map(baslangicKalemToRow)
-    })
-    if (baslangicKalemler[0]?.cariHesapKod && !cariKod) setCariKod(baslangicKalemler[0].cariHesapKod)
-    if (baslangicKalemler[0]?.depoKod && !depoKod) setDepoKod(baslangicKalemler[0].depoKod)
-  }, [baslangicKalemler])
 
   const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
   // Sanal KK alanları kirli takibine dahil edilmesin (otomatik doldurulur)
@@ -607,6 +596,18 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     onKirliChange?.(kirli)
   }, [kirli, onKirliChange])
 
+  // Başlangıç kalemleri otomatik uygulanır; kullanıcı değişikliği sayılmaz.
+  useEffect(() => {
+    if (id || baslangicUygulandiRef.current) return
+    if (!baslangicKalemler || baslangicKalemler.length === 0) return
+    baslangicUygulandiRef.current = true
+    setKalemler((prev) => (prev.length > 0 ? prev : baslangicKalemler.map(baslangicKalemToRow)))
+    if (baslangicKalemler[0]?.cariHesapKod && !cariKod) setCariKod(baslangicKalemler[0].cariHesapKod)
+    if (baslangicKalemler[0]?.depoKod && !depoKod) setDepoKod(baslangicKalemler[0].depoKod)
+    temizle()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baslangicKalemler, temizle])
+
   // Yeni fişte XSLT adı kullanıcının varsayılan e-İrsaliye tasarımından dolar.
   useEffect(() => {
     if (id || !kullanici?.id) return
@@ -619,13 +620,15 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         const varsayilan = tasarimlar.find((t) => t.varsayilan) ?? tasarimlar[0]
         if (varsayilan) {
           setEIrsaliye((prev) => (prev.xsltDosyaAdi ? prev : { ...prev, xsltDosyaAdi: varsayilan.xsltDosyaAdi }))
+          // Varsayılan tasarım otomatik dolar; kullanıcı değişikliği sayılmaz.
+          temizle()
         }
       })
       .catch(() => {})
     return () => {
       active = false
     }
-  }, [id, kullanici?.id])
+  }, [id, kullanici?.id, temizle])
 
   // Nakliyeci değişince plaka listesi tazelenir.
   useEffect(() => {
@@ -899,8 +902,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         .finally(() => {
           if (cancelled) return
           setLoading(false)
-          // State güncellemelerinin uygulanması için bir tick bekle
-          setTimeout(() => temizle(), 0)
+          temizle()
         })
     } else {
       irsaliyeApi
@@ -1218,6 +1220,31 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     onOpenIrsaliye?.({ id: talimatId, irsaliyeTipi: '202', irsaliyeNo: talimatNo })
   }
 
+  // Silinen kaydın ardından sekme kapanmaz; form boş "yeni" kayıt durumuna döner.
+  const formuSifirla = () => {
+    setLocalId(undefined)
+    setCariKod('')
+    setDepoKod('')
+    setIrsaliyeTarihi(dayjs())
+    setSevkTarihi(irsaliyeTipi !== '201' && irsaliyeTipi !== '202' ? dayjs() : null)
+    setTerminTarihi(irsaliyeTipi === '201' ? dayjs() : null)
+    setBelgeNo('')
+    setBagliFaturaNo('')
+    setTalimatId(null)
+    setTalimatNo('')
+    setAciklama('')
+    setYetkili('')
+    setOnaylandi(false)
+    setTamamlandi(false)
+    setEIrsaliye({ ...bosEIrsaliye })
+    setKalemler([])
+    temizle()
+    irsaliyeApi
+      .nextIrsaliyeNo(irsaliyeTipi)
+      .then((res) => setIrsaliyeNo(res.irsaliyeNo))
+      .catch(() => setIrsaliyeNo('00000001'))
+  }
+
   const handleSil = () => {
     if (!id) {
       message.warning('Önce kaydedilmiş bir irsaliye olmalı')
@@ -1233,7 +1260,14 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         try {
           await irsaliyeApi.remove(id)
           message.success('İrsaliye silindi')
-          onDeleted?.(irsaliyeTipi)
+          // Kart sekmesi: üst bileşen sekmeyi aynı yerde boş "yeni" formuna çevirir.
+          // "Yeni" sekmesi: form yerinde sıfırlanır, sekme kapanmaz.
+          if (onDeleted) {
+            temizle()
+            onDeleted(irsaliyeTipi)
+          } else {
+            formuSifirla()
+          }
          } catch (err: unknown) {
            message.error('İrsaliye silinirken hata: ' + ((err as Error)?.message ?? String(err)))
         }

@@ -66,20 +66,26 @@ export default function AksesuarListesi({ onSelect, onNew, onNewTipi }: Aksesuar
     aksesuarTipiApi.list().then(setTipList).catch(() => {})
   }, [])
 
+  const aktifTipler = tipList.filter((t) => t.kullanimda)
+
+  const yeniDropdownItems: MenuProps['items'] = aktifTipler.map((t) => ({
+    key: String(t.id),
+    label: t.ad,
+    icon: <PlusOutlined />,
+    onClick: () => onNew?.(t.id, t.ad),
+  }))
+
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    {
+      key: 'yeni',
+      label: 'Yeni',
+      icon: <PlusOutlined />,
+      disabled: aktifTipler.length === 0,
+      children: yeniDropdownItems,
+    },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
   ]
-
-  const yeniDropdownItems: MenuProps['items'] = tipList
-    .filter((t) => t.kullanimda)
-    .map((t) => ({
-      key: String(t.id),
-      label: t.ad,
-      icon: <PlusOutlined />,
-      onClick: () => onNew?.(t.id, t.ad),
-    }))
 
   const columns = useMemo<ColDef<AksesuarRow>[]>(
     () => [

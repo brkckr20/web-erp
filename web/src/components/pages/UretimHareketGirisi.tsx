@@ -1,11 +1,16 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Button, Input, InputNumber, Select, Table, App, Tag, Card, DatePicker } from 'antd'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
 import { ScanOutlined, ScissorOutlined, ToolOutlined, InboxOutlined, FireOutlined, CheckCircleOutlined, DeleteOutlined, SearchOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
-import type { IslemKarti } from './IslemKartlari'
+import type { Islem } from '../../lib/islem-api'
+import { islemApi } from '../../lib/islem-api'
+import { rotaApi, type Rota } from '../../lib/rota-api'
+import { siparisApi, type Siparis } from '../../lib/siparis-api'
+import { uretimHareketApi, type UretimHareket as ApiUretimHareket } from '../../lib/uretim-hareket-api'
+import { useAuth } from '@/context/AuthContext'
 import { dovizApi, type DovizKuruSatir } from '../../lib/doviz-api'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 
@@ -16,6 +21,8 @@ export interface UretimHareket {
   modelAd: string
   renkAd: string
   beden: string
+  rotaKod?: string | null
+  rotaOperasyonId?: number | null
   islemKod: string
   islemAd: string
   yon: 'gidis' | 'gelis'
@@ -32,40 +39,25 @@ export interface UretimHareket {
   kayitYapan: string
 }
 
-const mockSiparisler = [
-  {
-    siparisNo: 'SIP-2026-001',
-    modeller: [
-      {
-        modelKod: 'BT001',
-        modelAd: 'Basic Tişört',
-        renkler: [
-          { renkAd: 'Beyaz', bedenler: ['S', 'M', 'L', 'XL'] },
-          { renkAd: 'Siyah', bedenler: ['S', 'M', 'L'] },
-        ],
-      },
-      {
-        modelKod: 'VE002',
-        modelAd: 'Viskon Elbise',
-        renkler: [
-          { renkAd: 'Kırmızı', bedenler: ['36', '38', '40', '42'] },
-        ],
-      },
-    ],
-  },
-  {
-    siparisNo: 'SIP-2026-002',
-    modeller: [
-      {
-        modelKod: 'PK003',
-        modelAd: 'Pantolon',
-        renkler: [
-          { renkAd: 'Lacivert', bedenler: ['28', '30', '32', '34'] },
-        ],
-      },
-    ],
-  },
-]
+interface SiparisKalemBilgi {
+  modelKod: string
+  modelAd: string
+  renkler: { renkAd: string; renkLabel: string; bedenler: string[] }[]
+}
+
+interface SiparisBilgi {
+  siparisNo: string
+  modeller: SiparisKalemBilgi[]
+}
+
+interface IslemSecenegi {
+  id: number | null
+  kod: string
+  ad: string
+  sira: number
+  birim: string | null
+  birimFiyat: number | null
+}
 
 const islemIconlari: Record<string, React.ReactNode> = {
   KESIM: <ScissorOutlined />,
@@ -83,14 +75,6 @@ const islemRenkleri: Record<string, string> = {
   KALITE: '#722ed1',
 }
 
-const defaultIslemler: IslemKarti[] = [
-  { id: 1, kod: 'KESIM', ad: 'Kesim', birim: 'ADET', sira: 1, aktif: true },
-  { id: 2, kod: 'DIKIM', ad: 'Dikim', birim: 'ADET', sira: 2, aktif: true },
-  { id: 3, kod: 'PAKET', ad: 'Paket', birim: 'ADET', sira: 3, aktif: true },
-  { id: 4, kod: 'UTU', ad: 'Ütüleme', birim: 'ADET', sira: 4, aktif: true },
-  { id: 5, kod: 'KALITE', ad: 'Kalite Ktrl', birim: 'ADET', sira: 5, aktif: true },
-]
-
 const mockKurlar: DovizKuruSatir[] = [
   { dovizKodu: 'USD', dovizAd: 'Amerikan Doları', alisKuru: 34.25, satisKuru: 34.32, tarih: null },
   { dovizKodu: 'EUR', dovizAd: 'Euro', alisKuru: 37.10, satisKuru: 37.22, tarih: null },
@@ -99,9 +83,18 @@ const mockKurlar: DovizKuruSatir[] = [
 
 export default function UretimHareketGirisi() {
   const { message, modal } = App.useApp()
+  const { kullanici } = useAuth()
   const [hareketler, setHareketler] = useState<UretimHareket[]>([])
   const [barkodInput, setBarkodInput] = useState('')
   const barkodRef = useRef<HTMLInputElement>(null)
+
+  const [siparisler, setSiparisler] = useState<SiparisBilgi[]>([])
+  const [islemler, setIslemler] = useState<Islem[]>([])
+  const [rotalar, setRotalar] = useState<Rota[]>([])
+  const [seciliRotaKod, setSeciliRotaKod] = useState<string>('')
+  const [veriYukleniyor, setVeriYukleniyor] = useState(false)
+  const [hareketYukleniyor, setHareketYukleniyor] = useState(false)
+  const [kaydediyor, setKaydediyor] = useState(false)
 
   const [seciliSiparis, setSeciliSiparis] = useState<string>('')
   const [seciliModel, setSeciliModel] = useState<string>('')
@@ -136,9 +129,67 @@ export default function UretimHareketGirisi() {
     }
   }, [dovizCinsi, kurlar])
 
-  const seciliSiparisData = mockSiparisler.find((s) => s.siparisNo === seciliSiparis)
+  useEffect(() => {
+    setVeriYukleniyor(true)
+    Promise.all([
+      siparisApi.list().then((liste) => (liste ?? []).map(normalizeSiparis)),
+      islemApi.list(1).catch(() => [] as Islem[]),
+      rotaApi.list().catch(() => [] as Rota[]),
+    ])
+      .then(([s, i, r]) => {
+        setSiparisler(s)
+        setIslemler(i)
+        setRotalar(r)
+      })
+      .catch(() => message.error('Sipariş / işlem / rota verileri yüklenemedi'))
+      .finally(() => setVeriYukleniyor(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const hareketYukle = useCallback(async () => {
+    setHareketYukleniyor(true)
+    try {
+      const liste = await uretimHareketApi.list()
+      setHareketler((liste ?? []).map(hareketToLocal))
+    } catch {
+      message.error('Üretim hareketleri yüklenemedi')
+    } finally {
+      setHareketYukleniyor(false)
+    }
+  }, [message])
+
+  useEffect(() => {
+    hareketYukle()
+  }, [hareketYukle])
+
+  const seciliSiparisData = siparisler.find((s) => s.siparisNo === seciliSiparis)
   const seciliModelData = seciliSiparisData?.modeller.find((m) => m.modelKod === seciliModel)
   const seciliRenkData = seciliModelData?.renkler.find((r) => r.renkAd === seciliRenk)
+
+  const seciliRota = rotalar.find((r) => r.kod === seciliRotaKod) ?? null
+  const islemSecenekleri: IslemSecenegi[] = useMemo(() => {
+    if (seciliRota) {
+      return [...seciliRota.operasyonlar]
+        .sort((a, b) => a.sira - b.sira)
+        .map((o) => ({
+          id: o.id,
+          kod: o.operasyonKodu,
+          ad: o.operasyonAdi || o.operasyonKodu,
+          sira: o.sira,
+          birim: o.birim,
+          birimFiyat: o.birimFiyat != null ? Number(o.birimFiyat) : null,
+        }))
+    }
+    return islemler
+      .filter((i) => i.aktif !== false)
+      .map((i) => ({ id: i.id, kod: i.kod, ad: i.ad, sira: i.sira, birim: i.birim, birimFiyat: null }))
+  }, [seciliRota, islemler])
+  const seciliIslemData = islemSecenekleri.find((i) => i.kod === seciliIslem) ?? null
+
+  const islemSec = (islem: IslemSecenegi) => {
+    setSeciliIslem(islem.kod)
+    if (duzenlenenId === null && islem.birimFiyat != null) setBirimFiyat(islem.birimFiyat)
+  }
 
   // Gidiş/Geliş eşleşmesi: sipariş+model+renk(+beden) + fason firma doluysa firma bazında
   const ayniKalem = (h: UretimHareket, beden?: string) =>
@@ -167,7 +218,7 @@ export default function UretimHareketGirisi() {
 
   const barkodTara = useCallback(() => {
     if (!barkodInput.trim()) return
-    const parsed = parseBarkod(barkodInput.trim())
+    const parsed = parseBarkod(siparisler, barkodInput.trim())
     if (parsed) {
       setSeciliSiparis(parsed.siparisNo)
       setSeciliModel(parsed.modelKod)
@@ -180,9 +231,9 @@ export default function UretimHareketGirisi() {
     }
     setBarkodInput('')
     barkodRef.current?.focus()
-  }, [barkodInput, message])
+  }, [barkodInput, message, siparisler])
 
-  const kaydet = () => {
+  const kaydet = async () => {
     if (!seciliSiparis || !seciliModel || !seciliIslem) {
       message.warning('Lütfen sipariş, model ve işlem seçin')
       return
@@ -191,7 +242,6 @@ export default function UretimHareketGirisi() {
       message.warning('Lütfen cari hesap seçin')
       return
     }
-    const islem = defaultIslemler.find((i) => i.kod === seciliIslem)
 
     const topluGirisler = (seciliRenkData?.bedenler ?? [])
       .map((beden) => ({ beden, adet: bedenAdetler[beden] ?? 0 }))
@@ -215,33 +265,6 @@ export default function UretimHareketGirisi() {
           return
         }
       }
-      setHareketler((prev) =>
-        prev.map((h) =>
-          h.id === duzenlenenId
-            ? {
-                ...h,
-                siparisNo: seciliSiparis,
-                modelKod: seciliModel,
-                modelAd: seciliModelData?.modelAd ?? h.modelAd,
-                renkAd: seciliRenk || '-',
-                beden: g.beden,
-                islemKod: seciliIslem,
-                islemAd: islem?.ad ?? seciliIslem,
-                yon,
-                miktar: g.adet,
-                kalite,
-                birimFiyat,
-                dovizCinsi,
-                dovizKuru,
-                cariKod: cariKod || null,
-                cariAd: cariAd || null,
-                tarih: tarih.format('YYYY-MM-DD'),
-                aciklama,
-              }
-            : h,
-        ),
-      )
-      message.success('Hareket güncellendi')
     } else {
       if (topluGirisler.length === 0) {
         message.warning('Lütfen beden adedi girin')
@@ -264,35 +287,53 @@ export default function UretimHareketGirisi() {
           }
         }
       }
-      const tarihStr = tarih.format('YYYY-MM-DD')
-      const barkod = generateBarkod(seciliSiparis, seciliModel, seciliRenk)
-      const simdi = Date.now()
-      const yeniHareketler: UretimHareket[] = topluGirisler.map((g, i) => ({
-        id: simdi + i,
-        siparisNo: seciliSiparis,
-        modelKod: seciliModel,
-        modelAd: seciliModelData?.modelAd ?? '',
-        renkAd: seciliRenk || '-',
-        beden: g.beden,
-        islemKod: seciliIslem,
-        islemAd: islem?.ad ?? seciliIslem,
-        yon,
-        miktar: g.adet,
-        kalite,
-        birimFiyat,
-        dovizCinsi,
-        dovizKuru,
-        cariKod: cariKod || null,
-        cariAd: cariAd || null,
-        tarih: tarihStr,
-        aciklama,
-        barkod,
-        kayitYapan: 'Kullanıcı',
-      }))
-      setHareketler((prev) => [...yeniHareketler, ...prev])
-      message.success(`${yeniHareketler.length} beden kaydedildi`)
     }
-    temizle()
+
+    const ortak = {
+      siparisNo: seciliSiparis,
+      modelKod: seciliModel,
+      modelAd: seciliModelData?.modelAd ?? '',
+      renkAd: seciliRenk || '-',
+      rotaKod: seciliRota?.kod ?? null,
+      rotaOperasyonId: seciliRota ? (seciliIslemData?.id ?? null) : null,
+      islemKod: seciliIslem,
+      islemAd: seciliIslemData?.ad ?? seciliIslem,
+      yon,
+      kalite,
+      birimFiyat,
+      dovizCinsi,
+      dovizKuru,
+      cariKod: cariKod || null,
+      cariAd: cariAd || null,
+      tarih: tarih.format('YYYY-MM-DD'),
+      aciklama: aciklama || null,
+      barkod: generateBarkod(seciliSiparis, seciliModel, seciliRenk),
+      kayitYapan: kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null,
+      olusturanKullanici: kullanici?.id ?? null,
+    }
+
+    setKaydediyor(true)
+    try {
+      if (duzenlenenId !== null) {
+        await uretimHareketApi.update(duzenlenenId, {
+          ...ortak,
+          beden: topluGirisler[0].beden,
+          miktar: topluGirisler[0].adet,
+        })
+        message.success('Hareket güncellendi')
+      } else {
+        await uretimHareketApi.topluOlustur(
+          topluGirisler.map((g) => ({ ...ortak, beden: g.beden, miktar: g.adet })),
+        )
+        message.success(`${topluGirisler.length} beden kaydedildi`)
+      }
+      await hareketYukle()
+      temizle()
+    } catch {
+      message.error('Hareket kaydedilemedi')
+    } finally {
+      setKaydediyor(false)
+    }
   }
 
   const temizle = () => {
@@ -371,9 +412,15 @@ export default function UretimHareketGirisi() {
               okText: 'Sil',
               cancelText: 'Vazgeç',
               okType: 'danger',
-              onOk: () => {
-                setHareketler((prev) => prev.filter((h) => h.id !== r.id))
-                if (duzenlenenId === r.id) temizle()
+              onOk: async () => {
+                try {
+                  await uretimHareketApi.remove(r.id)
+                  if (duzenlenenId === r.id) temizle()
+                  await hareketYukle()
+                  message.success('Hareket silindi')
+                } catch {
+                  message.error('Hareket silinemedi')
+                }
               },
             })
           }}
@@ -460,6 +507,9 @@ export default function UretimHareketGirisi() {
                   className="!w-[70%]"
                   size="small"
                   placeholder="Sipariş seçin"
+                  showSearch
+                  optionFilterProp="label"
+                  loading={veriYukleniyor}
                   value={seciliSiparis || undefined}
                   onChange={(v) => {
                     setSeciliSiparis(v)
@@ -468,7 +518,7 @@ export default function UretimHareketGirisi() {
                     setSeciliBeden('')
                     setBedenAdetler({})
                   }}
-                  options={mockSiparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
+                  options={siparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
                 />
               </div>
               <div>
@@ -502,7 +552,28 @@ export default function UretimHareketGirisi() {
                   }}
                   allowClear
                   disabled={!seciliModel}
-                  options={seciliModelData?.renkler.map((r) => ({ label: r.renkAd, value: r.renkAd })) ?? []}
+                  options={seciliModelData?.renkler.map((r) => ({ label: r.renkLabel, value: r.renkAd })) ?? []}
+                />
+              </div>
+              <div>
+                <div className="text-[9px] text-black mb-0 font-medium">Rota</div>
+                <Select
+                  className="!w-[70%]"
+                  size="small"
+                  placeholder="Rota seçin (opsiyonel)"
+                  value={seciliRotaKod || undefined}
+                  onChange={(v) => {
+                    setSeciliRotaKod(v ?? '')
+                    setSeciliIslem('')
+                    setBirimFiyat(null)
+                  }}
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  loading={veriYukleniyor}
+                  options={rotalar
+                    .filter((r) => r.kullanimda !== false)
+                    .map((r) => ({ label: `${r.kod} - ${r.ad}`, value: r.kod }))}
                 />
               </div>
               <div>
@@ -542,14 +613,23 @@ export default function UretimHareketGirisi() {
         </Card>
 
         {/* Orta Kolon: İşlem Seçimi (Radio Card) */}
-        <Card size="small" className="!mb-0" title={<span className="text-[10px] text-gray-500">İşlem Tipi</span>}>
+        <Card size="small" className="!mb-0" title={
+          <span className="text-[10px] text-gray-500">
+            İşlem Tipi{seciliRota ? <span className="text-blue-500"> · {seciliRota.kod}</span> : ''}
+          </span>
+        }>
           <div className="grid grid-cols-3 gap-1.5">
-            {defaultIslemler.filter((i) => i.aktif).map((islem) => {
+            {islemSecenekleri.length === 0 && (
+              <div className="col-span-3 text-[10px] text-gray-400 text-center py-4">
+                {veriYukleniyor ? 'Yükleniyor...' : 'İşlem tanımı bulunamadı'}
+              </div>
+            )}
+            {islemSecenekleri.map((islem) => {
               const secili = seciliIslem === islem.kod
               return (
                 <div
-                  key={islem.kod}
-                  onClick={() => setSeciliIslem(islem.kod)}
+                  key={`${islem.id ?? 'i'}-${islem.kod}`}
+                  onClick={() => islemSec(islem)}
                   className={`
                     flex flex-col items-center justify-center gap-1 p-2 rounded cursor-pointer border transition-all
                     ${secili
@@ -560,11 +640,11 @@ export default function UretimHareketGirisi() {
                 >
                   <div
                     className="text-[18px]"
-                    style={{ color: secili ? islemRenkleri[islem.kod] : '#9ca3af' }}
+                    style={{ color: secili ? (islemRenkleri[islem.kod] ?? '#1890ff') : '#9ca3af' }}
                   >
-                    {islemIconlari[islem.kod]}
+                    {islemIconlari[islem.kod] ?? <ToolOutlined />}
                   </div>
-                  <div className={`text-[10px] font-medium ${secili ? 'text-blue-600' : 'text-gray-600'}`}>
+                  <div className={`text-[10px] font-medium text-center leading-tight ${secili ? 'text-blue-600' : 'text-gray-600'}`}>
                     {islem.ad}
                   </div>
                 </div>
@@ -681,7 +761,7 @@ export default function UretimHareketGirisi() {
                   Vazgeç
                 </Button>
               )}
-              <Button type="primary" size="small" onClick={kaydet} className={duzenlenenId !== null ? 'flex-[2]' : '!w-full'} disabled={!seciliIslem}>
+              <Button type="primary" size="small" onClick={kaydet} className={duzenlenenId !== null ? 'flex-[2]' : '!w-full'} disabled={!seciliIslem} loading={kaydediyor}>
                 {duzenlenenId !== null
                   ? 'Güncelle'
                   : (() => {
@@ -701,6 +781,7 @@ export default function UretimHareketGirisi() {
           columns={columns}
           dataSource={hareketler}
           rowKey="id"
+          loading={hareketYukleniyor}
           pagination={{ pageSize: 20, size: 'small', showSizeChanger: false }}
           scroll={{ y: 'calc(100vh - 420px)' }}
           locale={{ emptyText: 'Henüz hareket girilmedi' }}
@@ -726,6 +807,7 @@ export default function UretimHareketGirisi() {
               setSeciliModel(record.modelKod)
               setSeciliRenk(record.renkAd === '-' ? '' : record.renkAd)
               setSeciliBeden(record.beden === '-' ? '' : record.beden)
+              setSeciliRotaKod(record.rotaKod ?? '')
               setSeciliIslem(record.islemKod)
               setYon(record.yon ?? 'gidis')
               setBedenAdetler(record.beden && record.beden !== '-' ? { [record.beden]: record.miktar } : {})
@@ -749,20 +831,75 @@ function normalizeTr(s: string): string {
   return s.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c')
 }
 
-// Mock siparişlere karşı doğrular, kanonik (seçimle eşleşen) değerleri döner
-function eslestirBarkod(siparisNo: string, modelKod: string, renkAd: string) {
-  const s = mockSiparisler.find((x) => normalizeTr(x.siparisNo) === normalizeTr(siparisNo))
+// Gerçek siparişi (kalem→renk→beden) üretim hareketi ekranının kullandığı yapıya çevirir.
+function normalizeSiparis(s: Siparis): SiparisBilgi {
+  const modeller: SiparisKalemBilgi[] = (s.kalemler ?? [])
+    .filter((k) => k.malzeme?.kod)
+    .map((k) => {
+      const renkler = (k.renkler ?? []).map((r) => {
+        const ilkGrup = r.kumasGruplari?.[0]
+        const renkKod = ilkGrup?.renk?.kod ?? ilkGrup?.kumasGrup?.kod ?? ''
+        const renkAdi = ilkGrup?.renk?.ad ?? ''
+        const bedenler = (r.bedenler ?? [])
+          .map((b) => b.beden?.kod ?? (b.bedenId != null ? String(b.bedenId) : ''))
+          .filter((x, i, arr) => x.length > 0 && arr.indexOf(x) === i)
+        return {
+          renkAd: renkKod,
+          renkLabel: renkKod ? `${renkKod} - ${renkAdi}`.replace(/ - $/, '') : renkAdi,
+          bedenler,
+        }
+      })
+      return {
+        modelKod: k.malzeme?.kod ?? '',
+        modelAd: k.malzeme?.ad ?? '',
+        renkler,
+      }
+    })
+  return { siparisNo: s.siparisNo, modeller }
+}
+
+function hareketToLocal(h: ApiUretimHareket): UretimHareket {
+  return {
+    id: h.id,
+    siparisNo: h.siparisNo,
+    modelKod: h.modelKod,
+    modelAd: h.modelAd ?? '',
+    renkAd: h.renkAd,
+    beden: h.beden,
+    rotaKod: h.rotaKod,
+    rotaOperasyonId: h.rotaOperasyonId,
+    islemKod: h.islemKod,
+    islemAd: h.islemAd,
+    yon: h.yon === 'gelis' ? 'gelis' : 'gidis',
+    miktar: Number(h.miktar) || 0,
+    kalite: h.kalite,
+    birimFiyat: h.birimFiyat != null ? Number(h.birimFiyat) : null,
+    dovizCinsi: h.dovizCinsi,
+    dovizKuru: h.dovizKuru != null ? Number(h.dovizKuru) : null,
+    cariKod: h.cariKod,
+    cariAd: h.cariAd,
+    tarih: h.tarih,
+    aciklama: h.aciklama ?? '',
+    barkod: h.barkod ?? '',
+    kayitYapan: h.kayitYapan ?? '',
+  }
+}
+
+// Gerçek siparişlere karşı doğrular, kanonik (seçimle eşleşen) değerleri döner
+function eslestirBarkod(siparisler: SiparisBilgi[], siparisNo: string, modelKod: string, renkAd: string) {
+  const s = siparisler.find((x) => normalizeTr(x.siparisNo) === normalizeTr(siparisNo))
   const m = s?.modeller.find((x) => normalizeTr(x.modelKod) === normalizeTr(modelKod))
   const r = m?.renkler.find((x) => normalizeTr(x.renkAd) === normalizeTr(renkAd))
   return s && m && r ? { siparisNo: s.siparisNo, modelKod: m.modelKod, renkAd: r.renkAd } : null
 }
 
-function parseBarkod(barkod: string): { siparisNo: string; modelKod: string; renkAd: string } | null {
+function parseBarkod(siparisler: SiparisBilgi[], barkod: string): { siparisNo: string; modelKod: string; renkAd: string } | null {
   const parts = barkod.split('-').map((p) => p.trim()).filter((p) => p.length > 0)
   if (parts.length < 3) return null
 
   // Yeni format: siparis-model-renk
   const yeni = eslestirBarkod(
+    siparisler,
     parts.slice(0, parts.length - 2).join('-'),
     parts[parts.length - 2],
     parts[parts.length - 1],
@@ -772,6 +909,7 @@ function parseBarkod(barkod: string): { siparisNo: string; modelKod: string; ren
   // Eski bedenli format: siparis-model-renk-beden (beden yoksayılır, adet gridinden girilir)
   if (parts.length >= 4) {
     const eski = eslestirBarkod(
+      siparisler,
       parts.slice(0, parts.length - 3).join('-'),
       parts[parts.length - 3],
       parts[parts.length - 2],

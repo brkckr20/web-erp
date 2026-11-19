@@ -5,6 +5,7 @@ import { Input, Switch, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { markaApi, type Marka } from '@/lib/marka-api'
+import { useKirli } from '@/lib/kirli'
 
 interface MarkaFormData {
   kod: string
@@ -23,14 +24,17 @@ const emptyData: MarkaFormData = {
 interface MarkaKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function MarkaKarti({ isNew, kod }: MarkaKartiProps) {
+export default function MarkaKarti({ isNew, kod, onKirliChange }: MarkaKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<MarkaFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod && !isNew) {
@@ -56,6 +60,7 @@ export default function MarkaKarti({ isNew, kod }: MarkaKartiProps) {
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -65,6 +70,7 @@ export default function MarkaKarti({ isNew, kod }: MarkaKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm(emptyData)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -99,6 +105,7 @@ export default function MarkaKarti({ isNew, kod }: MarkaKartiProps) {
       }
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -159,6 +166,8 @@ export default function MarkaKarti({ isNew, kod }: MarkaKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

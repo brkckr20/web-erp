@@ -34,6 +34,7 @@ import { useAuth } from '@/context/AuthContext'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { applyKolonDurumu } from '@/lib/kolon-durumu'
+import { useKirli } from '@/lib/kirli'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -42,6 +43,7 @@ interface ModelKartiProps {
   kod?: string
   onOpenSiparis?: (id: number, siparisNo: string) => void
   onKopyalandi?: (kod: string) => void
+  onKirliChange?: (kirli: boolean) => void
 }
 
 /** Kolon durumu saklanan grid'ler (reçete alt tabloları). */
@@ -152,7 +154,7 @@ function createEmptyKumasKalem(): KumasRow {
   }
 }
 
-export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: ModelKartiProps) {
+export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi, onKirliChange }: ModelKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
@@ -186,6 +188,16 @@ export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: 
   const [kopyaKod, setKopyaKod] = useState('')
   const [kopyaAd, setKopyaAd] = useState('')
   const [kopyaLoading, setKopyaLoading] = useState(false)
+  // Reçete alt satırlarının alan düzenlemeleri anında DB'ye yazılıyor; yalnızca
+  // henüz backendId'si olmayan (yeni eklenmiş) satırlar kaydedilmemiş sayılır.
+  const { kirli, temizle } = useKirli([
+    model,
+    dosyalar,
+    kumasKalemler.filter((k) => !k.backendId),
+    iplikKalemler.filter((k) => !k.backendId),
+    aksesuarKalemler.filter((k) => !k.backendId),
+  ])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const handleDosyaSec = () => fileInputRef.current?.click()
 
@@ -368,6 +380,7 @@ export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: 
       message.warning(err instanceof Error ? err.message : 'Kod bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -383,6 +396,7 @@ export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: 
     setEkList([])
     setSelectedDosya(null)
     setGtipAd(null)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -415,6 +429,7 @@ export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: 
       message.error(err instanceof Error ? err.message : 'Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -653,6 +668,7 @@ export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: 
       }
       setBedenModalVisible(false)
       setBedenModalRowKey(null)
+      temizle()
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : 'Beden miktarları kaydedilirken hata oluştu')
     }
@@ -719,6 +735,7 @@ export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi }: 
     onDelete: handleSil,
     onReport: () => setRaporModalAcik(true),
   }, {
+    save: { accent: kirli },
     report: { disabled: !model?.kod },
   })
 

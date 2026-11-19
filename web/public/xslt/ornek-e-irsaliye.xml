@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Anonim örnek e-İrsaliye XML'i. Tasarım denemelerinde kullanılabilir; gerçek cari verisi içermez. -->
+<DespatchAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2"
+  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+  <cbc:ProfileID>TEMELIRSALIYE</cbc:ProfileID>
+  <cbc:ID>I012026000002506</cbc:ID>
+  <cbc:CopyIndicator>false</cbc:CopyIndicator>
+  <cbc:UUID>8f2c1a44-3b7e-4c1d-9a55-2f0e6d1b7c33</cbc:UUID>
+  <cbc:IssueDate>2026-11-17</cbc:IssueDate>
+  <cbc:IssueTime>10:24:00</cbc:IssueTime>
+  <cbc:DespatchAdviceTypeCode>SEVK</cbc:DespatchAdviceTypeCode>
+  <cbc:Note>Örnek sevkiyat açıklaması</cbc:Note>
+  <cac:OrderReference>
+    <cbc:ID>SEVK-2026-001</cbc:ID>
+  </cac:OrderReference>
+  <cac:DespatchSupplierParty>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="VKN">1234567890</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyName>
+        <cbc:Name>ÖRNEK TEKSTİL A.Ş.</cbc:Name>
+      </cac:PartyName>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>ÖRNEK TEKSTİL A.Ş.</cbc:RegistrationName>
+        <cac:PostalAddress>
+          <cbc:StreetName>Organize Sanayi Bölgesi 5. Cadde No:12</cbc:StreetName>
+          <cbc:CitySubdivisionName>Başakşehir</cbc:CitySubdivisionName>
+          <cbc:CityName>İstanbul</cbc:CityName>
+          <cbc:PostalZone>34480</cbc:PostalZone>
+          <cac:Country>
+            <cbc:Name>Türkiye</cbc:Name>
+          </cac:Country>
+        </cac:PostalAddress>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:DespatchSupplierParty>
+  <cac:DeliveryCustomerParty>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="VKN">9876543210</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyName>
+        <cbc:Name>ÖRNEK MÜŞTERİ TEKSTİL LTD. ŞTİ.</cbc:Name>
+      </cac:PartyName>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>ÖRNEK MÜŞTERİ TEKSTİL LTD. ŞTİ.</cbc:RegistrationName>
+        <cac:PostalAddress>
+          <cbc:StreetName>Atatürk Mah. Sanayi Cad. No:3</cbc:StreetName>
+          <cbc:CitySubdivisionName>Çorlu</cbc:CitySubdivisionName>
+          <cbc:CityName>Tekirdağ</cbc:CityName>
+          <cbc:PostalZone>59850</cbc:PostalZone>
+          <cac:Country>
+            <cbc:Name>Türkiye</cbc:Name>
+          </cac:Country>
+        </cac:PostalAddress>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:DeliveryCustomerParty>
+  <cac:Shipment>
+    <cbc:ID>1</cbc:ID>
+    <cbc:ShippingPriorityLevelCode>1</cbc:ShippingPriorityLevelCode>
+    <cac:ShipmentStage>
+      <cbc:TransportModeCode>1</cbc:TransportModeCode>
+      <cac:CarrierParty>
+        <cac:PartyName>
+          <cbc:Name>HIZLI NAKLİYAT</cbc:Name>
+        </cac:PartyName>
+        <cac:Person>
+          <cbc:FirstName>Ali</cbc:FirstName>
+          <cbc:FamilyName>Yılmaz</cbc:FamilyName>
+          <cbc:NationalID>11111111111</cbc:NationalID>
+        </cac:Person>
+      </cac:CarrierParty>
+      <cac:TransportMeans>
+        <cac:RoadTransport>
+          <cbc:LicensePlateID>34ABC123</cbc:LicensePlateID>
+        </cac:RoadTransport>
+      </cac:TransportMeans>
+    </cac:ShipmentStage>
+  </cac:Shipment>
+  <cac:DespatchLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:Note>PARTI-001</cbc:Note>
+    <cbc:DeliveredQuantity unitCode="KGM">1234.5678</cbc:DeliveredQuantity>
+    <cac:OrderLine>
+      <cac:LineItem>
+        <cbc:ID>KMS-001</cbc:ID>
+        <cbc:Quantity unitCode="KGM">1234.5678</cbc:Quantity>
+        <cac:Item>
+          <cbc:Name>Süprem Kumaş</cbc:Name>
+          <cbc:Description>Renk: K-12 - Lacivert</cbc:Description>
+          <cac:SellersItemIdentification>
+            <cbc:ID>KMS-001</cbc:ID>
+          </cac:SellersItemIdentification>
+          <cac:AdditionalItemIdentification>
+            <cbc:ID schemeID="RENK">K-12</cbc:ID>
+          </cac:AdditionalItemIdentification>
+        </cac:Item>
+      </cac:LineItem>
+    </cac:OrderLine>
+  </cac:DespatchLine>
+  <cac:DespatchLine>
+    <cbc:ID>2</cbc:ID>
+    <cbc:Note>PARTI-002</cbc:Note>
+    <cbc:DeliveredQuantity unitCode="MTR">500</cbc:DeliveredQuantity>
+    <cac:OrderLine>
+      <cac:LineItem>
+        <cbc:ID>KMS-002</cbc:ID>
+        <cbc:Quantity unitCode="MTR">500</cbc:Quantity>
+        <cac:Item>
+          <cbc:Name>Jarse Kumaş</cbc:Name>
+          <cbc:Description>Renk: B-03 - Beyaz</cbc:Description>
+          <cac:SellersItemIdentification>
+            <cbc:ID>KMS-002</cbc:ID>
+          </cac:SellersItemIdentification>
+          <cac:AdditionalItemIdentification>
+            <cbc:ID schemeID="RENK">B-03</cbc:ID>
+          </cac:AdditionalItemIdentification>
+        </cac:Item>
+      </cac:LineItem>
+    </cac:OrderLine>
+  </cac:DespatchLine>
+  <cac:DespatchLine>
+    <cbc:ID>3</cbc:ID>
+    <cbc:DeliveredQuantity unitCode="C62">120</cbc:DeliveredQuantity>
+    <cac:OrderLine>
+      <cac:LineItem>
+        <cbc:ID>AKS-014</cbc:ID>
+        <cbc:Quantity unitCode="C62">120</cbc:Quantity>
+        <cac:Item>
+          <cbc:Name>Karton Kutu</cbc:Name>
+          <cac:SellersItemIdentification>
+            <cbc:ID>AKS-014</cbc:ID>
+          </cac:SellersItemIdentification>
+        </cac:Item>
+      </cac:LineItem>
+    </cac:OrderLine>
+  </cac:DespatchLine>
+</DespatchAdvice>

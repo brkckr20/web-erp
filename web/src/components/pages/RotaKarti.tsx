@@ -7,10 +7,12 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableIslemSelect from '@/components/shared/SearchableIslemSelect'
 import { rotaApi, type Rota, type RotaOperasyon } from '@/lib/rota-api'
+import { useKirli } from '@/lib/kirli'
 
 interface RotaKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
 const emptyRota: Omit<Rota, 'id'> = {
@@ -22,10 +24,12 @@ const emptyRota: Omit<Rota, 'id'> = {
   operasyonlar: [],
 }
 
-export default function RotaKarti({ isNew, kod }: RotaKartiProps) {
+export default function RotaKarti({ isNew, kod, onKirliChange }: RotaKartiProps) {
   const { message, modal } = App.useApp()
   const [id, setId] = useState<number | null>(null)
   const [form, setForm] = useState<Omit<Rota, 'id'>>(emptyRota)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const set = <K extends keyof Omit<Rota, 'id'>>(key: K, value: Omit<Rota, 'id'>[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -38,6 +42,7 @@ export default function RotaKarti({ isNew, kod }: RotaKartiProps) {
     }
     setId(rec.id)
     setForm({ kod: rec.kod, ad: rec.ad, ozelKod: rec.ozelKod ?? '', hizmetKodu: rec.hizmetKodu ?? '', kullanimda: rec.kullanimda, operasyonlar: rec.operasyonlar })
+    temizle()
   }
 
   useEffect(() => {
@@ -48,6 +53,7 @@ export default function RotaKarti({ isNew, kod }: RotaKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm(emptyRota)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -68,6 +74,7 @@ export default function RotaKarti({ isNew, kod }: RotaKartiProps) {
         setForm((prev) => ({ ...prev, kod: created.kod }))
         message.success('Rota başarıyla oluşturuldu')
       }
+      temizle()
     } catch (e: any) {
       message.error(e?.message || 'Kayıt sırasında hata oluştu')
     }
@@ -107,6 +114,8 @@ export default function RotaKarti({ isNew, kod }: RotaKartiProps) {
     onPrevious: () => step(-1),
     onNext: () => step(1),
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   const operasyonEkle = () => {

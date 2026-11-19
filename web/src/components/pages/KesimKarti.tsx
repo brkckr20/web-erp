@@ -12,12 +12,17 @@ import {
   ScanOutlined,
   ClearOutlined,
   DeleteOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { iadeTalepApi } from '@/lib/iade-talep-api'
 import { barkodApi } from '@/lib/barkod-api'
 import { malzemeYonetimFisleriApi, type MalzemeYonetimFisi, type MalzemeYonetimFisiKalem } from '@/lib/malzeme-yonetim-fisleri-api'
 import { siparisApi, type Siparis } from '@/lib/siparis-api'
+import { kesimApi, type Kesim, type KesimForm } from '@/lib/kesim-api'
+import { kumasTalepApi, type KumasTalep } from '@/lib/kumas-talep-api'
+import { useAuth } from '@/context/AuthContext'
+import { useKirli } from '@/lib/kirli'
 
 export interface KesimKartiRecord {
   id: number
@@ -73,13 +78,37 @@ interface ModelBilgi {
 }
 
 interface SiparisBilgi {
+  id: number
   siparisNo: string
   modeller: ModelBilgi[]
 }
 
-export default function KesimKarti() {
-  const { message } = App.useApp()
+interface TalepSatir {
+  key: string
+  kumasKod: string
+  kumasAd: string
+  renk: string
+  miktar: number | null
+  birim: string
+}
+
+interface KesimKartiProps {
+  onKirliChange?: (kirli: boolean) => void
+}
+
+export default function KesimKarti({ onKirliChange }: KesimKartiProps) {
+  const { message, modal } = App.useApp()
+  const { kullanici } = useAuth()
   const [kesimKartlari, setKesimKartlari] = useState<KesimKartiRecord[]>([])
+  const [kesimYukleniyor, setKesimYukleniyor] = useState(false)
+  const [kaydediyor, setKaydediyor] = useState(false)
+  // Kumaş talebi formu (pastal şefi sipariş bazlı talep oluşturur)
+  const [talepModalAcik, setTalepModalAcik] = useState(false)
+  const [talepSiparisNo, setTalepSiparisNo] = useState('')
+  const [talepAciklama, setTalepAciklama] = useState('')
+  const [talepNo, setTalepNo] = useState('')
+  const [talepSatirlar, setTalepSatirlar] = useState<TalepSatir[]>([])
+  const [talepler, setTalepler] = useState<KumasTalep[]>([])
   const [barkodInput, setBarkodInput] = useState('')
   const [tarih, setTarih] = useState(dayjs())
   const [seciliSiparis, setSeciliSiparis] = useState<string>('')
@@ -106,6 +135,11 @@ export default function KesimKarti() {
   const [siparisYukleniyor, setSiparisYukleniyor] = useState(false)
   // Barkod okutularak mı dolduruldu? (Sipariş/Model/Renk readonly olur)
   const [barkodYoluyla, setBarkodYoluyla] = useState(false)
+  const { kirli, temizle: temizleKirli } = useKirli([
+    tarih, seciliSiparis, seciliModel, seciliRenk, kesilenAdetler, fireMiktar, fireOtomatik,
+    duzenlenenId, seciliFisId, seciliFisKalemId,
+  ])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const seciliSiparisData = siparisler.find((s) => s.siparisNo === seciliSiparis)
   const seciliModelData = seciliSiparisData?.modeller.find((m) => m.modelKod === seciliModel)
@@ -169,6 +203,125 @@ export default function KesimKarti() {
       .catch(() => setSiparisler([]))
       .finally(() => setSiparisYukleniyor(false))
   }, [])
+
+  const kesimYukle = useCallback(async () => {
+    setKesimYukleniyor(true)
+    try {
+      const liste = await kesimApi.list()
+      setKesimKartlari(liste.map(kesimToRecord))
+    } catch {
+      message.error('Kesim kayıtları yüklenemedi')
+    } finally {
+      setKesimYukleniyor(false)
+    }
+  }, [message])
+
+  useEffect(() => {
+    kesimYukle()
+  }, [kesimYukle])
+
+  const talepListesiYukle = useCallback(async (siparisNo: string) => {
+    if (!siparisNo) {
+      setTalepler([])
+      return
+    }
+    try {
+      setTalepler(await kumasTalepApi.list(siparisNo))
+    } catch {
+      setTalepler([])
+    }
+  }, [])
+
+  // Siparişteki model kumaşlarını kumaş+renk bazında tekilleştirip talep satırına çevirir.
+  const talepSatirlariYukle = useCallback(
+    (siparisNo: string) => {
+      const s = siparisler.find((x) => x.siparisNo === siparisNo)
+      const gorulen = new Set<string>()
+      const satirlar: TalepSatir[] = []
+      for (const model of s?.modeller ?? []) {
+        for (const g of model.kumasGruplari) {
+          const anahtar = `${g.kumasAd}|${g.renk}`
+          if (gorulen.has(anahtar)) continue
+          gorulen.add(anahtar)
+          satirlar.push({ key: anahtar, kumasKod: g.kumasAd, kumasAd: g.kumasAd, renk: g.renk, miktar: null, birim: 'MT' })
+        }
+      }
+      setTalepSatirlar(satirlar)
+      talepListesiYukle(siparisNo)
+    },
+    [siparisler, talepListesiYukle],
+  )
+
+  const talepAc = async () => {
+    setTalepSiparisNo(seciliSiparis)
+    setTalepAciklama('')
+    setTalepSatirlar([])
+    setTalepler([])
+    setTalepModalAcik(true)
+    try {
+      const { talepNo: no } = await kumasTalepApi.nextNo()
+      setTalepNo(no)
+    } catch {
+      setTalepNo('')
+    }
+    if (seciliSiparis) talepSatirlariYukle(seciliSiparis)
+  }
+
+  const talepKaydet = async () => {
+    if (!talepSiparisNo) {
+      message.warning('Sipariş seçin')
+      return
+    }
+    const dolu = talepSatirlar.filter((s) => (s.miktar ?? 0) > 0)
+    if (dolu.length === 0) {
+      message.warning('En az bir kumaş için miktar girin')
+      return
+    }
+    const siparis = siparisler.find((s) => s.siparisNo === talepSiparisNo)
+    try {
+      await kumasTalepApi.create({
+        siparisId: siparis?.id ?? null,
+        siparisNo: talepSiparisNo,
+        tarih: dayjs().format('YYYY-MM-DD'),
+        talepEden: kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null,
+        aciklama: talepAciklama || null,
+        olusturanKullanici: kullanici?.id ?? null,
+        kalemler: dolu.map((s) => ({
+          kumasKod: s.kumasKod,
+          kumasAd: s.kumasAd,
+          renk: s.renk,
+          miktar: s.miktar ?? 0,
+          birim: s.birim,
+        })),
+      })
+      message.success('Kumaş talebi oluşturuldu')
+      setTalepAciklama('')
+      setTalepSatirlar((prev) => prev.map((s) => ({ ...s, miktar: null })))
+      const { talepNo: no } = await kumasTalepApi.nextNo()
+      setTalepNo(no)
+      await talepListesiYukle(talepSiparisNo)
+    } catch {
+      message.error('Kumaş talebi oluşturulamadı')
+    }
+  }
+
+  const talepSil = (id: number) => {
+    modal.confirm({
+      title: 'Kumaş talebi silinsin mi?',
+      okText: 'Sil',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await kumasTalepApi.remove(id)
+          message.success('Kumaş talebi silindi')
+          await talepListesiYukle(talepSiparisNo)
+        } catch {
+          message.error('Kumaş talebi silinemedi')
+        }
+      },
+    })
+  }
 
   // Tek siparişi tam detayıyla (renk+beden) getirir; mevcutsa günceller, yoksa ekler.
   const yukleSiparis = useCallback(async (siparisNo: string) => {
@@ -305,9 +458,11 @@ export default function KesimKarti() {
       setSeciliFis(null)
       setSeciliFisKalemId(null)
     }
+    temizleKirli()
   }
 
-  const kaydet = () => {
+  const kaydet = async () => {
+    if (kaydediyor) return
     if (!seciliSiparis || !seciliModel || !seciliRenk) {
       message.warning('Lütfen sipariş, model ve renk seçin')
       return
@@ -336,77 +491,76 @@ export default function KesimKarti() {
     const tarihStr = tarih.format('YYYY-MM-DD')
     const kumasAd = seciliKumasGrubu?.kumasAd ?? seciliFisKalem?.malzeme?.ad ?? ''
     const kumasRenk = seciliKumasGrubu?.renk ?? ''
-    const iadeTalep = duzenlenenId !== null ? (kesimKartlari.find((k) => k.id === duzenlenenId)?.iadeTalep ?? false) : false
-
-    if (duzenlenenId !== null) {
-      const g = girisler[0]
-      setKesimKartlari((prev) => prev.map((k) => (k.id === duzenlenenId ? {
-        ...k,
-        siparisNo: seciliSiparis,
-        modelKod: seciliModel,
-        modelAd: seciliModelData?.modelAd ?? k.modelAd,
-        renkAd: seciliRenk,
-        beden: g.beden,
-        planlananMiktar: planlananOf(g.beden),
-        kesilenMiktar: g.adet,
-        fireMiktar,
-        kumasAd,
-        kumasRenk,
-        gerekliMiktar: gerekliMT,
-        brutMiktar: brutMT,
-        kumasMiktar,
-        birimTuketim,
-        beklenenAdet: beklenenOf(g.beden),
-        kalanMT,
-        fireOrani,
-        kaynakFisId: seciliFisId,
-        kaynakFisNo: seciliFis?.irsaliyeNo ?? k.kaynakFisNo ?? null,
-        kaynakKalemId: seciliFisKalemId ?? k.kaynakKalemId ?? null,
-        manuelFire: !fireOtomatik,
-        iadeTalep,
-        tarih: tarihStr,
-      } : k)))
-      message.success('Kesim kartı güncellendi')
-    } else {
-      const simdi = Date.now()
-      const yeniKartlar: KesimKartiRecord[] = girisler.map((g, i) => ({
-        id: simdi + i,
-        siparisNo: seciliSiparis,
-        modelKod: seciliModel,
-        modelAd: seciliModelData?.modelAd ?? '',
-        renkAd: seciliRenk,
-        beden: g.beden,
-        planlananMiktar: planlananOf(g.beden),
-        kesilenMiktar: g.adet,
-        fireMiktar,
-        kumasAd,
-        kumasRenk,
-        gerekliMiktar: gerekliMT,
-        brutMiktar: brutMT,
-        kumasMiktar,
-        birimTuketim,
-        beklenenAdet: beklenenOf(g.beden),
-        kalanMT,
-        fireOrani,
-        kaynakFisId: seciliFisId,
-        kaynakFisNo: seciliFis?.irsaliyeNo ?? null,
-        kaynakKalemId: seciliFisKalemId,
-        manuelFire: !fireOtomatik,
-        iadeTalep: false,
-        tarih: tarihStr,
-        durum: 'KESILDI',
-      }))
-      setKesimKartlari((prev) => [...yeniKartlar, ...prev])
-      message.success(`${yeniKartlar.length} beden kesildi`)
+    const ortak = {
+      siparisNo: seciliSiparis,
+      modelKod: seciliModel,
+      modelAd: seciliModelData?.modelAd ?? '',
+      renkAd: seciliRenk,
+      fireMiktar,
+      kumasAd,
+      kumasRenk,
+      gerekliMiktar: gerekliMT,
+      brutMiktar: brutMT,
+      kumasMiktar,
+      birimTuketim,
+      kalanMT,
+      fireOrani,
+      tarih: tarihStr,
+      kaynakFisId: seciliFisId,
+      kaynakFisNo: seciliFis?.irsaliyeNo ?? null,
+      kaynakKalemId: seciliFisKalemId,
+      manuelFire: !fireOtomatik,
+      olusturanKullanici: kullanici?.id ?? null,
     }
-    temizle()
+
+    setKaydediyor(true)
+    try {
+      if (duzenlenenId !== null) {
+        const g = girisler[0]
+        const mevcut = kesimKartlari.find((k) => k.id === duzenlenenId)
+        await kesimApi.update(duzenlenenId, {
+          ...ortak,
+          beden: g.beden,
+          planlananMiktar: planlananOf(g.beden),
+          kesilenMiktar: g.adet,
+          beklenenAdet: beklenenOf(g.beden),
+          iadeTalep: mevcut?.iadeTalep ?? false,
+          durum: mevcut?.durum ?? 'KESILDI',
+        })
+        message.success('Kesim kartı güncellendi')
+      } else {
+        await kesimApi.topluOlustur(
+          girisler.map((g) => ({
+            ...ortak,
+            beden: g.beden,
+            planlananMiktar: planlananOf(g.beden),
+            kesilenMiktar: g.adet,
+            beklenenAdet: beklenenOf(g.beden),
+            iadeTalep: false,
+            durum: 'KESILDI',
+          })),
+        )
+        message.success(`${girisler.length} beden kesildi`)
+      }
+      await kesimYukle()
+      temizle()
+    } catch {
+      message.error('Kesim kaydedilemedi')
+    } finally {
+      setKaydediyor(false)
+    }
   }
 
-  const dikimeGonder = (id: number) => {
-    setKesimKartlari((prev) =>
-      prev.map((k) => (k.id === id ? { ...k, durum: 'DIKIME_GONDERILDI' } : k)),
-    )
-    message.success('Dikime gönderildi')
+  const dikimeGonder = async (id: number) => {
+    const kart = kesimKartlari.find((k) => k.id === id)
+    if (!kart) return
+    try {
+      await kesimApi.update(id, { ...recordToForm(kart), durum: 'DIKIME_GONDERILDI' })
+      message.success('Dikime gönderildi')
+      await kesimYukle()
+    } catch {
+      message.error('Dikime gönderilemedi')
+    }
   }
 
   const iadeTalepOlustur = async (id: number) => {
@@ -424,33 +578,51 @@ export default function KesimKarti() {
         kumasRenk: kart.kumasRenk,
         kalanMT: kart.kalanMT,
       })
-      setKesimKartlari((prev) =>
-        prev.map((k) => (k.id === id ? { ...k, iadeTalep: true } : k)),
-      )
+      await kesimApi.update(id, { ...recordToForm(kart), iadeTalep: true })
       message.success('İade talebi oluşturuldu')
+      await kesimYukle()
     } catch {
       message.error('İade talebi oluşturulurken hata oluştu')
     }
   }
 
-  const fireOlarakKaydet = (id: number) => {
-    setKesimKartlari((prev) =>
-      prev.map((k) => {
-        if (k.id !== id) return k
-        const yeniFireMiktar = k.fireMiktar + k.kalanMT
-        const yeniKalanMT = 0
-        const yeniFireOrani = k.kumasMiktar > 0
-          ? (yeniFireMiktar / k.kumasMiktar) * 100
-          : 0
-        return {
-          ...k,
-          fireMiktar: yeniFireMiktar,
-          kalanMT: yeniKalanMT,
-          fireOrani: yeniFireOrani,
+  const fireOlarakKaydet = async (id: number) => {
+    const kart = kesimKartlari.find((k) => k.id === id)
+    if (!kart) return
+    const yeniFireMiktar = kart.fireMiktar + kart.kalanMT
+    const yeniFireOrani = kart.kumasMiktar > 0 ? (yeniFireMiktar / kart.kumasMiktar) * 100 : 0
+    try {
+      await kesimApi.update(id, {
+        ...recordToForm(kart),
+        fireMiktar: yeniFireMiktar,
+        kalanMT: 0,
+        fireOrani: yeniFireOrani,
+      })
+      message.info('Kalan kumaş fire olarak kaydedildi')
+      await kesimYukle()
+    } catch {
+      message.error('Fire kaydedilemedi')
+    }
+  }
+
+  const kesimSil = (id: number) => {
+    const kart = kesimKartlari.find((k) => k.id === id)
+    modal.confirm({
+      title: 'Kesim kaydı silinsin mi?',
+      content: kart ? `${kart.siparisNo} / ${kart.modelKod} / ${kart.renkAd} / ${kart.beden}` : undefined,
+      okText: 'Sil',
+      okButtonProps: { danger: true },
+      cancelText: 'Vazgeç',
+      onOk: async () => {
+        try {
+          await kesimApi.remove(id)
+          message.success('Kesim kaydı silindi')
+          await kesimYukle()
+        } catch {
+          message.error('Kesim kaydı silinemedi')
         }
-      }),
-    )
-    message.info('Kalan kumaş fire olarak kaydedildi')
+      },
+    })
   }
 
   const ozet = useMemo(() => {
@@ -523,6 +695,7 @@ export default function KesimKarti() {
               if (record.kaynakFisId) setSeciliFisId(record.kaynakFisId)
               if (record.kaynakKalemId) setSeciliFisKalemId(record.kaynakKalemId)
               setTarih(dayjs(record.tarih))
+              temizleKirli()
             },
           },
           ...(record.durum === 'KESILDI'
@@ -549,6 +722,13 @@ export default function KesimKarti() {
                 onClick: () => fireOlarakKaydet(record.id),
               }]
             : []),
+          {
+            key: 'sil',
+            label: 'Sil',
+            icon: <DeleteOutlined />,
+            danger: true,
+            onClick: () => kesimSil(record.id),
+          },
         ]
 
         return (
@@ -568,6 +748,14 @@ export default function KesimKarti() {
         <span className="text-[11px] font-semibold text-[#9ca3af] uppercase tracking-wider">
           Kesim Kartı
         </span>
+        <Button
+          size="small"
+          icon={<FileTextOutlined />}
+          onClick={talepAc}
+          className="!ml-auto !text-[11px]"
+        >
+          Kumaş Talebi
+        </Button>
       </div>
 
       {/* 2 Kolonlu Yapı */}
@@ -853,6 +1041,7 @@ export default function KesimKarti() {
           columns={columns}
           dataSource={kesimKartlari}
           rowKey="id"
+          loading={kesimYukleniyor}
           pagination={{ pageSize: 15, size: 'small', showSizeChanger: false }}
           scroll={{ y: 'calc(100vh - 420px)' }}
           locale={{ emptyText: 'Henüz kesim kartı oluşturulmadı' }}
@@ -921,8 +1110,186 @@ export default function KesimKarti() {
           </div>
         </div>
       </Modal>
+
+      {/* Sipariş bazlı kumaş talebi formu */}
+      <Modal
+        title="Kumaş Talebi"
+        open={talepModalAcik}
+        onCancel={() => setTalepModalAcik(false)}
+        footer={null}
+        width={900}
+      >
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Sipariş</div>
+              <Select
+                className="!w-full"
+                size="small"
+                placeholder="Sipariş seçin"
+                value={talepSiparisNo || undefined}
+                onChange={(v) => {
+                  setTalepSiparisNo(v)
+                  talepSatirlariYukle(v)
+                }}
+                options={siparisler.map((s) => ({ label: s.siparisNo, value: s.siparisNo }))}
+              />
+            </div>
+            <div>
+              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Talep No</div>
+              <div className="text-[12px] font-semibold text-gray-700 leading-6">{talepNo || '—'}</div>
+            </div>
+            <div>
+              <div className="text-[9px] text-gray-400 mb-0.5 uppercase">Tarih</div>
+              <div className="text-[12px] font-semibold text-gray-700 leading-6">{dayjs().format('DD.MM.YYYY')}</div>
+            </div>
+          </div>
+
+          <Input.TextArea
+            rows={2}
+            placeholder="Açıklama"
+            value={talepAciklama}
+            onChange={(e) => setTalepAciklama(e.target.value)}
+          />
+
+          <Table<TalepSatir>
+            size="small"
+            dataSource={talepSatirlar}
+            rowKey="key"
+            pagination={false}
+            scroll={{ y: 220 }}
+            locale={{ emptyText: 'Sipariş seçince model kumaşları listelenir' }}
+            columns={[
+              { title: 'Kumaş', dataIndex: 'kumasAd', ellipsis: true },
+              { title: 'Renk', dataIndex: 'renk', width: 120 },
+              {
+                title: 'Miktar',
+                width: 110,
+                render: (_: unknown, r: TalepSatir) => (
+                  <InputNumber
+                    size="small"
+                    className="!w-full"
+                    min={0}
+                    value={r.miktar ?? undefined}
+                    onChange={(v) =>
+                      setTalepSatirlar((prev) => prev.map((x) => (x.key === r.key ? { ...x, miktar: v } : x)))
+                    }
+                  />
+                ),
+              },
+              { title: 'Birim', dataIndex: 'birim', width: 70 },
+            ]}
+          />
+
+          <div className="flex justify-end gap-2">
+            <Button size="small" onClick={() => setTalepModalAcik(false)}>
+              Kapat
+            </Button>
+            <Button size="small" type="primary" onClick={talepKaydet}>
+              Talebi Kaydet
+            </Button>
+          </div>
+
+          <div className="text-[10px] text-gray-500 uppercase mt-1">Bu siparişin talepleri</div>
+          <Table<KumasTalep>
+            size="small"
+            dataSource={talepler}
+            rowKey="id"
+            pagination={false}
+            scroll={{ y: 160 }}
+            locale={{ emptyText: 'Talep yok' }}
+            columns={[
+              { title: 'Talep No', dataIndex: 'talepNo', width: 130 },
+              {
+                title: 'Tarih',
+                dataIndex: 'tarih',
+                width: 100,
+                render: (v: string) => (v ? new Date(v).toLocaleDateString('tr-TR') : '—'),
+              },
+              {
+                title: 'Kalemler',
+                ellipsis: true,
+                render: (_: unknown, t: KumasTalep) =>
+                  (t.kalemler ?? [])
+                    .map((k) => `${k.kumasAd || k.kumasKod}${k.renk ? ' / ' + k.renk : ''} ${Number(k.miktar)} ${k.birim}`)
+                    .join(', '),
+              },
+              {
+                title: '',
+                width: 60,
+                align: 'center',
+                render: (_: unknown, t: KumasTalep) => (
+                  <Button type="link" size="small" danger onClick={() => talepSil(t.id)}>
+                    Sil
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        </div>
+      </Modal>
     </div>
   )
+}
+
+// API kaydını ekranın satır modeline çevirir (Prisma Decimal değerleri metin gelir).
+function kesimToRecord(k: Kesim): KesimKartiRecord {
+  return {
+    id: k.id,
+    siparisNo: k.siparisNo,
+    modelKod: k.modelKod,
+    modelAd: k.modelAd ?? '',
+    renkAd: k.renkAd,
+    beden: k.beden,
+    planlananMiktar: Number(k.planlananMiktar) || 0,
+    kesilenMiktar: Number(k.kesilenMiktar) || 0,
+    fireMiktar: Number(k.fireMiktar) || 0,
+    kumasAd: k.kumasAd ?? '',
+    kumasRenk: k.kumasRenk ?? '',
+    gerekliMiktar: Number(k.gerekliMiktar) || 0,
+    brutMiktar: Number(k.brutMiktar) || 0,
+    kumasMiktar: Number(k.kumasMiktar) || 0,
+    birimTuketim: Number(k.birimTuketim) || 0,
+    beklenenAdet: Number(k.beklenenAdet) || 0,
+    kalanMT: Number(k.kalanMT) || 0,
+    fireOrani: Number(k.fireOrani) || 0,
+    iadeTalep: !!k.iadeTalep,
+    tarih: k.tarih,
+    durum: k.durum === 'DIKIME_GONDERILDI' ? 'DIKIME_GONDERILDI' : 'KESILDI',
+    kaynakFisId: k.kaynakFisId ?? null,
+    kaynakFisNo: k.kaynakFisNo ?? null,
+    kaynakKalemId: k.kaynakKalemId ?? null,
+    manuelFire: !!k.manuelFire,
+  }
+}
+
+function recordToForm(k: KesimKartiRecord): KesimForm {
+  return {
+    siparisNo: k.siparisNo,
+    modelKod: k.modelKod,
+    modelAd: k.modelAd,
+    renkAd: k.renkAd,
+    beden: k.beden,
+    planlananMiktar: k.planlananMiktar,
+    kesilenMiktar: k.kesilenMiktar,
+    fireMiktar: k.fireMiktar,
+    kumasAd: k.kumasAd,
+    kumasRenk: k.kumasRenk,
+    gerekliMiktar: k.gerekliMiktar,
+    brutMiktar: k.brutMiktar,
+    kumasMiktar: k.kumasMiktar,
+    birimTuketim: k.birimTuketim,
+    beklenenAdet: k.beklenenAdet,
+    kalanMT: k.kalanMT,
+    fireOrani: k.fireOrani,
+    iadeTalep: k.iadeTalep,
+    tarih: k.tarih,
+    durum: k.durum,
+    kaynakFisId: k.kaynakFisId ?? null,
+    kaynakFisNo: k.kaynakFisNo ?? null,
+    kaynakKalemId: k.kaynakKalemId ?? null,
+    manuelFire: k.manuelFire,
+  }
 }
 
 // Gerçek siparişi (kalem→renk→beden) kesim kartının kullandığı normalleştirilmiş yapıya çevirir.
@@ -958,5 +1325,5 @@ function normalizeSiparis(s: Siparis): SiparisBilgi {
       }
       return { modelKod: k.malzeme!.kod!, modelAd: k.malzeme?.ad ?? '', kumasGruplari, renkler }
     })
-  return { siparisNo: s.siparisNo, modeller }
+  return { id: s.id, siparisNo: s.siparisNo, modeller }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import SearchableSelect from './SearchableSelect'
 import MalzemeSecModal from './MalzemeSecModal'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
@@ -18,6 +18,14 @@ interface SearchableMalzemeSelectProps {
 export default function SearchableMalzemeSelect(props: SearchableMalzemeSelectProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const { filterKodlar, tip } = props
+  const filterKey = filterKodlar ? filterKodlar.join(',') : ''
+
+  const fetchList = useCallback(async () => {
+    const list = await malzemeApi.list(tip)
+    if (!filterKey) return list
+    const kodSet = new Set(filterKey.split(','))
+    return list.filter((d) => kodSet.has(d.kod))
+  }, [tip, filterKey])
 
   return (
     <>
@@ -26,13 +34,7 @@ export default function SearchableMalzemeSelect(props: SearchableMalzemeSelectPr
         hideAdLabel
         searchLabel={(d) => `${d.kod} - ${d.ad}`}
         onIconClick={() => setModalOpen(true)}
-        fetchList={async () => {
-          const list = await malzemeApi.list(tip)
-          if (filterKodlar && filterKodlar.length > 0) {
-            return list.filter((d) => filterKodlar.includes(d.kod))
-          }
-          return list
-        }}
+        fetchList={fetchList}
       />
       <MalzemeSecModal
         open={modalOpen}

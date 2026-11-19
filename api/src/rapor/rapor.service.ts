@@ -213,6 +213,7 @@ export class RaporService {
     const rows = await this.prisma.$queryRaw<
       {
         tarih: Date;
+        irsaliyeId: number;
         irsaliyeTipi: string;
         irsaliyeNo: string;
         depoKod: string | null;
@@ -232,6 +233,7 @@ export class RaporService {
     >`
       SELECT
         i.irsaliye_tarihi   AS tarih,
+        i.id                AS irsaliyeId,
         i.irsaliye_tipi     AS irsaliyeTipi,
         i.irsaliye_no       AS irsaliyeNo,
         d.kod               AS depoKod,
@@ -286,6 +288,7 @@ export class RaporService {
 
       return {
         tarih: r.tarih,
+        irsaliyeId: Number(r.irsaliyeId),
         irsaliyeTipi: r.irsaliyeTipi,
         irsaliyeNo: r.irsaliyeNo,
         depoKod: r.depoKod,

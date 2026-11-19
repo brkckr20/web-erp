@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Input, Select, Switch, App, Spin } from 'antd'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { malzemeApi, type Malzeme, type MalzemeFormData } from '@/lib/malzeme-api'
+import { useKirli } from '@/lib/kirli'
 import { useAuth } from '@/context/AuthContext'
 
 interface HizmetFormData {
@@ -29,9 +30,10 @@ const kdvOptions = ['%0', '%1', '%8', '%10', '%18', '%20'].map((v) => ({ value: 
 interface HizmetKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function HizmetKarti({ isNew, kod }: HizmetKartiProps) {
+export default function HizmetKarti({ isNew, kod, onKirliChange }: HizmetKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const [form, setForm] = useState<HizmetFormData>(emptyData)
@@ -39,6 +41,8 @@ export default function HizmetKarti({ isNew, kod }: HizmetKartiProps) {
   const [kayitBilgi, setKayitBilgi] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const loadByKod = useCallback(async (kod: string) => {
     setLoading(true)
@@ -63,6 +67,7 @@ export default function HizmetKarti({ isNew, kod }: HizmetKartiProps) {
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [message])
 
@@ -73,6 +78,7 @@ export default function HizmetKarti({ isNew, kod }: HizmetKartiProps) {
       setForm(emptyData)
       setId(null)
       setKayitBilgi('')
+      temizle()
     }
   }, [kod, isNew, loadByKod])
 
@@ -83,6 +89,7 @@ export default function HizmetKarti({ isNew, kod }: HizmetKartiProps) {
     setId(null)
     setForm(emptyData)
     setKayitBilgi('')
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -127,6 +134,7 @@ export default function HizmetKarti({ isNew, kod }: HizmetKartiProps) {
       }
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -187,6 +195,8 @@ export default function HizmetKarti({ isNew, kod }: HizmetKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

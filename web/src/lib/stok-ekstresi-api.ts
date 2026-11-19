@@ -4,6 +4,7 @@ import { api } from './api'
 
 export interface StokEkstresiSatir {
   tarih: string
+  irsaliyeId: number
   irsaliyeTipi: string
   irsaliyeNo: string
   depoKod: string | null

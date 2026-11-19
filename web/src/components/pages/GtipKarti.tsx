@@ -4,17 +4,21 @@ import { useState, useEffect } from 'react'
 import { Input, App, Spin } from 'antd'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { gtipApi, type Gtip } from '@/lib/gtip-api'
+import { useKirli } from '@/lib/kirli'
 
 interface GtipKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function GtipKarti({ isNew, kod }: GtipKartiProps) {
+export default function GtipKarti({ isNew, kod, onKirliChange }: GtipKartiProps) {
   const { message, modal } = App.useApp()
   const [gtip, setGtip] = useState<Gtip | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([gtip])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const initNew = () => ({ id: 0, kod: '', ad: '', kullanimda: true, createdAt: '', updatedAt: '' })
 
@@ -37,11 +41,13 @@ export default function GtipKarti({ isNew, kod }: GtipKartiProps) {
       message.warning('GTİP bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }
 
   const handleYeni = () => {
     setGtip(null)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -58,6 +64,7 @@ export default function GtipKarti({ isNew, kod }: GtipKartiProps) {
       message.error(err instanceof Error ? err.message : 'Kayıt sırasında hata oluştu')
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -88,6 +95,8 @@ export default function GtipKarti({ isNew, kod }: GtipKartiProps) {
     onNew: handleYeni,
     onSave: handleKaydet,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (

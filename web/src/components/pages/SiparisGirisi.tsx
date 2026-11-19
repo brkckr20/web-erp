@@ -2,11 +2,11 @@
 
 import { Dropdown, Button, App } from 'antd'
 import type { MenuProps } from 'antd'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, ReloadOutlined, CheckCircleOutlined, ClockCircleOutlined, PlayCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
-import { siparisApi, type Siparis } from '@/lib/siparis-api'
+import { siparisApi, SIPARIS_DURUM_ETIKET, siparisDurumKodu, type Siparis, type SiparisDurum } from '@/lib/siparis-api'
 
 interface SiparisRow {
   key: string
@@ -20,6 +20,7 @@ interface SiparisRow {
   toplamTutarDoviz: string
   toplamTutarTL: number
   durum: string
+  durumKodu: SiparisDurum
   aciklama: string
   kayitTarihi: string
   kayitYapan: string
@@ -35,6 +36,7 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
   const { message, modal } = App.useApp()
   const [data, setData] = useState<SiparisRow[]>([])
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
 
   const formatTarih = (t: string | null | undefined) => {
@@ -72,6 +74,8 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
       .map(([kod, tutar]) => `${tutar.toFixed(2)} ${kod}`)
       .join(' | ')
 
+    const durumKodu = siparisDurumKodu(s.durum, s.onaylandi)
+
     return {
       key: String(s.id),
       id: s.id,
@@ -83,7 +87,8 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
       toplamMiktar: kalemler.reduce((a, k) => a + (Number(k.miktar) || 0), 0),
       toplamTutarDoviz: dovizGosterim,
       toplamTutarTL: hasToplamTutar ? Number(s.toplamTutar) || 0 : tlToplam,
-      durum: s.durum ?? '',
+      durum: SIPARIS_DURUM_ETIKET[durumKodu],
+      durumKodu,
       aciklama: genel,
       kayitTarihi: formatTarih(s.kayitTarihi),
       kayitYapan: s.kayitYapan ?? '',
@@ -95,6 +100,8 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
     try {
       const list = await siparisApi.list()
       setData(list.map(toRow))
+      setSelectedIds([])
+      setSelectedRow(null)
     } catch {
       setData([])
       message.warning('Sipariş listesi yüklenemedi')
@@ -106,6 +113,12 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
   useEffect(() => {
     load()
   }, [])
+
+  const seciliSatirlar = data.filter((d) => selectedIds.includes(d.id))
+  const hepsiDurum = (kod: SiparisDurum) =>
+    seciliSatirlar.length > 0 && seciliSatirlar.every((r) => r.durumKodu === kod)
+  const secimEtiketi = (etiket: string) =>
+    selectedIds.length > 1 ? `${etiket} (${selectedIds.length})` : etiket
 
   const contextMenuItems: MenuProps['items'] = [
     { key: 'yeni', label: 'Yeni', icon: <PlusOutlined /> },
@@ -122,10 +135,45 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
       ],
     },
     { type: 'divider' },
+    {
+      key: 'durum-islemleri',
+      label: 'Onaylama İşlemleri',
+      icon: <CheckCircleOutlined />,
+      disabled: selectedIds.length === 0,
+      children: [
+        {
+          key: 'durum:bekliyor',
+          label: secimEtiketi(SIPARIS_DURUM_ETIKET.bekliyor),
+          icon: <ClockCircleOutlined />,
+          disabled: hepsiDurum('bekliyor'),
+        },
+        {
+          key: 'durum:onaylandi',
+          label: secimEtiketi(SIPARIS_DURUM_ETIKET.onaylandi),
+          icon: <CheckCircleOutlined />,
+          disabled: hepsiDurum('onaylandi'),
+        },
+        {
+          key: 'durum:calisiyor',
+          label: secimEtiketi(SIPARIS_DURUM_ETIKET.calisiyor),
+          icon: <PlayCircleOutlined />,
+          disabled: hepsiDurum('calisiyor'),
+        },
+        { type: 'divider' },
+        {
+          key: 'durum:iptal',
+          label: secimEtiketi(SIPARIS_DURUM_ETIKET.iptal),
+          icon: <CloseCircleOutlined />,
+          danger: true,
+          disabled: hepsiDurum('iptal'),
+        },
+      ],
+    },
+    { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow },
   ]
 
-  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
+  const handleMenuClick: MenuProps['onClick'] = async ({ key }) => {
     if (key === 'yeni') return onNew?.()
     if (key === 'duzenle') {
       if (selectedRow) {
@@ -138,6 +186,24 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
       const tip = key.replace('tedarik-', '') as 'kumas' | 'iplik' | 'aksesuar'
       const row = data.find((d) => d.id === selectedRow)
       if (selectedRow && row) onTedarik?.(tip, selectedRow, row.siparisNo)
+      return
+    }
+    if (key.startsWith('durum:')) {
+      const durum = key.slice('durum:'.length) as SiparisDurum
+      const idler = [...selectedIds]
+      if (idler.length === 0) return
+      try {
+        if (idler.length === 1) await siparisApi.setDurum(idler[0], durum)
+        else await siparisApi.setDurumToplu(idler, durum)
+        message.success(
+          idler.length === 1
+            ? `Sipariş durumu "${SIPARIS_DURUM_ETIKET[durum]}" olarak güncellendi`
+            : `${idler.length} siparişin durumu "${SIPARIS_DURUM_ETIKET[durum]}" olarak güncellendi`,
+        )
+        await load()
+      } catch {
+        message.error('Durum güncellenemedi')
+      }
       return
     }
     if (key === 'sil') {
@@ -173,7 +239,7 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
       { headerName: 'Toplam Miktar', field: 'toplamMiktar', width: 110 },
       { headerName: 'Toplam Tutar (Döviz)', field: 'toplamTutarDoviz', flex: 1, minWidth: 150 },
       { headerName: 'Toplam Tutar (TL)', field: 'toplamTutarTL', width: 120, valueFormatter: (p) => `${Number(p.value ?? 0).toFixed(2)} TL` },
-      { headerName: 'Durum', field: 'durum', width: 100 },
+      { headerName: 'Durum', field: 'durum', width: 140 },
       { headerName: 'Açıklama', field: 'aciklama', flex: 1, minWidth: 120 },
       { headerName: 'Kayıt Tarihi', field: 'kayitTarihi', width: 110 },
       { headerName: 'Kayıt Eden', field: 'kayitYapan', width: 110 },
@@ -203,16 +269,20 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
               columnDefs={columns}
               domLayout="normal"
               exportFileName="siparis-listesi"
-              rowSelection="single"
+              rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true, enableClickSelection: true }}
               onSelectionChanged={(e) => {
-                const sel = e.api.getSelectedRows()
-                setSelectedRow(sel[0]?.id ?? null)
+                const sel = e.api.getSelectedRows() as SiparisRow[]
+                setSelectedIds(sel.map((r) => r.id))
+                setSelectedRow(sel.length === 1 ? sel[0].id : null)
               }}
               onRowDoubleClicked={(e) => e.data && onSelect?.(e.data.id, e.data.siparisNo)}
               onCellContextMenu={(e) => {
-                if (e.data) {
+                if (!e.data) return
+                // Çoklu seçim korunur: sağ tıklanan satır zaten seçiliyse seçim bozulmaz.
+                const seciliMi = e.api.getSelectedRows().some((r) => (r as SiparisRow).id === e.data!.id)
+                if (!seciliMi) {
+                  e.api.deselectAll()
                   e.node?.setSelected(true)
-                  setSelectedRow(e.data.id)
                 }
               }}
             />

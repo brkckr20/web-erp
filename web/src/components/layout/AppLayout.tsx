@@ -8,7 +8,7 @@ import LoginPage from '@/components/pages/LoginPage'
 import Sidebar from './Sidebar'
 import MegaMenu from './MegaMenu'
 import TabBar from './TabBar'
-import { Module, Tab } from '@/data/modules'
+import { Module, Tab, type StokFisiBaslangicKalem } from '@/data/modules'
 import DepoKarti from '@/components/pages/DepoKarti'
 import DepoListesi from '@/components/pages/DepoListesi'
 import RafKarti from '@/components/pages/RafKarti'
@@ -91,11 +91,22 @@ import SablonEditori from '@/components/pages/SablonEditori'
 import MalzemeStokEkstresi from '@/components/pages/MalzemeStokEkstresi'
 import HizmetTalepListesi from '@/components/pages/HizmetTalepListesi'
 import HizmetTalepKarti from '@/components/pages/HizmetTalepKarti'
+import SatinalmaFiyatTeklifListesi from '@/components/pages/SatinalmaFiyatTeklifListesi'
+import SatinalmaFiyatTeklifKarti from '@/components/pages/SatinalmaFiyatTeklifKarti'
 import HizmetListesi from '@/components/pages/HizmetListesi'
 import HizmetKarti from '@/components/pages/HizmetKarti'
 import LogTakibi from '@/components/pages/LogTakibi'
 
 const { Content } = Layout
+
+// Fatura kartından açılan irsaliyenin rapor ekranı, irsaliyenin kendi menüsüne göre seçilir.
+const satinalmaIrsaliyeTipleri = new Set(['1', '5', '6', '7', '9', '11', '22', '92', '122', '124', '133', '139'])
+const irsaliyeEkranAdi = (irsaliyeTipi: string) =>
+  irsaliyeTipi === '201' || irsaliyeTipi === '202'
+    ? 'satinalma-siparis'
+    : satinalmaIrsaliyeTipleri.has(irsaliyeTipi)
+      ? 'satinalma-irsaliyeleri'
+      : 'satis-irsaliyeleri'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth()
@@ -324,12 +335,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         const tab: Tab = { key, label, moduleKey: 'satis', isForm: true, irsaliyeTipi: info.irsaliyeTipi, ekranAdi: info.ekranAdi }
         const exists = prev.find((t) => t.key === key)
         if (!exists) return [...prev, tab]
-        return prev
+        // Kayıt başka bir girişten açılmışsa rapor ekranı, son açıldığı bağlama göre güncellenir.
+        if (!info.ekranAdi || exists.ekranAdi === info.ekranAdi) return prev
+        return prev.map((t) => (t.key === key ? { ...t, ekranAdi: info.ekranAdi } : t))
       })
       setActiveTab(key)
     },
     [irsaliyeTipiLabelMap],
   )
+
+  // Fatura kartındaki bağlı irsaliye etiketi ekran adı taşımaz; doğrusu tipine göre burada eklenir.
+  const openIrsaliyeFromFatura = useCallback(
+    (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => {
+      openIrsaliyeKarti({ ...info, ekranAdi: irsaliyeEkranAdi(info.irsaliyeTipi) })
+    },
+    [openIrsaliyeKarti],
+  )
+
+  // İrsaliye silinince sekme kapanmaz: aynı yerde, aynı fiş tipinde boş "yeni" formuna döner.
+  const handleIrsaliyeKartiDeleted = useCallback((tabKey: string, irsaliyeTipi: string) => {
+    const yeniKey = 'satis-irsaliye-yeni-' + irsaliyeTipi
+    const fisAdi = (irsaliyeTipiLabelMap[irsaliyeTipi] || 'Satış İrsaliyesi').replace(/^\d+-/, '')
+    setKirli(tabKey, false)
+    // Boş "yeni" form: önceki planlama aktarımı/talimat bağlantısı taşınmaz.
+    setSatinalmaBaslangicKalemler([])
+    setBaslangicTalimatId(null)
+    setTabs((prev) => {
+      if (prev.some((t) => t.key === yeniKey)) return prev.filter((t) => t.key !== tabKey)
+      return prev.map((t) =>
+        t.key === tabKey ? { ...t, key: yeniKey, label: `Yeni ${fisAdi} (${irsaliyeTipi})` } : t,
+      )
+    })
+    setActiveTab(yeniKey)
+  }, [irsaliyeTipiLabelMap])
 
   const openYeniFatura = useCallback(
     (faturaTipi: string, fasonTipiId?: number | null, irsaliyeIds?: number[]) => {
@@ -380,6 +418,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
+  const openUretimeCikis = useCallback((kalemler: StokFisiBaslangicKalem[]) => {
+    const key = 'uretime-cikis-yeni-' + Date.now()
+    setTabs((prev) => [
+      ...prev,
+      {
+        key,
+        label: 'Yeni ' + (fisTipiLabelMap['140'] || '140-Üretime Çıkış Fişi'),
+        moduleKey: 'stok',
+        isForm: true,
+        baslangicStokKalemleri: kalemler,
+      },
+    ])
+    setActiveTab(key)
+  }, [])
+
   const openMalzemeYonetimFisiKarti = useCallback(
     (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => {
       const key = 'malzeme-yonetim-fisi-karti-' + info.id
@@ -408,6 +461,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleMalzemeYonetimFisiDeleted = useCallback((irsaliyeTipi: string) => {
     const currentKey = activeTab
+    setKirli(currentKey, false)
     setTabs((prev) => prev.filter((t) => t.key !== currentKey))
     openYeniMalzemeYonetimFisi(irsaliyeTipi)
   }, [activeTab, openYeniMalzemeYonetimFisi])
@@ -965,7 +1019,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
-  const handleTabClose = (key: string) => {
+  // `zorla`: kayıt silindikten sonra çağrılır; "kaydedilmemiş değişiklik" onayı sorulmaz.
+  const handleTabClose = (key: string, zorla = false) => {
     const closeTabNow = () => {
       setKirli(key, false)
       setTabs((prev) => {
@@ -983,7 +1038,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       })
     }
 
-    if (kirliSekmeler[key]) {
+    if (!zorla && kirliSekmeler[key]) {
       modal.confirm({
         title: 'Kaydedilmemiş değişiklikler',
         content: 'Bu ekranda kaydedilmemiş değişiklikler var. Yine de kapatılsın mı?',
@@ -1024,20 +1079,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <SirketListesi onSelect={openSirketKarti} onNew={openYeniSirket} />
     }
     if (tab.key === 'sirket-karti-yeni') {
-      return <SirketKarti />
+      return <SirketKarti onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('sirket-karti-')) {
       const sirketId = Number(tab.key.replace('sirket-karti-', ''))
-      if (!isNaN(sirketId)) return <SirketKarti id={sirketId} />
+      if (!isNaN(sirketId)) return <SirketKarti id={sirketId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'log-takibi') {
       return <LogTakibi />
     }
     if (tab.key === 'kullanici-karti-yeni') {
-      return <KullaniciKarti isNew />
+      return <KullaniciKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('kullanici-karti-')) {
-      return <KullaniciKarti kod={tab.key.replace('kullanici-karti-', '')} />
+      return <KullaniciKarti kod={tab.key.replace('kullanici-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'malzeme-yonetim-parametreleri') {
       return <MalzemeYonetimParametreleri />
@@ -1076,6 +1131,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'hizmet-talep-yeni') {
       return (
         <HizmetTalepKarti
+          onKirliChange={(b) => setKirli('hizmet-talep-yeni', b)}
           onClose={() => {
             setTabs((prev) => prev.filter((t) => t.key !== 'hizmet-talep-yeni'))
             setActiveTab('hizmet-talepleri')
@@ -1100,6 +1156,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return (
           <HizmetTalepKarti
             id={talepId}
+            onKirliChange={(b) => setKirli(tab.key, b)}
             onClose={() => {
               setTabs((prev) => prev.filter((t) => t.key !== tab.key))
               setActiveTab('hizmet-talepleri')
@@ -1169,6 +1226,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'depo-stok-detay') {
       return <DepoStokDetay onStokEkstresi={openMalzemeStokEkstresi} />
     }
+    if (tab.key.startsWith('uretime-cikis-yeni-')) {
+      return (
+        <MalzemeYonetimFisleriKarti
+          fisTipi="140"
+          baslangicKalemler={tab.baslangicStokKalemleri}
+          onKirliChange={(b) => setKirli(tab.key, b)}
+        />
+      )
+    }
     if (tab.key.startsWith('malzeme-yonetim-fisi-yeni-')) {
       const fisTipi = tab.key.replace('malzeme-yonetim-fisi-yeni-', '')
       return <MalzemeYonetimFisleriKarti fisTipi={fisTipi} onKirliChange={(b) => setKirli(tab.key, b)} />
@@ -1184,10 +1250,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <HizmetListesi onSelect={openHizmetKarti} onNew={openYeniHizmet} />
     }
     if (tab.key === 'hizmet-karti-yeni') {
-      return <HizmetKarti isNew />
+      return <HizmetKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('hizmet-karti-')) {
-      return <HizmetKarti kod={tab.key.replace('hizmet-karti-', '')} />
+      return <HizmetKarti kod={tab.key.replace('hizmet-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'malzeme-karti-yeni') {
       return <MalzemeKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
@@ -1196,7 +1262,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <MalzemeKarti kod={tab.key.replace('malzeme-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('malzeme-stok-ekstresi-')) {
-      return <MalzemeStokEkstresi malzemeKod={tab.key.replace('malzeme-stok-ekstresi-', '')} depoKod={tab.depoKod ?? undefined} />
+      return <MalzemeStokEkstresi malzemeKod={tab.key.replace('malzeme-stok-ekstresi-', '')} depoKod={tab.depoKod ?? undefined} onFisAc={openFisKarti} />
     }
     if (tab.key === 'makina-kartlari') {
       return <MakinaListesi onSelect={openMakinaKarti} onNew={openYeniMakina} />
@@ -1224,16 +1290,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('kalite-kontrol-karti-')) {
       const kkId = Number(tab.key.replace('kalite-kontrol-karti-', ''))
-      return <KaliteKontrolKarti id={kkId} active={activeTab === tab.key} onDeleted={() => handleTabClose(tab.key)} onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <KaliteKontrolKarti id={kkId} active={activeTab === tab.key} onDeleted={() => handleTabClose(tab.key, true)} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'is-emri-tanimlari') {
       return <IsEmriListesi onSelect={openIsEmriKarti} onNew={openYeniIsEmri} />
     }
     if (tab.key === 'is-emri-karti-yeni') {
-      return <IsEmriKarti isNew />
+      return <IsEmriKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('is-emri-karti-')) {
-      return <IsEmriKarti kod={tab.key.replace('is-emri-karti-', '')} />
+      return <IsEmriKarti kod={tab.key.replace('is-emri-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'kumas-kartlari') {
       return <KumasListesi onSelect={openKumasKarti} onNew={openYeniKumas} />
@@ -1248,10 +1314,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <RotaListesi onSelect={openRotaKarti} onNew={openYeniRota} />
     }
     if (tab.key === 'rota-karti-yeni') {
-      return <RotaKarti isNew />
+      return <RotaKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('rota-karti-')) {
-      return <RotaKarti kod={tab.key.replace('rota-karti-', '')} />
+      return <RotaKarti kod={tab.key.replace('rota-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'iplik-kartlari') {
       return <IplikListesi onSelect={openIplikKarti} onNew={openYeniIplik} />
@@ -1293,19 +1359,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <RenkListesi onSelect={openRenkKarti} onNew={openYeniRenk} />
     }
     if (tab.key === 'renk-karti-yeni') {
-      return <RenkKarti isNew />
+      return <RenkKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('renk-karti-')) {
-      return <RenkKarti kod={tab.key.replace('renk-karti-', '')} />
+      return <RenkKarti kod={tab.key.replace('renk-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'doviz-tanimlari') {
       return <DovizListesi onSelect={openDovizKarti} onNew={openYeniDoviz} />
     }
     if (tab.key === 'doviz-karti-yeni') {
-      return <DovizKarti isNew />
+      return <DovizKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('doviz-karti-')) {
-      return <DovizKarti kod={tab.key.replace('doviz-karti-', '')} />
+      return <DovizKarti kod={tab.key.replace('doviz-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'doviz-kurlari') {
       return <DovizKurlari />
@@ -1314,55 +1380,55 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <BoyahaneRenkListesi onSelect={openBoyahaneRenkKarti} onNew={openYeniBoyahaneRenk} />
     }
     if (tab.key === 'boyahane-renk-karti-yeni') {
-      return <BoyahaneRenkKarti isNew />
+      return <BoyahaneRenkKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('boyahane-renk-karti-')) {
-      return <BoyahaneRenkKarti kod={tab.key.replace('boyahane-renk-karti-', '')} />
+      return <BoyahaneRenkKarti kod={tab.key.replace('boyahane-renk-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'model-kartlari') {
       return <ModelListesi onSelect={openModelKarti} onNew={openYeniModel} />
     }
     if (tab.key === 'model-karti-yeni') {
-      return <ModelKarti isNew />
+      return <ModelKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('model-karti-')) {
-      return <ModelKarti kod={tab.key.replace('model-karti-', '')} onOpenSiparis={openSiparisKarti} onKopyalandi={openModelKarti} />
+      return <ModelKarti kod={tab.key.replace('model-karti-', '')} onOpenSiparis={openSiparisKarti} onKopyalandi={openModelKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'marka-kartlari') {
       return <MarkaListesi onSelect={openMarkaKarti} onNew={openYeniMarka} />
     }
     if (tab.key === 'marka-karti-yeni') {
-      return <MarkaKarti isNew />
+      return <MarkaKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('marka-karti-')) {
-      return <MarkaKarti kod={tab.key.replace('marka-karti-', '')} />
+      return <MarkaKarti kod={tab.key.replace('marka-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'grup-kartlari') {
       return <GrupListesi onSelect={openGrupKarti} onNew={openYeniGrup} />
     }
     if (tab.key === 'grup-karti-yeni') {
-      return <GrupKarti isNew />
+      return <GrupKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('grup-karti-')) {
-      return <GrupKarti kod={tab.key.replace('grup-karti-', '')} />
+      return <GrupKarti kod={tab.key.replace('grup-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'beden-tanimlari') {
       return <BedenListesi onSelect={openBedenKarti} onNew={openYeniBeden} />
     }
     if (tab.key === 'beden-tanim-yeni') {
-      return <BedenKarti isNew />
+      return <BedenKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('beden-tanim-')) {
-      return <BedenKarti kod={tab.key.replace('beden-tanim-', '')} />
+      return <BedenKarti kod={tab.key.replace('beden-tanim-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'gtip-tanimlari') {
       return <GtipListesi onSelect={openGtipKarti} onNew={openYeniGtip} />
     }
     if (tab.key === 'gtip-karti-yeni') {
-      return <GtipKarti isNew />
+      return <GtipKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('gtip-karti-')) {
-      return <GtipKarti kod={tab.key.replace('gtip-karti-', '')} />
+      return <GtipKarti kod={tab.key.replace('gtip-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'aksesuar-tipi-kartlari') {
       return <AksesuarTipiListesi onSelect={openAksesuarTipiKarti} onNew={openYeniAksesuarTipi} />
@@ -1411,16 +1477,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <TedarikEkrani tip="aksesuar" />
     }
     if (tab.key === 'kumas-planlama') {
-      return <KumasPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onFasonTalimat={openFasonTalimat} onIsEmriAc={openIsEmriKarti} />
+      return (
+        <KumasPlanlama
+          onYeniSatinalmaSiparis={openYeniSatinalmaSiparis}
+          onFasonTalimat={openFasonTalimat}
+          onIsEmriAc={openIsEmriKarti}
+          onUretimeCikis={openUretimeCikis}
+        />
+      )
     }
     if (tab.key === 'iplik-planlama') {
       return <IplikPlanlama onYeniSatinalmaSiparis={openYeniSatinalmaSiparis} onIrsaliyeAc={openIrsaliyeKarti} onFasonTalimat={openFasonTalimat} />
     }
     if (tab.key === 'siparis-karti-yeni') {
-      return <SiparisKarti isNew key={`yeni-${yeniSiparisKey}`} onTedarik={openTedarik} />
+      return <SiparisKarti isNew key={`yeni-${yeniSiparisKey}`} onTedarik={openTedarik} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('siparis-karti-')) {
-      return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} onTedarik={openTedarik} />
+      return <SiparisKarti id={Number(tab.key.replace('siparis-karti-', ''))} onTedarik={openTedarik} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'uretim-hareket') {
       return <UretimHareketGirisi />
@@ -1435,7 +1508,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <KumasTedarikRaporu />
     }
     if (tab.key === 'kesim-emri') {
-      return <KesimKarti />
+      return <KesimKarti onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'iade-talepleri') {
       return <IadeTalepleri onIrsaliyeAc={openIrsaliyeKarti} />
@@ -1448,6 +1521,57 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'satinalma-siparis') {
       return <IrsaliyeListesi mod="satinalma-siparis" onNew={() => openYeniSatinalmaSiparis([])} onSelect={openIrsaliyeKarti} />
+    }
+    if (tab.key === 'satinalma-fiyat-teklifleri') {
+      return (
+        <SatinalmaFiyatTeklifListesi
+          onOpen={(teklifId) => {
+            const key = teklifId ? `satinalma-fiyat-teklif-${teklifId}` : 'satinalma-fiyat-teklif-yeni'
+            setTabs((prev) => {
+              const t: Tab = { key, label: teklifId ? `SFT #${teklifId}` : 'Yeni Fiyat Teklifi', moduleKey: 'satinalma', isForm: true }
+              if (!prev.find((x) => x.key === key)) return [...prev, t]
+              return prev
+            })
+            setActiveTab(key)
+          }}
+        />
+      )
+    }
+    if (tab.key === 'satinalma-fiyat-teklif-yeni') {
+      return (
+        <SatinalmaFiyatTeklifKarti
+          onKirliChange={(b) => setKirli('satinalma-fiyat-teklif-yeni', b)}
+          onClose={() => {
+            setTabs((prev) => prev.filter((t) => t.key !== 'satinalma-fiyat-teklif-yeni'))
+            setActiveTab('satinalma-fiyat-teklifleri')
+          }}
+          onKaydet={(yeniId) => {
+            const key = `satinalma-fiyat-teklif-${yeniId}`
+            setTabs((prev) => {
+              const filtered = prev.filter((t) => t.key !== 'satinalma-fiyat-teklif-yeni')
+              const t: Tab = { key, label: `SFT #${yeniId}`, moduleKey: 'satinalma', isForm: true }
+              if (filtered.find((x) => x.key === key)) return filtered
+              return [...filtered, t]
+            })
+            setActiveTab(key)
+          }}
+        />
+      )
+    }
+    if (tab.key.startsWith('satinalma-fiyat-teklif-')) {
+      const teklifId = Number(tab.key.replace('satinalma-fiyat-teklif-', ''))
+      if (!isNaN(teklifId)) {
+        return (
+          <SatinalmaFiyatTeklifKarti
+            id={teklifId}
+            onKirliChange={(b) => setKirli(tab.key, b)}
+            onClose={() => {
+              setTabs((prev) => prev.filter((t) => t.key !== tab.key))
+              setActiveTab('satinalma-fiyat-teklifleri')
+            }}
+          />
+        )
+      }
     }
     // Fason Hareket Fişleri -> Fason Talimatı (202) listesi, alt tip Fason Tipleri'nden seçilir.
     if (tab.key === 'fason-hareket') {
@@ -1474,7 +1598,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('satis-irsaliye-karti-')) {
       const irsaliyeId = Number(tab.key.replace('satis-irsaliye-karti-', ''))
-      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onKirliChange={(b) => setKirli(tab.key, b)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} onOpenFatura={openFaturaKarti} onOpenIrsaliye={openIrsaliyeKarti} />
+      return <IrsaliyeKarti id={irsaliyeId} irsaliyeTipi={tab.irsaliyeTipi} ekranAdi={tab.ekranAdi} onDeleted={(tip) => handleIrsaliyeKartiDeleted(tab.key, tip)} onKirliChange={(b) => setKirli(tab.key, b)} onCreateIrsaliye={handleCreateIrsaliye} onCreateFatura={handleCreateFatura} onOpenFatura={openFaturaKarti} onOpenIrsaliye={openIrsaliyeKarti} />
     }
     // Faturalar: satis-/satinalma- + [kumas|iplik|aksesuar]- + faturalari
     if (tab.key.endsWith('-faturalari')) {
@@ -1493,15 +1617,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           fasonTipiId={fasonTipiId}
           ekranAdi={tab.ekranAdi}
           baslangicIrsaliyeIds={tab.baslangicIrsaliyeIds}
-          onDeleted={() => handleTabClose(tab.key)}
-          onOpenIrsaliye={openIrsaliyeKarti}
+          onDeleted={() => handleTabClose(tab.key, true)}
+          onOpenIrsaliye={openIrsaliyeFromFatura}
           onKirliChange={(b) => setKirli(tab.key, b)}
         />
       )
     }
     if (tab.key.startsWith('fatura-karti-')) {
       const faturaId = Number(tab.key.replace('fatura-karti-', ''))
-      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key)} onKirliChange={(b) => setKirli(tab.key, b)} onOpenIrsaliye={openIrsaliyeKarti} />
+      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key, true)} onKirliChange={(b) => setKirli(tab.key, b)} onOpenIrsaliye={openIrsaliyeFromFatura} />
     }
     return (
       <div className="!p-3">

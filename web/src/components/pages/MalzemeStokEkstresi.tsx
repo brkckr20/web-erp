@@ -1,15 +1,17 @@
 'use client'
 
 import { Button, App, Select } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { ReloadOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
-import type { ColDef } from 'ag-grid-community'
+import type { ColDef, CellContextMenuEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
+import SagTikMenu from '@/components/shared/SagTikMenu'
 import { stokEkstresiApi, type StokEkstresiSatir } from '@/lib/stok-ekstresi-api'
 
 interface MalzemeStokEkstresiProps {
   malzemeKod: string
   depoKod?: string | null
+  onFisAc?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
 }
 
 const formatTarih = (d: string | null) => {
@@ -29,11 +31,20 @@ const irsaliyeTipiMap: Record<string, string> = {
   '7': '7-Alınan Fiyat Farkı İrsaliyesi',
   '8': '8-Konsinye Satır İrsaliyesi',
   '9': '9-Müstahsil İrsaliyesi',
+  '10': '10-Üretim Fişi',
   '11': '11-Fasondan Giriş İrsaliyesi',
   '12': '12-Fason Çıkış İade İrsaliyesi',
+  '16': '16-Sayım Fişi',
+  '17': '17-Depo Transfer Giriş',
+  '18': '18-Özel Fiş (Giriş)',
+  '20': '20-Karma Koli Üretim',
+  '21': '21-Karma Koli Sarf Bozma',
   '22': '22-Alınan Hizmet İrsaliyesi',
   '23': '23-Verilen Hizmet İadesi',
+  '40': '40-Üretimden İade',
   '92': '92-Serbest Meslek Makbuzu',
+  '99': '99-Sayım Farkı Noksanı',
+  '101': '101-Sayım Farkı Fazlası',
   '120': '120-Toptan Satış İrsaliyesi',
   '121': '121-Perakende Satır İrsaliyesi',
   '122': '122-Mal Alım İade İrsaliyesi',
@@ -41,18 +52,26 @@ const irsaliyeTipiMap: Record<string, string> = {
   '124': '124-Konsinye Giriş İade İrsaliyesi',
   '125': '125-Fason Giriş İrsaliyesi',
   '126': '126-Verilen Fiyat Farkı İrsaliyesi',
+  '130': '130-Sarf Fişi',
+  '131': '131-Fire Fişi',
+  '132': '132-Özel Fiş (Çıkış)',
   '133': '133-Fasona Giriş İade İrsaliyesi',
   '134': '134-Fasona Çıkış İrsaliyesi',
+  '135': '135-Transfer Çıkış',
+  '136': '136-Karma Koli Sarf',
+  '137': '137-Karma Koli Bozma',
   '138': '138-Verilen Hizmet İrsaliyesi',
   '139': '139-Alınan Hizmet İadesi',
+  '140': '140-Üretime Çıkış Fişi',
   '192': '192-Serbest Meslek Makbuzu',
   '201': '201-Satın Alma Siparişi',
 }
 
-export default function MalzemeStokEkstresi({ malzemeKod, depoKod }: MalzemeStokEkstresiProps) {
+export default function MalzemeStokEkstresi({ malzemeKod, depoKod, onFisAc }: MalzemeStokEkstresiProps) {
   const [data, setData] = useState<StokEkstresiSatir[]>([])
   const [loading, setLoading] = useState(false)
   const [seciliDepo, setSeciliDepo] = useState<string>('')
+  const [sagTik, setSagTik] = useState<{ x: number; y: number; satir: StokEkstresiSatir } | null>(null)
   const { message } = App.useApp()
 
   const load = async () => {
@@ -199,7 +218,11 @@ export default function MalzemeStokEkstresi({ malzemeKod, depoKod }: MalzemeStok
         </div>
       </div>
 
-      <div className="!bg-white !rounded-sm !flex-1 !min-h-0" style={{ minHeight: 300 }}>
+      <div
+        className="!bg-white !rounded-sm !flex-1 !min-h-0"
+        style={{ minHeight: 300 }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
           <DataGrid
             loading={loading}
             rowData={filtreliData}
@@ -207,8 +230,31 @@ export default function MalzemeStokEkstresi({ malzemeKod, depoKod }: MalzemeStok
             domLayout="normal"
             exportFileName={`stok-ekstresi-${malzemeKod}`}
             storageKey={`stokEkstresi-${malzemeKod}`}
+            onCellContextMenu={(e: CellContextMenuEvent<StokEkstresiSatir>) => {
+              const ev = e.event as MouseEvent | undefined
+              if (!e.data) return
+              setSagTik({ x: ev?.clientX ?? 0, y: ev?.clientY ?? 0, satir: e.data })
+            }}
           />
       </div>
+
+      {sagTik && (
+        <SagTikMenu
+          position={sagTik}
+          items={[
+            {
+              key: 'fis-goruntule',
+              label: 'Fişi Görüntüle',
+              icon: <FileTextOutlined />,
+              onClick: () => {
+                onFisAc?.({ id: sagTik.satir.irsaliyeId, irsaliyeTipi: sagTik.satir.irsaliyeTipi, irsaliyeNo: sagTik.satir.irsaliyeNo })
+                setSagTik(null)
+              },
+            },
+          ]}
+          onClose={() => setSagTik(null)}
+        />
+      )}
     </div>
   )
 }

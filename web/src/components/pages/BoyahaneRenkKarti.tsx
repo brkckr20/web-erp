@@ -7,6 +7,7 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { renkApi, type Renk } from '@/lib/renk-api'
+import { useKirli } from '@/lib/kirli'
 import dayjs from 'dayjs'
 
 export interface BoyahaneRenkFormData {
@@ -48,14 +49,17 @@ const emptyData: BoyahaneRenkFormData = {
 interface BoyahaneRenkKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function BoyahaneRenkKarti({ isNew, kod }: BoyahaneRenkKartiProps) {
+export default function BoyahaneRenkKarti({ isNew, kod, onKirliChange }: BoyahaneRenkKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<BoyahaneRenkFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod && !isNew) {
@@ -91,6 +95,7 @@ export default function BoyahaneRenkKarti({ isNew, kod }: BoyahaneRenkKartiProps
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -100,6 +105,7 @@ export default function BoyahaneRenkKarti({ isNew, kod }: BoyahaneRenkKartiProps
   const handleYeni = () => {
     setId(null)
     setForm(emptyData)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -142,6 +148,7 @@ export default function BoyahaneRenkKarti({ isNew, kod }: BoyahaneRenkKartiProps
       }
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -202,6 +209,8 @@ export default function BoyahaneRenkKarti({ isNew, kod }: BoyahaneRenkKartiProps
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   const dovizOptions = [

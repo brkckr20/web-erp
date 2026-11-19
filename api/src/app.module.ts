@@ -38,11 +38,15 @@ import { ParametreModule } from './parametre/parametre.module';
 import { RenkTransferModule } from './renk-transfer/renk-transfer.module';
 import { CariTransferModule } from './cari-transfer/cari-transfer.module';
 import { IadeTalepModule } from './iade-talep/iade-talep.module';
+import { KumasTalepModule } from './kumas-talep/kumas-talep.module';
+import { KesimModule } from './kesim/kesim.module';
+import { UretimHareketModule } from './uretim-hareket/uretim-hareket.module';
 import { BarkodModule } from './barkod/barkod.module';
 import { LogoModule } from './logo/logo.module';
 import { SablonModule } from './sablon/sablon.module';
 import { RaporModule } from './rapor/rapor.module';
 import { HizmetTalepModule } from './hizmet-talep/hizmet-talep.module';
+import { FiyatTeklifModule } from './fiyat-teklif/fiyat-teklif.module';
 import { IslemModule } from './islem/islem.module';
 import { RotaModule } from './rota/rota.module';
 import { AuditModule } from './audit/audit.module';
@@ -50,7 +54,7 @@ import { SirketModule } from './sirket/sirket.module';
 import { NakliyeciModule } from './nakliyeci/nakliyeci.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FaturaModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, IslemModule, RotaModule, AuditModule, SirketModule, NakliyeciModule],
+  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FaturaModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, KumasTalepModule, KesimModule, UretimHareketModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, FiyatTeklifModule, IslemModule, RotaModule, AuditModule, SirketModule, NakliyeciModule],
   controllers: [AppController],
   providers: [AppService],
 })

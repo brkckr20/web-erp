@@ -6,9 +6,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * Kaydedilmemiş (kirli) değişiklik takibi.
  *
  * `deps`: kullanıcıyla değişen form değerleri (her render yeniden hesaplanır).
- * `temizle()`: ilk yükleme veya kayıt başarılı sonrası çağrılır. State
- * güncellemeleri tamamlandıktan SONRA snapshot alır (batch sorunu yaşamamak
- * için ref + effect ile).
+ * `temizle()`: ilk yükleme veya kayıt başarılı sonrası çağrılır. Snapshot
+ * render sonrası effect'te alınır (batch sorunu yaşamamak için); snapshot
+ * alınana kadar `kirli` false döner, böylece yükleme sırasında sekmede
+ * kırmızı nokta bir kare bile yanıp sönmez.
  */
 export function useKirli(deps: readonly unknown[]): { kirli: boolean; temizle: () => void } {
   const ser = JSON.stringify(deps)
@@ -17,12 +18,19 @@ export function useKirli(deps: readonly unknown[]): { kirli: boolean; temizle: (
   const serRef = useRef(ser)
   serRef.current = ser
 
+  // temizle() çağrıldı, henüz snapshot alınmadı: aradaki değişiklikler kirli sayılmaz.
+  const bekleyenRef = useRef(false)
+
   useEffect(() => {
     if (talep === 0) return
+    bekleyenRef.current = false
     setTemizSer(serRef.current)
   }, [talep])
 
-  const temizle = useCallback(() => setTalep((t) => t + 1), [])
+  const temizle = useCallback(() => {
+    bekleyenRef.current = true
+    setTalep((t) => t + 1)
+  }, [])
 
-  return { kirli: ser !== temizSer, temizle }
+  return { kirli: !bekleyenRef.current && ser !== temizSer, temizle }
 }

@@ -32,6 +32,7 @@ import {
 import { fasonTipiApi, parseKategoriler, type FasonTipi } from '@/lib/fason-tipi-api'
 import { isEmriApi } from '@/lib/is-emri-api'
 import type { IrsaliyeBaslangicKalem } from '@/components/pages/IrsaliyeKarti'
+import type { StokFisiBaslangicKalem } from '@/data/modules'
 import { baslangicKalemleriBirlestir, baslangicKalemleriKumule } from '@/components/pages/IrsaliyeKarti'
 
 const fisTipiAdlari: Record<string, string> = {
@@ -73,12 +74,14 @@ const varsayilanTahsisSecimi = (
   return secimler
 }
 
-export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat, onIsEmriAc }: {
+export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat, onIsEmriAc, onUretimeCikis }: {
   onYeniSatinalmaSiparis?: (kalemler: IrsaliyeBaslangicKalem[]) => void
   /** Fason Talimatı (202) açar; fasonId fiş alt tipi olarak gelir. */
   onFasonTalimat?: (fasonTipiId: number, kalemler: IrsaliyeBaslangicKalem[]) => void
   /** Oluşturulan iş emrini kart sekmesinde açar. */
   onIsEmriAc?: (isEmriNo: string) => void
+  /** Seçili planlama satırlarıyla 140-Üretime Çıkış Fişi açar. */
+  onUretimeCikis?: (kalemler: StokFisiBaslangicKalem[]) => void
 }) {
   const [satirlar, setSatirlar] = useState<KumasPlanlamaSatir[]>([])
   const [arama, setArama] = useState('')
@@ -606,7 +609,7 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat, 
         })),
     },
     { key: 'is-emri-olustur', label: 'İş Emri Oluştur', icon: <FileAddOutlined />, disabled: isEmriOlusturuyor },
-    { key: 'uretime-cikis', label: 'Üretime Çıkış İrsaliyesi Oluştur', icon: <ExportOutlined /> },
+    { key: 'uretime-cikis', label: 'Üretime Çıkış Fişi Oluştur', icon: <ExportOutlined /> },
     { key: 'depo-stok', label: 'Depo Stok Kırılımı (Renkli/Ham)', icon: <BankOutlined /> },
     { type: 'divider' },
     { key: 'tahsis-et', label: 'İhtiyaç Miktarı Kadar Tahsis Et', icon: <LinkOutlined /> },
@@ -839,7 +842,25 @@ export default function KumasPlanlama({ onYeniSatinalmaSiparis, onFasonTalimat, 
       return
     }
     if (key === 'uretime-cikis') {
-      message.info('Üretime Çıkış İrsaliyesi yakında')
+      const secili = gridRef.current?.api?.getSelectedRows() as KumasPlanlamaSatir[] | undefined
+      if (!secili || secili.length === 0) {
+        message.warning('Önce satır seçin (çoklu seçim için Ctrl+click)')
+        return
+      }
+      const kalemler: StokFisiBaslangicKalem[] = secili.map((r) => {
+        const miktar = Number(r.gerekenMiktar) || 0
+        const mtMi = (r.birim || 'mt').toLowerCase() === 'mt'
+        return {
+          malzemeKod: r.malzemeKod,
+          malzemeAd: r.malzemeAd,
+          varyant1RenkId: r.varyant1RenkId ?? null,
+          varyant1RenkAd: r.varyant1Aciklama ?? '',
+          ...(mtMi ? { mt: miktar } : { kg: miktar }),
+          hesapBirimi: mtMi ? 'mt' : 'kg',
+          aciklama: `${r.siparisNo}${r.modelKod ? ' - ' + r.modelKod : ''}`,
+        }
+      })
+      onUretimeCikis?.(kalemler)
       return
     }
     if (key === 'depo-stok') {

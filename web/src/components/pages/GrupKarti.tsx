@@ -5,6 +5,7 @@ import { Input, Switch, App, Spin, Select } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { grupApi } from '@/lib/grup-api'
+import { useKirli } from '@/lib/kirli'
 
 interface GrupFormData {
   kod: string
@@ -33,14 +34,17 @@ const HESAP_BIRIMI_OPTIONS = [
 interface GrupKartiProps {
   isNew?: boolean
   kod?: string
+  onKirliChange?: (kirli: boolean) => void
 }
 
-export default function GrupKarti({ isNew, kod }: GrupKartiProps) {
+export default function GrupKarti({ isNew, kod, onKirliChange }: GrupKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<GrupFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { kirli, temizle } = useKirli([form])
+  useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   useEffect(() => {
     if (kod && !isNew) {
@@ -67,6 +71,7 @@ export default function GrupKarti({ isNew, kod }: GrupKartiProps) {
       message.warning('Kayıt bulunamadı')
     } finally {
       setLoading(false)
+      temizle()
     }
   }, [])
 
@@ -76,6 +81,7 @@ export default function GrupKarti({ isNew, kod }: GrupKartiProps) {
   const handleYeni = () => {
     setId(null)
     setForm(emptyData)
+    temizle()
   }
 
   const handleKaydet = async () => {
@@ -110,6 +116,7 @@ export default function GrupKarti({ isNew, kod }: GrupKartiProps) {
       }
     } finally {
       setSaving(false)
+      temizle()
     }
   }
 
@@ -170,6 +177,8 @@ export default function GrupKarti({ isNew, kod }: GrupKartiProps) {
     onPrevious: handlePrevious,
     onNext: handleNext,
     onDelete: handleSil,
+  }, {
+    save: { accent: kirli },
   })
 
   return (
