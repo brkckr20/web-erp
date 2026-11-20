@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Layout, ConfigProvider, App, Spin } from 'antd'
 import trTR from 'antd/locale/tr_TR'
 import { useAuth } from '@/context/AuthContext'
+import { SekmeYetkiProvider } from '@/context/SekmeYetkiContext'
+import { ekranYetkisi, sekmeEkrani } from '@/lib/yetki'
 import LoginPage from '@/components/pages/LoginPage'
 import Sidebar from './Sidebar'
 import MegaMenu from './MegaMenu'
@@ -11,10 +13,14 @@ import TabBar from './TabBar'
 import { Module, Tab, type StokFisiBaslangicKalem } from '@/data/modules'
 import DepoKarti from '@/components/pages/DepoKarti'
 import DepoListesi from '@/components/pages/DepoListesi'
+import KasaBankaHesapKarti from '@/components/pages/KasaBankaHesapKarti'
+import KasaBankaHesapListesi from '@/components/pages/KasaBankaHesapListesi'
 import RafKarti from '@/components/pages/RafKarti'
 import RafListesi from '@/components/pages/RafListesi'
 import KullaniciKarti from '@/components/pages/KullaniciKarti'
 import KullaniciListesi from '@/components/pages/KullaniciListesi'
+import RolKarti from '@/components/pages/RolKarti'
+import RolListesi from '@/components/pages/RolListesi'
 import MalzemeKarti from '@/components/pages/MalzemeKarti'
 import MalzemeListesi from '@/components/pages/MalzemeListesi'
 import MakinaKarti from '@/components/pages/MakinaKarti'
@@ -109,7 +115,7 @@ const irsaliyeEkranAdi = (irsaliyeTipi: string) =>
       : 'satis-irsaliyeleri'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { token, loading } = useAuth()
+  const { token, loading, kullanici } = useAuth()
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
@@ -119,9 +125,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Her "yeni" irsaliye sekmesinin kendi remount sayacı: yeni belge açıldığında yalnızca
   // O sekme yeniden mount edilir; kaynak sekmenin (örn. 202) form durumu korunur.
   const [irsaliyeYeniVersiyon, setIrsaliyeYeniVersiyon] = useState<Record<string, number>>({})
-  const { modal } = App.useApp()
+  const { modal, message } = App.useApp()
   /** Sekme anahtarı -> kaydedilmemiş değişiklik var mı? */
   const [kirliSekmeler, setKirliSekmeler] = useState<Record<string, boolean>>({})
+
+  // Çıkışta veya başka kullanıcı girişinde önceki kullanıcının sekmeleri açık kalmasın.
+  useEffect(() => {
+    setTabs([])
+    setActiveTab(null)
+    setSelectedModule(null)
+    setKirliSekmeler({})
+  }, [kullanici?.id])
 
   const setKirli = (key: string, kirli: boolean) =>
     setKirliSekmeler((prev) => {
@@ -140,13 +154,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const handleSubItemClick = useCallback((tab: Tab) => {
+    const ekran = sekmeEkrani(tab)
+    if (ekran && !ekranYetkisi(kullanici?.izinler, ekran.modul, ekran.ekran, 'goruntule')) {
+      message.warning('Bu ekrana erişim yetkiniz yok')
+      return
+    }
     setTabs((prev) => {
       const exists = prev.find((t) => t.key === tab.key)
       if (!exists) return [...prev, tab]
       return prev
     })
     setActiveTab(tab.key)
-  }, [])
+  }, [kullanici?.izinler, message])
 
   const handleTabChange = (key: string) => {
     setActiveTab(key)
@@ -167,6 +186,50 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'depo-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Depo Kartı', moduleKey: 'stok', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openKasaHesapKarti = useCallback((kod: string) => {
+    const key = 'kasa-hesabi-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Kasa Hesabı - ' + kod, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniKasaHesap = useCallback(() => {
+    const key = 'kasa-hesabi-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Kasa Hesabı', moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openBankaHesapKarti = useCallback((kod: string) => {
+    const key = 'banka-hesabi-karti-' + kod
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Banka Hesabı - ' + kod, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniBankaHesap = useCallback(() => {
+    const key = 'banka-hesabi-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Banka Hesabı', moduleKey: 'muhasebe', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -211,6 +274,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'kullanici-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Kullanıcı Kartı', moduleKey: 'ayarlar', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openRolKarti = useCallback((id: number) => {
+    const key = 'rol-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Rol Kartı - ' + id, moduleKey: 'ayarlar', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniRol = useCallback(() => {
+    const key = 'rol-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Rol', moduleKey: 'ayarlar', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -1053,6 +1138,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const renderTabContent = (tab: Tab) => {
+    if (tab.key === 'kasa-hesaplari') {
+      return <KasaBankaHesapListesi tip="kasa" onSelect={openKasaHesapKarti} onNew={openYeniKasaHesap} />
+    }
+    if (tab.key === 'banka-hesaplari') {
+      return <KasaBankaHesapListesi tip="banka" onSelect={openBankaHesapKarti} onNew={openYeniBankaHesap} />
+    }
+    if (tab.key === 'kasa-hesabi-karti-yeni') {
+      return <KasaBankaHesapKarti tip="kasa" onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('kasa-hesabi-karti-')) {
+      return <KasaBankaHesapKarti tip="kasa" kod={tab.key.replace('kasa-hesabi-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key === 'banka-hesabi-karti-yeni') {
+      return <KasaBankaHesapKarti tip="banka" onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('banka-hesabi-karti-')) {
+      return <KasaBankaHesapKarti tip="banka" kod={tab.key.replace('banka-hesabi-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
     if (tab.key === 'depo-tanimlari') {
       return <DepoListesi onSelect={openDepoKarti} onNew={openYeniDepo} />
     }
@@ -1075,6 +1178,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (tab.key === 'kullanici-tanimlari') {
       return <KullaniciListesi onSelect={openKullaniciKarti} onNew={openYeniKullanici} />
     }
+    if (tab.key === 'rol-yonetimi') {
+      return <RolListesi onSelect={openRolKarti} onNew={openYeniRol} />
+    }
     if (tab.key === 'sirket-tanimlari') {
       return <SirketListesi onSelect={openSirketKarti} onNew={openYeniSirket} />
     }
@@ -1090,6 +1196,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'kullanici-karti-yeni') {
       return <KullaniciKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key === 'rol-karti-yeni') {
+      return <RolKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('rol-karti-') && !tab.key.startsWith('rol-karti-yeni')) {
+      const rolId = Number(tab.key.replace('rol-karti-', ''))
+      if (!isNaN(rolId)) return <RolKarti id={rolId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('kullanici-karti-')) {
       return <KullaniciKarti kod={tab.key.replace('kullanici-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
@@ -1643,7 +1756,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const tabPanels = tabs.map((tab) => (
     <div key={tab.key} style={{ display: activeTab === tab.key ? 'block' : 'none', height: '100%' }}>
-      {renderTabContent(tab)}
+      <SekmeYetkiProvider ekran={sekmeEkrani(tab)}>{renderTabContent(tab)}</SekmeYetkiProvider>
     </div>
   ))
 

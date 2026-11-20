@@ -8,6 +8,7 @@ import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionCha
 import DataGrid from '@/components/shared/DataGrid'
 import { faturaApi, type Fatura } from '@/lib/fatura-api'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface FaturaRow {
   key: string
@@ -98,6 +99,7 @@ interface FaturaListesiProps {
 const fasonFisTipleri = ['6', '11', '12', '125', '133', '134']
 
 export default function FaturaListesi({ mod = 'satis', kategori = 'genel', onNew, onSelect }: FaturaListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : satisTipleri
   const faturaTipiOptions = gorselTipler.map((value) => ({ value, label: faturaTipiMap[value] }))
   const katAd = kategoriBaslik[kategori] ? `${kategoriBaslik[kategori]} ` : ''
@@ -167,7 +169,7 @@ export default function FaturaListesi({ mod = 'satis', kategori = 'genel', onNew
   }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.({ ...r, ekranAdi }) } },
     { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
@@ -229,15 +231,7 @@ export default function FaturaListesi({ mod = 'satis', kategori = 'genel', onNew
               onClick={load}
               className="!text-[12px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={handleNew}
-              className="!text-[12px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={handleNew} className="!text-[12px] !h-7" />
             <Button
               size="small"
               danger

@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { nakliyeciApi, type Nakliyeci } from '@/lib/nakliyeci-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface NakliyeciRow {
   key: string
@@ -25,6 +26,7 @@ interface NakliyeciListesiProps {
 }
 
 export default function NakliyeciListesi({ onSelect, onNew }: NakliyeciListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const { message, modal } = App.useApp()
   const [data, setData] = useState<NakliyeciRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
@@ -81,7 +83,7 @@ export default function NakliyeciListesi({ onSelect, onNew }: NakliyeciListesiPr
   }
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => seciliId && onSelect?.(seciliId) },
     { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
@@ -120,15 +122,7 @@ export default function NakliyeciListesi({ onSelect, onNew }: NakliyeciListesiPr
           </div>
           <div className="!flex !items-center !gap-1.5">
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

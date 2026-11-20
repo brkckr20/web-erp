@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { Card, Button, Table, Space, Popconfirm, App, Tag, Input, Modal } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons'
 import { sablonApi, type Sablon } from '@/lib/sablon-api'
+import YeniButonu from '@/components/shared/YeniButonu'
 
 interface Props {
   onYeni: () => void
@@ -163,9 +164,7 @@ export default function SablonListesi({ onYeni, onDuzenle }: Props) {
             onChange={e => setArama(e.target.value)}
           />
           <Button size="small" icon={<ReloadOutlined />} onClick={yukle} className="!text-[12px] !h-7" />
-          <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onYeni} className="!text-[12px] !h-7">
-            Yeni
-          </Button>
+          <YeniButonu onClick={onYeni} className="!text-[12px] !h-7" />
         </div>
       </div>
       <Card size="small">

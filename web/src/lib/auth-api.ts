@@ -16,6 +16,8 @@ export interface LoginResult {
     kod: string
     girisKodu: string | null
     ad: string
+    roller?: string[]
+    izinler?: string[]
   }
 }
 

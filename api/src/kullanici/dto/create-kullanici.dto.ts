@@ -35,4 +35,5 @@ export class CreateKullaniciDto {
   hizmetSunucusu?: boolean
   seriler?: KullaniciSeriDto[]
   tasarimlar?: KullaniciTasarimDto[]
+  rolIdler?: number[]
 }

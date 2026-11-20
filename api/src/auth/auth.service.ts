@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
+import * as bcrypt from 'bcrypt'
 import { PrismaService } from '../prisma/prisma.service'
 import { LoginDto } from './dto/login.dto'
 
@@ -18,6 +19,19 @@ export class AuthService {
           { kod: dto.kullaniciAdi },
         ],
       },
+      include: {
+        roller: {
+          select: {
+            rol: {
+              select: {
+                ad: true,
+                aktif: true,
+                izinler: { select: { izin: { select: { kod: true } } } },
+              },
+            },
+          },
+        },
+      },
     })
 
     if (!kullanici || !kullanici.durum) {
@@ -28,9 +42,28 @@ export class AuthService {
       throw new UnauthorizedException('Şifre tanımlanmamış')
     }
 
-    if (dto.sifre !== kullanici.sifre) {
+    const hashli = kullanici.sifre.startsWith('$2')
+    const sifreGecerli = hashli
+      ? await bcrypt.compare(dto.sifre, kullanici.sifre)
+      : dto.sifre === kullanici.sifre
+    if (!sifreGecerli) {
       throw new UnauthorizedException('Hatalı şifre')
     }
+
+    // Düz metin kayıtları ilk başarılı girişte hash'e çevir (geçiş dönemi).
+    if (!hashli) {
+      await this.prisma.kullanici.update({
+        where: { id: kullanici.id },
+        data: { sifre: await bcrypt.hash(dto.sifre, 12) },
+      })
+    }
+
+    const aktifRoller = kullanici.roller.map((r) => r.rol).filter((r) => r.aktif)
+    if (aktifRoller.length === 0) {
+      throw new UnauthorizedException('Kullanıcıya rol atanmamış')
+    }
+    const roller = aktifRoller.map((r) => r.ad)
+    const izinler = [...new Set(aktifRoller.flatMap((r) => r.izinler.map((i) => i.izin.kod)))]
 
     const payload = { sub: kullanici.id, kullaniciAdi: kullanici.girisKodu || kullanici.kod }
 
@@ -43,6 +76,8 @@ export class AuthService {
         kod: kullanici.kod,
         girisKodu: kullanici.girisKodu,
         ad: kullanici.ad,
+        roller,
+        izinler,
       },
     }
   }

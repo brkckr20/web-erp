@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Input, Button, App } from 'antd'
-import { PlusOutlined, ReloadOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
+import { ReloadOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColDef, CellDoubleClickedEvent, RowClickedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { fiyatTeklifApi, type FiyatTeklif } from '@/lib/fiyat-teklif-api'
+import YeniButonu from '@/components/shared/YeniButonu'
 
 interface TeklifRow {
   key: string
@@ -161,15 +162,7 @@ export default function SatinalmaFiyatTeklifListesi({ onOpen }: Props) {
           >
             Sil
           </Button>
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={() => onOpen()}
-            className="!text-[11px] !h-7"
-          >
-            Yeni
-          </Button>
+          <YeniButonu onClick={() => onOpen()} className="!text-[11px] !h-7" />
         </div>
       </div>
 

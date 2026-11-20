@@ -1,9 +1,11 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Menu, Avatar, Dropdown } from 'antd'
 import { LogoutOutlined, UserOutlined } from '@ant-design/icons'
 import { modules, Module } from '@/data/modules'
 import { useAuth } from '@/context/AuthContext'
+import { izinliModuller } from '@/lib/yetki'
 
 interface SidebarProps {
   selectedModule: string | null
@@ -29,8 +31,9 @@ const kisaYollarMod: Module = {
 
 export default function Sidebar({ selectedModule, onModuleSelect }: SidebarProps) {
   const { kullanici, logout } = useAuth()
-  const modItems = modules.filter((m) => m.key !== 'ayarlar')
-  const settingsItem = modules.find((m) => m.key === 'ayarlar')
+  const izinli = useMemo(() => izinliModuller(kullanici?.izinler), [kullanici?.izinler])
+  const modItems = izinli.filter((m) => m.key !== 'ayarlar')
+  const settingsItem = izinli.find((m) => m.key === 'ayarlar')
 
   const buildItems = (list: Module[]) =>
     list.map((m) => ({

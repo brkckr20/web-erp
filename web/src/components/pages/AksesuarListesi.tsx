@@ -1,6 +1,6 @@
 'use client'
 
-import { Dropdown, Button, Spin } from 'antd'
+import { Dropdown, Button, Spin, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
@@ -8,6 +8,8 @@ import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { aksesuarApi, type Aksesuar } from '@/lib/aksesuar-api'
 import { aksesuarTipiApi, type AksesuarTipi } from '@/lib/aksesuar-tipi-api'
+import { useSekmeYetkisi } from '@/context/SekmeYetkiContext'
+import { YETKI_YOK } from '@/lib/yetki'
 
 interface AksesuarRow {
   key: string
@@ -30,6 +32,9 @@ interface AksesuarListesiProps {
 }
 
 export default function AksesuarListesi({ onSelect, onNew, onNewTipi }: AksesuarListesiProps) {
+  const yetki = useSekmeYetkisi()
+  const yeniGorunur = yetki('goruntule')
+  const yeniIzinli = yetki('kaydet')
   const [data, setData] = useState<AksesuarRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -80,7 +85,7 @@ export default function AksesuarListesi({ onSelect, onNew, onNewTipi }: Aksesuar
       key: 'yeni',
       label: 'Yeni',
       icon: <PlusOutlined />,
-      disabled: aktifTipler.length === 0,
+      disabled: !yeniIzinli || aktifTipler.length === 0,
       children: yeniDropdownItems,
     },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
@@ -122,11 +127,27 @@ export default function AksesuarListesi({ onSelect, onNew, onNewTipi }: Aksesuar
           </div>
           <div className="!flex !items-center !gap-1.5">
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Dropdown menu={{ items: yeniDropdownItems }} trigger={['click']}>
-              <Button type="primary" size="small" icon={<PlusOutlined />} className="!text-[11px] !h-7">
-                Yeni
-              </Button>
-            </Dropdown>
+            {yeniGorunur && (
+              <Tooltip title={yeniIzinli ? undefined : YETKI_YOK}>
+                <span className="!inline-flex">
+                  <Dropdown
+                    menu={{ items: yeniDropdownItems }}
+                    trigger={['click']}
+                    disabled={!yeniIzinli || aktifTipler.length === 0}
+                  >
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      disabled={!yeniIzinli || aktifTipler.length === 0}
+                      className="!text-[11px] !h-7"
+                    >
+                      Yeni
+                    </Button>
+                  </Dropdown>
+                </span>
+              </Tooltip>
+            )}
           </div>
         </div>
 

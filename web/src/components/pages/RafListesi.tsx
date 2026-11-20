@@ -8,6 +8,7 @@ import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { depoRafApi, type DepoRaf } from '@/lib/depo-raf-api'
 import { depoApi, type Depo } from '@/lib/depo-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface RafRow {
   key: string
@@ -31,6 +32,7 @@ interface RafListesiProps {
 }
 
 export default function RafListesi({ onSelect, onNew }: RafListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const { message } = App.useApp()
   const [data, setData] = useState<RafRow[]>([])
   const [depolar, setDepolar] = useState<Depo[]>([])
@@ -120,7 +122,7 @@ export default function RafListesi({ onSelect, onNew }: RafListesiProps) {
   )
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     {
       key: 'duzenle',
       label: 'Düzenle',
@@ -167,9 +169,7 @@ export default function RafListesi({ onSelect, onNew }: RafListesiProps) {
               className="!w-40"
             />
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onNew} className="!text-[11px] !h-7">
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

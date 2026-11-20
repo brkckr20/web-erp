@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from 'antd'
+import { Button, Tooltip } from 'antd'
 import {
   PlusOutlined,
   SaveOutlined,
@@ -9,6 +9,18 @@ import {
   DeleteOutlined,
   PrinterOutlined,
 } from '@ant-design/icons'
+import { useSekmeYetkisi } from '@/context/SekmeYetkiContext'
+import { YETKI_YOK, type EkranIslemi } from '@/lib/yetki'
+
+// Buton → gerekli ekran işlemi. Menüde karşılığı olmayan sekmede kısıt uygulanmaz.
+// Ekranı göremeyen kullanıcıya buton hiç gösterilmez; ekranı görüp işlemi yapamayana
+// buton pasif + gerekçe gösterilir.
+const BUTON_ISLEMI: Record<string, EkranIslemi> = {
+  new: 'kaydet',
+  save: 'kaydet',
+  delete: 'sil',
+  report: 'goruntule',
+}
 
 export interface ToolbarButton {
   key: string
@@ -83,24 +95,40 @@ interface CardToolbarProps {
 }
 
 export default function CardToolbar({ buttons, className = '' }: CardToolbarProps) {
+  const yetki = useSekmeYetkisi()
+  const ekranGorunur = yetki('goruntule')
   return (
     <div className={`!flex !items-center !gap-1.5 !px-3 !py-1.5 !border-b !border-gray-200 !bg-[#F8F8F8] ${className}`}>
       {buttons
-        .filter((b) => !b.hidden)
-        .map((btn) => (
-          <Button
-            key={btn.key}
-            type={btn.type}
-            size="small"
-            icon={btn.icon}
-            onClick={btn.onClick}
-            disabled={btn.disabled}
-            danger={btn.danger}
-            className={`!text-[11px] !h-[26px] ${btn.accent ? '!ring-2 !ring-[#ef4444]/60 !border-[#ef4444]' : ''}`}
-          >
-            {btn.label}
-          </Button>
-        ))}
+        .filter((b) => !b.hidden && ekranGorunur)
+        .map((btn) => {
+          const islem = BUTON_ISLEMI[btn.key]
+          const izinli = !islem || yetki(islem)
+          const dugme = (
+            <Button
+              type={btn.type}
+              size="small"
+              icon={btn.icon}
+              onClick={btn.onClick}
+              disabled={btn.disabled || !izinli}
+              danger={btn.danger}
+              className={`!text-[11px] !h-[26px] ${btn.accent ? '!ring-2 !ring-[#ef4444]/60 !border-[#ef4444]' : ''}`}
+            >
+              {btn.label}
+            </Button>
+          )
+          return (
+            <span key={btn.key} className="!inline-flex">
+              {izinli ? (
+                dugme
+              ) : (
+                <Tooltip title={YETKI_YOK}>
+                  <span className="!inline-flex">{dugme}</span>
+                </Tooltip>
+              )}
+            </span>
+          )
+        })}
     </div>
   )
 }

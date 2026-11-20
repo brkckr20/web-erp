@@ -20,13 +20,17 @@ export interface KullaniciTasarim {
   aktif: boolean
 }
 
+export interface KullaniciRol {
+  rol: { id: number; ad: string; aktif: boolean }
+}
+
 export interface Kullanici {
   id: number
   kod: string
   ad: string
   durum: boolean
   girisKodu: string | null
-  sifre: string | null
+  sifre?: string | null
   kullaniciRolu: string | null
   cariHesapKodu: string | null
   yetkiliAdi: string | null
@@ -43,6 +47,8 @@ export interface Kullanici {
   hizmetSunucusu: boolean
   seriler?: KullaniciSeri[]
   tasarimlar?: KullaniciTasarim[]
+  roller?: KullaniciRol[]
+  rolIdler?: number[]
 }
 
 export type CreateKullanici = Omit<Kullanici, 'id'>

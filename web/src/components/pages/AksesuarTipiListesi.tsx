@@ -6,6 +6,7 @@ import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
 import { aksesuarTipiApi, type AksesuarTipi } from '@/lib/aksesuar-tipi-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface Row {
   key: string
@@ -21,6 +22,7 @@ interface AksesuarTipiListesiProps {
 }
 
 export default function AksesuarTipiListesi({ onSelect, onNew }: AksesuarTipiListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<Row[]>([])
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -48,7 +50,7 @@ export default function AksesuarTipiListesi({ onSelect, onNew }: AksesuarTipiLis
   useEffect(() => { load() }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
   ]
@@ -89,9 +91,7 @@ export default function AksesuarTipiListesi({ onSelect, onNew }: AksesuarTipiLis
           </div>
           <div className="!flex !items-center !gap-1.5">
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onNew} className="!text-[11px] !h-7">
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
         <div className="!bg-white !border !border-[#f0f0f0] !rounded-[2px] !flex-1 !overflow-y-auto">

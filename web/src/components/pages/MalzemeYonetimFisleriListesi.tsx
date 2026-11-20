@@ -10,6 +10,7 @@ import { malzemeYonetimFisleriApi, type MalzemeYonetimFisi } from '@/lib/malzeme
 import { eIrsaliyeApi } from '@/lib/e-irsaliye-api'
 import { hataMetni } from '@/lib/hata'
 import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 // e-İrsaliye yalnızca çıkış tipli fişlerde oluşturulur.
 const cikisTipleri = new Set(['130', '131', '132', '135', '136', '137', '140', '99'])
@@ -82,6 +83,7 @@ interface MalzemeYonetimFisleriListesiProps {
 }
 
 export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: MalzemeYonetimFisleriListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<FisRow[]>([])
   const [yeniFisTipi, setYeniFisTipi] = useState('10')
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
@@ -219,7 +221,7 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
   }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.(r) } },
     {
       key: 'e-irsaliye-islemleri',
@@ -340,15 +342,7 @@ export default function MalzemeYonetimFisleriListesi({ onNew, onSelect }: Malzem
               onClick={load}
               className="!text-[12px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={handleNew}
-              className="!text-[12px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={handleNew} className="!text-[12px] !h-7" />
             <Button
               size="small"
               danger

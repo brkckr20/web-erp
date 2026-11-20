@@ -1,11 +1,12 @@
 'use client'
 
 import { Button } from 'antd'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
+import YeniButonu from '@/components/shared/YeniButonu'
 
 interface IplikRow {
   key: string
@@ -77,15 +78,7 @@ export default function IplikListesi({ onSelect, onNew }: IplikListesiProps) {
         </div>
         <div className="!flex !items-center !gap-1.5">
           <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={onNew}
-            className="!text-[11px] !h-7"
-          >
-            Yeni
-          </Button>
+          <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
         </div>
       </div>
 

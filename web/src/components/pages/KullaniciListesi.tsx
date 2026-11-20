@@ -6,6 +6,7 @@ import type { MenuProps } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
 import { kullaniciApi, type Kullanici } from '@/lib/kullanici-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface KullaniciRow {
   key: string
@@ -22,6 +23,7 @@ interface KullaniciListesiProps {
 }
 
 export default function KullaniciListesi({ onSelect, onNew }: KullaniciListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<KullaniciRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -52,7 +54,7 @@ export default function KullaniciListesi({ onSelect, onNew }: KullaniciListesiPr
   }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
     { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
@@ -106,15 +108,7 @@ export default function KullaniciListesi({ onSelect, onNew }: KullaniciListesiPr
               onClick={load}
               className="!text-[11px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

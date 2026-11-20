@@ -6,6 +6,7 @@ import { SearchOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { kullaniciApi } from '@/lib/kullanici-api'
 import type { CreateKullanici, KullaniciSeri, KullaniciTasarim } from '@/lib/kullanici-api'
+import { rolApi } from '@/lib/rol-api'
 import { useKirli } from '@/lib/kirli'
 import { hataMetni } from '@/lib/hata'
 
@@ -39,6 +40,7 @@ const emptyData: CreateKullanici = {
   hizmetSunucusu: false,
   seriler: [],
   tasarimlar: [],
+  rolIdler: [],
 }
 
 const kullaniciTipiOptions = [
@@ -60,10 +62,22 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<CreateKullanici>(emptyData)
   const [id, setId] = useState<number | null>(null)
+  const [rolSecenekleri, setRolSecenekleri] = useState<{ id: number; ad: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const { kirli, temizle } = useKirli([form])
   useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
+
+  useEffect(() => {
+    rolApi
+      .list()
+      .then((liste) =>
+        setRolSecenekleri(
+          liste.filter((r) => r.aktif).map((r) => ({ id: r.id, ad: r.ad })),
+        ),
+      )
+      .catch(() => setRolSecenekleri([]))
+  }, [])
 
   useEffect(() => {
     if (kod) {
@@ -84,7 +98,7 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
         ad: data.ad,
         durum: data.durum,
         girisKodu: data.girisKodu ?? '',
-        sifre: data.sifre ?? '',
+        sifre: '',
         kullaniciRolu: data.kullaniciRolu ?? '',
         cariHesapKodu: data.cariHesapKodu ?? '',
         yetkiliAdi: data.yetkiliAdi ?? '',
@@ -101,6 +115,7 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
         hizmetSunucusu: data.hizmetSunucusu,
         seriler: data.seriler ?? [],
         tasarimlar: data.tasarimlar ?? [],
+        rolIdler: (data.roller ?? []).map((r) => r.rol.id),
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -172,6 +187,10 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
       message.warning('Ad alanı zorunludur')
       return
     }
+    if (!(form.rolIdler ?? []).length) {
+      message.warning('En az bir rol seçilmelidir')
+      return
+    }
     setSaving(true)
     try {
       // Seri satırları büyük harf ve 3 hane olarak gönderilir; boş satırlar atlanır.
@@ -192,7 +211,12 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
           sira: i,
           aktif: t.aktif !== false,
         }))
-      const payload = { ...form, seriler: seriPayload, tasarimlar: tasarimPayload }
+      const payload = {
+        ...form,
+        sifre: String(form.sifre ?? '').trim() || undefined,
+        seriler: seriPayload,
+        tasarimlar: tasarimPayload,
+      }
 
       if (id) {
         await kullaniciApi.update(id, payload)
@@ -326,10 +350,18 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
                             <Input size="small" value={form.girisKodu} onChange={(e) => set('girisKodu', e.target.value)} className="!text-[11px]" />
                           </FormField>
                           <FormField label="Şifresi">
-                            <Input.Password size="small" value={form.sifre} onChange={(e) => set('sifre', e.target.value)} className="!text-[11px]" />
+                            <Input.Password size="small" placeholder="Değiştirmek için yazın" value={form.sifre} onChange={(e) => set('sifre', e.target.value)} className="!text-[11px]" />
                           </FormField>
-                          <FormField label="Kullanıcı Rolü">
-                            <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.kullaniciRolu} onChange={(e) => set('kullaniciRolu', e.target.value)} className="!text-[11px]" />
+                          <FormField label="Roller" required>
+                            <Select
+                              mode="multiple"
+                              size="small"
+                              placeholder="En az bir rol seçin"
+                              value={form.rolIdler ?? []}
+                              onChange={(v) => set('rolIdler', v)}
+                              className="!w-full !text-[11px]"
+                              options={rolSecenekleri.map((r) => ({ value: r.id, label: r.ad }))}
+                            />
                           </FormField>
                           <FormField label="Kullanıcı Tipi">
                             <Select size="small" value={form.kullaniciTipi || undefined} onChange={(v) => set('kullaniciTipi', v)} className="!w-full !text-[11px]" options={kullaniciTipiOptions} />

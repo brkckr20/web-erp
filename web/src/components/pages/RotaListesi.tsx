@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { rotaApi, type Rota } from '@/lib/rota-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface RotaRow {
   key: string
@@ -25,6 +26,7 @@ interface RotaListesiProps {
 }
 
 export default function RotaListesi({ onSelect, onNew }: RotaListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<RotaRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -57,7 +59,7 @@ export default function RotaListesi({ onSelect, onNew }: RotaListesiProps) {
   }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
   ]
@@ -94,15 +96,7 @@ export default function RotaListesi({ onSelect, onNew }: RotaListesiProps) {
           </div>
           <div className="!flex !items-center !gap-1.5">
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

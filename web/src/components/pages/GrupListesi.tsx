@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { grupApi, type Grup } from '@/lib/grup-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface GrupRow {
   key: string
@@ -23,6 +24,7 @@ interface GrupListesiProps {
 }
 
 export default function GrupListesi({ onSelect, onNew }: GrupListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<GrupRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -53,7 +55,7 @@ export default function GrupListesi({ onSelect, onNew }: GrupListesiProps) {
   }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
     { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
@@ -94,15 +96,7 @@ export default function GrupListesi({ onSelect, onNew }: GrupListesiProps) {
               onClick={load}
               className="!text-[11px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

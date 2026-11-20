@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { bedenApi, type Beden } from '@/lib/beden-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface BedenRow {
   key: string
@@ -22,6 +23,7 @@ interface BedenListesiProps {
 }
 
 export default function BedenListesi({ onSelect, onNew }: BedenListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<BedenRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -61,7 +63,7 @@ export default function BedenListesi({ onSelect, onNew }: BedenListesiProps) {
   }
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
     { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
@@ -111,15 +113,7 @@ export default function BedenListesi({ onSelect, onNew }: BedenListesiProps) {
               onClick={load}
               className="!text-[11px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

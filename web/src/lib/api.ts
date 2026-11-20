@@ -31,6 +31,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
         window.location.reload()
       }
     }
+    if (res.status === 403) {
+      // API guard'ı tüm redlerde aynı metni döndürsün diye gövde yok sayılır.
+      throw new Error('Bu işlem için yetkiniz yok.')
+    }
     const body = await res.text()
     throw new Error(body || `HTTP ${res.status}`)
   }

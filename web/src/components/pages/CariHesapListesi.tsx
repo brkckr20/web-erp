@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid, { type DataGridHandle } from '@/components/shared/DataGrid'
 import { cariHesapApi, type CariHesap } from '@/lib/cari-hesap-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface CariRow {
   key: string
@@ -24,6 +25,7 @@ interface CariHesapListesiProps {
 }
 
 export default function CariHesapListesi({ onSelect, onNew }: CariHesapListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<CariRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -70,7 +72,7 @@ export default function CariHesapListesi({ onSelect, onNew }: CariHesapListesiPr
   }
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
     { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
@@ -116,15 +118,7 @@ export default function CariHesapListesi({ onSelect, onNew }: CariHesapListesiPr
               className="!w-52 !text-[12px]"
             />
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

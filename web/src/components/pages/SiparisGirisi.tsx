@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { siparisApi, SIPARIS_DURUM_ETIKET, siparisDurumKodu, type Siparis, type SiparisDurum } from '@/lib/siparis-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface SiparisRow {
   key: string
@@ -33,6 +34,7 @@ interface SiparisGirisiProps {
 }
 
 export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGirisiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const { message, modal } = App.useApp()
   const [data, setData] = useState<SiparisRow[]>([])
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
@@ -121,7 +123,7 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
     selectedIds.length > 1 ? `${etiket} (${selectedIds.length})` : etiket
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined /> },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow },
     { type: 'divider' },
     {
@@ -256,9 +258,7 @@ export default function SiparisGirisi({ onSelect, onNew, onTedarik }: SiparisGir
           </div>
           <div className="!flex !items-center !gap-1.5">
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onNew} className="!text-[11px] !h-7">
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

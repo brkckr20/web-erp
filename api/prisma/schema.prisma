@@ -192,6 +192,7 @@ model Kullanici {
 
   seriler           KullaniciSeri[]
   tasarimlar        KullaniciTasarim[]
+  roller            KullaniciRol[]
 
   @@map("kullanici")
 }
@@ -506,6 +507,27 @@ model CariHesap {
   @@index([vergiNo])
   @@index([createdAt])
   @@map("cari_hesap")
+}
+
+model KasaBankaHesap {
+  id           Int      @id @default(autoincrement())
+  kod          String   @unique @db.VarChar(50)
+  ad           String   @db.VarChar(200)
+  tip          String   @db.VarChar(10)
+  dovizKodu    String?  @map("doviz_kodu") @db.VarChar(10)
+  acilisBakiye Decimal  @default(0) @map("acilis_bakiye") @db.Decimal(18, 2)
+  bankaAdi     String?  @map("banka_adi") @db.VarChar(200)
+  sube         String?  @db.VarChar(200)
+  iban         String?  @db.VarChar(34)
+  hesapNo      String?  @map("hesap_no") @db.VarChar(50)
+  kullanimda   Boolean  @default(true)
+  aciklama     String?  @db.VarChar(1000)
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([tip])
+  @@map("kasa_banka_hesap")
 }
 
 model CariHesapAdres {
@@ -1833,4 +1855,50 @@ model FiyatTeklifDosya {
 
   @@index([fiyatTeklifId])
   @@map("fiyat_teklif_dosya")
+}
+
+// Rol / izin: izin kodu `modul.islem` biçimindedir (örn. stok.goruntule).
+// Kullanıcı birden çok rol alabilir; yetki, rollerin izin birleşimidir.
+model Rol {
+  id           Int            @id @default(autoincrement())
+  ad           String         @unique @db.VarChar(100)
+  aciklama     String?        @db.VarChar(500)
+  aktif        Boolean        @default(true)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  izinler      RolIzin[]
+  kullanicilar KullaniciRol[]
+
+  @@map("rol")
+}
+
+model Izin {
+  id     Int       @id @default(autoincrement())
+  kod    String    @unique @db.VarChar(100)
+  ad     String    @db.VarChar(200)
+
+  roller RolIzin[]
+
+  @@map("izin")
+}
+
+model RolIzin {
+  rolId  Int
+  izinId Int
+  rol    Rol  @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  izin   Izin @relation(fields: [izinId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, izinId])
+  @@map("rol_izin")
+}
+
+model KullaniciRol {
+  kullaniciId Int
+  rolId       Int
+  kullanici   Kullanici @relation(fields: [kullaniciId], references: [id], onDelete: Cascade)
+  rol         Rol       @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([kullaniciId, rolId])
+  @@map("kullanici_rol")
 }

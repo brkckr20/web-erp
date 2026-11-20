@@ -253,6 +253,8 @@ export const modules: Module[] = [
       {
         title: 'Tanımlamalar',
         items: [
+          { key: 'kasa-hesaplari', label: 'Kasa Hesapları', isForm: true },
+          { key: 'banka-hesaplari', label: 'Banka Hesapları', isForm: true },
           { key: 'doviz-tanimlari', label: 'Döviz Tanımları', isForm: true },
         ],
       },
@@ -289,6 +291,7 @@ export const modules: Module[] = [
         title: 'Sistem',
         items: [
           { key: 'kullanici-tanimlari', label: 'Kullanıcı Tanımları', isForm: true },
+          { key: 'rol-yonetimi', label: 'Rol Yönetimi' },
           { key: 'sirket-tanimlari', label: 'Şirket Tanımları', isForm: true },
           { key: 'log-takibi', label: 'Log Takibi' },
           { key: 'genel-ayarlar', label: 'Genel Ayarlar', isForm: true },

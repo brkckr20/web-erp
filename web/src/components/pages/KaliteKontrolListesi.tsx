@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { kaliteKontrolApi, type KaliteKontrol } from '@/lib/kalite-kontrol-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface KKRow {
   key: string
@@ -43,6 +44,7 @@ interface KaliteKontrolListesiProps {
 }
 
 export default function KaliteKontrolListesi({ onNew, onSelect }: KaliteKontrolListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<KKRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const { modal, message } = App.useApp()
@@ -82,7 +84,7 @@ export default function KaliteKontrolListesi({ onNew, onSelect }: KaliteKontrolL
   }, [load])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'neni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
+    { key: 'neni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: handleNew },
     {
       key: 'duzenle', label: 'Düzenle', disabled: !selectedRow,
       onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.(r.id) },
@@ -129,15 +131,7 @@ export default function KaliteKontrolListesi({ onNew, onSelect }: KaliteKontrolL
                 onClick={load}
                 className="!text-[12px] !h-7"
               />
-              <Button
-                type="primary"
-                size="small"
-                icon={<PlusOutlined />}
-                onClick={handleNew}
-                className="!text-[12px] !h-7"
-              >
-                Yeni
-              </Button>
+              <YeniButonu onClick={handleNew} className="!text-[12px] !h-7" />
               <Button
                 size="small"
                 danger

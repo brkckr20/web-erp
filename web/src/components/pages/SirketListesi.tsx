@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import DataGrid, { type DataGridHandle } from '@/components/shared/DataGrid'
 import { sirketApi, type Sirket } from '@/lib/sirket-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface SirketRow {
   key: string
@@ -24,6 +25,7 @@ interface SirketListesiProps {
 }
 
 export default function SirketListesi({ onSelect, onNew }: SirketListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<SirketRow[]>([])
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -62,7 +64,7 @@ export default function SirketListesi({ onSelect, onNew }: SirketListesiProps) {
   }
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
   ]
 
@@ -95,15 +97,7 @@ export default function SirketListesi({ onSelect, onNew }: SirketListesiProps) {
               className="!w-52 !text-[12px]"
             />
             <Button size="small" icon={<ReloadOutlined />} onClick={load} className="!text-[11px] !h-7" />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
 import { Module, Tab, modules } from '@/data/modules'
 import { useAuth } from '@/context/AuthContext'
 import { getShortcuts, toggleShortcut, ShortcutItem } from '@/lib/shortcuts'
+import { ekranYetkisi, izinliModuller } from '@/lib/yetki'
 
 interface MegaMenuProps {
   module: Module | null
@@ -31,6 +32,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
   const groupedShortcuts = useCallback(() => {
     const grouped: { modLabel: string; items: ShortcutItem[] }[] = []
     for (const item of shortcuts) {
+      if (!ekranYetkisi(kullanici?.izinler, item.moduleKey, item.key, 'goruntule')) continue
       const mod = modules.find((m) => m.key === item.moduleKey)
       const modLabel = mod?.label || item.moduleKey
       const existing = grouped.find((g) => g.modLabel === modLabel)
@@ -41,7 +43,12 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
       }
     }
     return grouped
-  }, [shortcuts])
+  }, [shortcuts, kullanici?.izinler])
+
+  const gorunurModule = useMemo(() => {
+    if (!module || module.key === 'kisayollar') return module
+    return izinliModuller(kullanici?.izinler).find((m) => m.key === module.key) ?? module
+  }, [module, kullanici?.izinler])
 
   if (!module) return null
 
@@ -138,7 +145,7 @@ export default function MegaMenu({ module, onClose, onSubItemClick }: MegaMenuPr
                 </div>
               )
             ) : (
-              module.categories.flatMap((cat) => [
+              (gorunurModule ?? module).categories.flatMap((cat) => [
                 <div key={cat.title + '-h'} className="!w-[220px] !bg-[#f0f1f3] !px-2 !py-1.5 !rounded-sm !mb-1 !mt-2 first:!mt-0">
                   <div className="!text-[10px] !font-bold !text-[#374151] !uppercase !tracking-wider !whitespace-nowrap">
                     {cat.title}

@@ -12,6 +12,7 @@ import { hataMetni } from '@/lib/hata'
 import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface IrsaliyeRow {
   key: string
@@ -135,6 +136,7 @@ const fasonFisTipleri = {
 }
 
 export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCreateFatura }: IrsaliyeListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : mod === 'fason-hareket' ? fasonHareketTipleri : satisTipleri
   const irsaliyeTipiOptions = gorselTipler.map((value) => ({ value, label: irsaliyeTipiMap[value] }))
   const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : mod === 'fason-hareket' ? 'Fason Hareket Fişleri' : 'Satış İrsaliyeleri'
@@ -365,7 +367,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
   }
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.({ ...r, ekranAdi }) } },
     ...(mod === 'satis'
       ? [{
@@ -516,15 +518,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
               onClick={load}
               className="!text-[12px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={handleNew}
-              className="!text-[12px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={handleNew} className="!text-[12px] !h-7" />
             <Button
               size="small"
               danger

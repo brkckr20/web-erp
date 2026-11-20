@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { isEmriApi, type IsEmri } from '@/lib/is-emri-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface IsEmriRow {
   key: string
@@ -36,6 +37,7 @@ const mapIsEmri = (d: IsEmri): IsEmriRow => ({
 })
 
 export default function IsEmriListesi({ onSelect, onNew }: IsEmriListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<IsEmriRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -54,7 +56,7 @@ export default function IsEmriListesi({ onSelect, onNew }: IsEmriListesiProps) {
   }, [load])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     {
       key: 'duzenle',
       label: 'Düzenle',
@@ -135,15 +137,7 @@ export default function IsEmriListesi({ onSelect, onNew }: IsEmriListesiProps) {
               onClick={load}
               className="!text-[12px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[12px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[12px] !h-7" />
           </div>
         </div>
 

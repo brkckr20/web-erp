@@ -1,8 +1,7 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common'
 import { Observable } from 'rxjs'
+import { JWT_SECRET } from '../auth/jwt-secret'
 import { auditContext } from './audit-context'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'nakosan-jwt-secret-key-2026'
 
 function parseUserFromRequest(req: any): { kullaniciId?: number; kullaniciAd?: string } {
   // 1. Guard çalıştıysa req.user doludur

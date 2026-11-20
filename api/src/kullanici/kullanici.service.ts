@@ -1,14 +1,30 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import * as bcrypt from 'bcrypt'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateKullaniciDto, KullaniciSeriDto, KullaniciTasarimDto } from './dto/create-kullanici.dto'
 import { UpdateKullaniciDto } from './dto/update-kullanici.dto'
 
 const BELGE_TURLERI = ['E_IRSALIYE', 'E_ARSIV']
+const BCRYPT_ROUNDS = 12
+
+async function sifreHazirla(sifre?: string | null): Promise<string | undefined> {
+  const deger = String(sifre ?? '').trim()
+  if (!deger) return undefined
+  if (deger.startsWith('$2')) return deger
+  return bcrypt.hash(deger, BCRYPT_ROUNDS)
+}
+
+// Şifre (hash) istemciye asla dönmez.
+function sifresiz<T extends { sifre?: string | null }>(k: T): Omit<T, 'sifre'> {
+  const { sifre, ...rest } = k
+  return rest
+}
 
 const kullaniciInclude: Prisma.KullaniciInclude = {
   seriler: { orderBy: [{ belgeTuru: 'asc' }, { seri: 'asc' }] },
   tasarimlar: { orderBy: [{ varsayilan: 'desc' }, { sira: 'asc' }, { ad: 'asc' }] },
+  roller: { select: { rol: { select: { id: true, ad: true, aktif: true } } } },
 }
 
 function seriHazirla(s: KullaniciSeriDto) {
@@ -44,20 +60,21 @@ function tasarimlariDogrula(tasarimlar: KullaniciTasarimDto[] | undefined) {
 export class KullaniciService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.kullanici.findMany({ orderBy: { kod: 'asc' } })
+  async findAll() {
+    const liste = await this.prisma.kullanici.findMany({ orderBy: { kod: 'asc' } })
+    return liste.map((k) => sifresiz(k))
   }
 
   async findOne(id: number) {
     const k = await this.prisma.kullanici.findUnique({ where: { id }, include: kullaniciInclude })
     if (!k) throw new NotFoundException('Kullanıcı bulunamadı')
-    return k
+    return sifresiz(k)
   }
 
   async findByKod(kod: string) {
     const k = await this.prisma.kullanici.findUnique({ where: { kod }, include: kullaniciInclude })
     if (!k) throw new NotFoundException('Kullanıcı bulunamadı')
-    return k
+    return sifresiz(k)
   }
 
   async getFavoriler(id: number): Promise<string[]> {
@@ -94,14 +111,21 @@ export class KullaniciService {
   }
 
   async create(dto: CreateKullaniciDto) {
-    const { seriler, tasarimlar, ...data } = dto
+    const { seriler, tasarimlar, sifre, rolIdler, ...data } = dto
+    const sifreHash = await sifreHazirla(sifre)
     tasarimlariDogrula(tasarimlar)
+    const roller = await this.rolIdleriHazirla(rolIdler)
+    if (!roller) throw new BadRequestException('En az bir rol seçilmelidir')
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const created = await tx.kullanici.create({ data })
+        const created = await tx.kullanici.create({
+          data: { ...data, ...(sifreHash ? { sifre: sifreHash } : {}) },
+        })
         if (Array.isArray(seriler)) await this.serileriYaz(tx, created.id, seriler)
         if (Array.isArray(tasarimlar)) await this.tasarimlariYaz(tx, created.id, tasarimlar)
-        return tx.kullanici.findUnique({ where: { id: created.id }, include: kullaniciInclude })
+        await this.rolleriYaz(tx, created.id, roller)
+        const kayit = await tx.kullanici.findUnique({ where: { id: created.id }, include: kullaniciInclude })
+        return kayit ? sifresiz(kayit) : null
       })
     } catch (e) {
       this.hataCevir(e)
@@ -110,14 +134,21 @@ export class KullaniciService {
 
   async update(id: number, dto: UpdateKullaniciDto) {
     await this.findOne(id)
-    const { seriler, tasarimlar, ...data } = dto
+    const { seriler, tasarimlar, sifre, rolIdler, ...data } = dto
+    const sifreHash = await sifreHazirla(sifre)
     tasarimlariDogrula(tasarimlar)
+    const roller = await this.rolIdleriHazirla(rolIdler)
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await tx.kullanici.update({ where: { id }, data })
+        await tx.kullanici.update({
+          where: { id },
+          data: { ...data, ...(sifreHash ? { sifre: sifreHash } : {}) },
+        })
         if (Array.isArray(seriler)) await this.serileriYaz(tx, id, seriler)
         if (Array.isArray(tasarimlar)) await this.tasarimlariYaz(tx, id, tasarimlar)
-        return tx.kullanici.findUnique({ where: { id }, include: kullaniciInclude })
+        if (roller) await this.rolleriYaz(tx, id, roller)
+        const kayit = await tx.kullanici.findUnique({ where: { id }, include: kullaniciInclude })
+        return kayit ? sifresiz(kayit) : null
       })
     } catch (e) {
       this.hataCevir(e)
@@ -126,7 +157,8 @@ export class KullaniciService {
 
   async remove(id: number) {
     await this.findOne(id)
-    return this.prisma.kullanici.delete({ where: { id } })
+    const silinen = await this.prisma.kullanici.delete({ where: { id } })
+    return sifresiz(silinen)
   }
 
   // Numaratör sayaçları korunur: mevcut seri satırı güncellenir, sadece
@@ -161,6 +193,28 @@ export class KullaniciService {
       const t = tasarimlar[i]
       await tx.kullaniciTasarim.create({ data: { ...tasarimHazirla(t, t?.sira ?? i), kullaniciId } })
     }
+  }
+
+  // Rolsüz kullanıcı giriş yapamaz; bu yüzden en az bir aktif rol zorunlu.
+  private async rolIdleriHazirla(rolIdler?: number[]): Promise<number[] | undefined> {
+    if (rolIdler === undefined) return undefined
+    const tekil = [...new Set(rolIdler.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
+    if (tekil.length === 0) throw new BadRequestException('En az bir rol seçilmelidir')
+    const gecerli = await this.prisma.rol.findMany({
+      where: { id: { in: tekil }, aktif: true },
+      select: { id: true },
+    })
+    if (gecerli.length !== tekil.length) {
+      throw new BadRequestException('Geçersiz veya pasif rol seçimi')
+    }
+    return tekil
+  }
+
+  private async rolleriYaz(tx: Prisma.TransactionClient, kullaniciId: number, rolIdler: number[]) {
+    await tx.kullaniciRol.deleteMany({ where: { kullaniciId } })
+    await tx.kullaniciRol.createMany({
+      data: rolIdler.map((rolId) => ({ kullaniciId, rolId })),
+    })
   }
 
   private hataCevir(e: unknown): never {

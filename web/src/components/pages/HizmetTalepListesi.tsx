@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Input, Button, Tag, App } from 'antd'
-import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColDef, CellDoubleClickedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { hizmetTalepApi, type HizmetTalep } from '@/lib/hizmet-talep-api'
 import { kullaniciApi, type Kullanici } from '@/lib/kullanici-api'
+import YeniButonu from '@/components/shared/YeniButonu'
 
 interface HizmetTalepRow {
   key: string
@@ -153,15 +154,7 @@ export default function HizmetTalepListesi({ onOpen }: Props) {
             allowClear
           />
           <Button size="small" icon={<ReloadOutlined />} onClick={yukle} className="!text-[11px] !h-7" />
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={() => onOpen()}
-            className="!text-[11px] !h-7"
-          >
-            Yeni
-          </Button>
+          <YeniButonu onClick={() => onOpen()} className="!text-[11px] !h-7" />
         </div>
       </div>
 

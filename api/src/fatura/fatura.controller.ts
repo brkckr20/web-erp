@@ -12,8 +12,10 @@ import {
 import { FaturaService } from './fatura.service'
 import { CreateFaturaDto } from './dto/create-fatura.dto'
 import { UpdateFaturaDto } from './dto/create-fatura.dto'
+import { Izin } from '../auth/izin.decorator'
 
 @Controller('fatura')
+@Izin('satis.goruntule', 'satinalma.goruntule')
 export class FaturaController {
   constructor(private readonly service: FaturaService) {}
 
@@ -45,16 +47,19 @@ export class FaturaController {
   }
 
   @Post()
+  @Izin('satis.kaydet', 'satinalma.kaydet')
   create(@Body() dto: CreateFaturaDto) {
     return this.service.create(dto)
   }
 
   @Put(':id')
+  @Izin('satis.kaydet', 'satinalma.kaydet')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateFaturaDto) {
     return this.service.update(id, dto)
   }
 
   @Delete(':id')
+  @Izin('satis.sil', 'satinalma.sil')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id)
   }

@@ -9,6 +9,7 @@ import DataGrid from '@/components/shared/DataGrid'
 import { malzemeApi, type Malzeme } from '@/lib/malzeme-api'
 import { parametreApi } from '@/lib/parametre-api'
 import { useAuth } from '@/context/AuthContext'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface ModelRow {
   key: string
@@ -32,6 +33,7 @@ interface ModelListesiProps {
 }
 
 export default function ModelListesi({ onSelect, onNew }: ModelListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const { kullanici } = useAuth()
   const [data, setData] = useState<ModelRow[]>([])
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
@@ -76,7 +78,7 @@ export default function ModelListesi({ onSelect, onNew }: ModelListesiProps) {
   }, [load])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: () => onNew?.() },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: () => onNew?.() },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => selectedRow && onSelect?.(selectedRow) },
     { type: 'divider' },
     { key: 'pasif', label: 'Pasif Yap', disabled: !selectedRow },
@@ -137,15 +139,7 @@ export default function ModelListesi({ onSelect, onNew }: ModelListesiProps) {
               onClick={load}
               className="!text-[11px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onNew}
-              className="!text-[11px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={onNew} className="!text-[11px] !h-7" />
           </div>
         </div>
 

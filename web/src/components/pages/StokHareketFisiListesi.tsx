@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { stokHareketFisiApi, type StokHareketFisi } from '@/lib/stok-hareket-fisi-api'
+import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
 
 interface FisRow {
   key: string
@@ -79,6 +80,7 @@ interface StokHareketFisiListesiProps {
 }
 
 export default function StokHareketFisiListesi({ onNew, onSelect }: StokHareketFisiListesiProps) {
+  const yeniIzinli = useYeniYetkisi().izinli
   const [data, setData] = useState<FisRow[]>([])
   const [yeniFisTipi, setYeniFisTipi] = useState('10')
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
@@ -119,7 +121,7 @@ export default function StokHareketFisiListesi({ onNew, onSelect }: StokHareketF
   }, [])
 
   const contextMenuItems: MenuProps['items'] = [
-    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, onClick: handleNew },
+    { key: 'yeni', label: 'Yeni', icon: <PlusOutlined />, disabled: !yeniIzinli, onClick: handleNew },
     { key: 'duzenle', label: 'Düzenle', disabled: !selectedRow, onClick: () => { const r = data.find((d) => d.key === selectedRow); if (r) onSelect?.(r) } },
     { type: 'divider' },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
@@ -201,15 +203,7 @@ export default function StokHareketFisiListesi({ onNew, onSelect }: StokHareketF
               onClick={load}
               className="!text-[12px] !h-7"
             />
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={handleNew}
-              className="!text-[12px] !h-7"
-            >
-              Yeni
-            </Button>
+            <YeniButonu onClick={handleNew} className="!text-[12px] !h-7" />
             <Button
               size="small"
               danger
