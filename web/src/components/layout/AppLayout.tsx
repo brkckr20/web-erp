@@ -15,6 +15,11 @@ import DepoKarti from '@/components/pages/DepoKarti'
 import DepoListesi from '@/components/pages/DepoListesi'
 import KasaBankaHesapKarti from '@/components/pages/KasaBankaHesapKarti'
 import KasaBankaHesapListesi from '@/components/pages/KasaBankaHesapListesi'
+import OdemePlanKarti from '@/components/pages/OdemePlanKarti'
+import OdemePlanListesi from '@/components/pages/OdemePlanListesi'
+import CariHesapFisleriListesi from '@/components/pages/CariHesapFisleriListesi'
+import CariHesapFisKarti from '@/components/pages/CariHesapFisKarti'
+import { fisTipiEtiketi } from '@/data/cari-hesap-fis-tipleri'
 import RafKarti from '@/components/pages/RafKarti'
 import RafListesi from '@/components/pages/RafListesi'
 import KullaniciKarti from '@/components/pages/KullaniciKarti'
@@ -230,6 +235,55 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'banka-hesabi-karti-yeni'
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Banka Hesabı', moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openOdemePlaniKarti = useCallback((id: number) => {
+    const key = 'odeme-plani-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Ödeme Planı - ' + id, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniOdemePlani = useCallback(() => {
+    const key = 'odeme-plani-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Ödeme Planı', moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openCariHesapFisKarti = useCallback((id: number) => {
+    const key = 'cari-hesap-fisi-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Cari Hesap Fişi - ' + id, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniCariHesapFisi = useCallback((fisTipi: string) => {
+    const key = 'cari-hesap-fisi-yeni-' + fisTipi
+    setTabs((prev) => {
+      const tab: Tab = {
+        key,
+        label: 'Yeni ' + fisTipiEtiketi(fisTipi),
+        moduleKey: 'muhasebe',
+        isForm: true,
+      }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -1155,6 +1209,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key.startsWith('banka-hesabi-karti-')) {
       return <KasaBankaHesapKarti tip="banka" kod={tab.key.replace('banka-hesabi-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key === 'odeme-planlari') {
+      return <OdemePlanListesi onSelect={openOdemePlaniKarti} onNew={openYeniOdemePlani} />
+    }
+    if (tab.key === 'odeme-plani-karti-yeni') {
+      return <OdemePlanKarti onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('odeme-plani-karti-')) {
+      const planId = Number(tab.key.replace('odeme-plani-karti-', ''))
+      if (!isNaN(planId)) return <OdemePlanKarti id={planId} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key === 'cari-hesap-fisleri') {
+      return <CariHesapFisleriListesi onSelect={openCariHesapFisKarti} onNew={openYeniCariHesapFisi} />
+    }
+    if (tab.key.startsWith('cari-hesap-fisi-yeni-')) {
+      return (
+        <CariHesapFisKarti
+          key={tab.key}
+          fisTipi={tab.key.replace('cari-hesap-fisi-yeni-', '')}
+          onKirliChange={(b) => setKirli(tab.key, b)}
+        />
+      )
+    }
+    if (tab.key.startsWith('cari-hesap-fisi-')) {
+      const fisId = Number(tab.key.replace('cari-hesap-fisi-', ''))
+      if (!isNaN(fisId)) {
+        return (
+          <CariHesapFisKarti
+            key={tab.key}
+            id={fisId}
+            fisTipi=""
+            onKirliChange={(b) => setKirli(tab.key, b)}
+          />
+        )
+      }
     }
     if (tab.key === 'depo-tanimlari') {
       return <DepoListesi onSelect={openDepoKarti} onNew={openYeniDepo} />

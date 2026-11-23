@@ -8,11 +8,16 @@ export interface KasaBankaHesap {
   ad: string
   tip: KasaBankaTipi
   dovizKodu: string | null
-  acilisBakiye: number | string
+  isYeriKodu: string | null
+  masrafYeriKodu: string | null
   bankaAdi: string | null
-  sube: string | null
-  iban: string | null
-  hesapNo: string | null
+  anaBankaKodu: string | null
+  subeKodu: string | null
+  subeAdi: string | null
+  swiftKodu: string | null
+  ilgiliKisi: string | null
+  erisimKodu: string | null
+  ozelKod: string | null
   kullanimda: boolean
   aciklama: string | null
 }
@@ -22,11 +27,16 @@ export interface CreateKasaBankaHesap {
   ad: string
   tip: KasaBankaTipi
   dovizKodu?: string
-  acilisBakiye?: number
+  isYeriKodu?: string
+  masrafYeriKodu?: string
   bankaAdi?: string
-  sube?: string
-  iban?: string
-  hesapNo?: string
+  anaBankaKodu?: string
+  subeKodu?: string
+  subeAdi?: string
+  swiftKodu?: string
+  ilgiliKisi?: string
+  erisimKodu?: string
+  ozelKod?: string
   kullanimda?: boolean
   aciklama?: string
 }

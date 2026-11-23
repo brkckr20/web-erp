@@ -3,11 +3,16 @@ export class CreateKasaBankaHesapDto {
   ad: string
   tip: string
   dovizKodu?: string
-  acilisBakiye?: number
+  isYeriKodu?: string
+  masrafYeriKodu?: string
   bankaAdi?: string
-  sube?: string
-  iban?: string
-  hesapNo?: string
+  anaBankaKodu?: string
+  subeKodu?: string
+  subeAdi?: string
+  swiftKodu?: string
+  ilgiliKisi?: string
+  erisimKodu?: string
+  ozelKod?: string
   kullanimda?: boolean
   aciklama?: string
 }

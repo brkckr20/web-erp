@@ -503,6 +503,7 @@ model CariHesap {
   irsaliyeler       Irsaliye[] @relation("IrsaliyeCariHesap")
   faturalar         Fatura[] @relation("FaturaCariHesap")
   siparisler        Siparis[] @relation("SiparisCariHesap")
+  cariHareketler    CariHesapHareket[] @relation("CariHesapHareketler")
 
   @@index([vergiNo])
   @@index([createdAt])
@@ -515,11 +516,16 @@ model KasaBankaHesap {
   ad           String   @db.VarChar(200)
   tip          String   @db.VarChar(10)
   dovizKodu    String?  @map("doviz_kodu") @db.VarChar(10)
-  acilisBakiye Decimal  @default(0) @map("acilis_bakiye") @db.Decimal(18, 2)
+  isYeriKodu   String?  @map("is_yeri_kodu") @db.VarChar(50)
+  masrafYeriKodu String? @map("masraf_yeri_kodu") @db.VarChar(50)
   bankaAdi     String?  @map("banka_adi") @db.VarChar(200)
-  sube         String?  @db.VarChar(200)
-  iban         String?  @db.VarChar(34)
-  hesapNo      String?  @map("hesap_no") @db.VarChar(50)
+  anaBankaKodu String?  @map("ana_banka_kodu") @db.VarChar(5)
+  subeKodu     String?  @map("sube_kodu") @db.VarChar(20)
+  subeAdi      String?  @map("sube_adi") @db.VarChar(200)
+  swiftKodu    String?  @map("swift_kodu") @db.VarChar(20)
+  ilgiliKisi   String?  @map("ilgili_kisi") @db.VarChar(200)
+  erisimKodu   String?  @map("erisim_kodu") @db.VarChar(50)
+  ozelKod      String?  @map("ozel_kod") @db.VarChar(50)
   kullanimda   Boolean  @default(true)
   aciklama     String?  @db.VarChar(1000)
 
@@ -528,6 +534,91 @@ model KasaBankaHesap {
 
   @@index([tip])
   @@map("kasa_banka_hesap")
+}
+
+model OdemePlan {
+  id             Int      @id @default(autoincrement())
+  kod            String   @unique @db.VarChar(50)
+  ad             String   @db.VarChar(200)
+  aciklama       String?  @db.VarChar(1000)
+  yetkiKodu      String?  @map("yetki_kodu") @db.VarChar(100)
+  ozelKod        String?  @map("ozel_kod") @db.VarChar(100)
+  uluslararasiKod String? @map("uluslararasi_kod") @db.VarChar(100)
+  kullanimda     Boolean  @default(true)
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  satirlar     OdemePlanSatir[]
+
+  @@map("odeme_plan")
+}
+
+model OdemePlanSatir {
+  id     Int       @id @default(autoincrement())
+  planId Int       @map("plan_id")
+  plan   OdemePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  sira   Int
+  gun    Int
+  oran   Decimal   @db.Decimal(5, 2)
+
+  @@unique([planId, sira])
+  @@map("odeme_plan_satir")
+}
+
+model CariHesapFis {
+  id          Int       @id @default(autoincrement())
+  fisTipi     String    @map("fis_tipi") @db.VarChar(10)
+  fisNo       Int       @map("fis_no")
+  fisTarihi   DateTime  @map("fis_tarihi")
+  belgeNo     String?   @map("belge_no") @db.VarChar(50)
+  k           String?   @db.VarChar(50)
+  erisimKodu  String?   @map("erisim_kodu") @db.VarChar(50)
+  ozelKod     String?   @map("ozel_kod") @db.VarChar(50)
+  dovizCinsi  String?   @map("doviz_cinsi") @db.VarChar(10)
+  dovizKuru   Decimal?  @map("doviz_kuru") @db.Decimal(18, 6)
+  kurTarihi   DateTime? @map("kur_tarihi") @db.Date
+  masrafYeri  String?   @map("masraf_yeri") @db.VarChar(100)
+  aciklama    String?   @db.VarChar(1000)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  hareketler  CariHesapHareket[]
+
+  @@unique([fisTipi, fisNo])
+  @@index([fisTarihi])
+  @@map("cari_hesap_fis")
+}
+
+model CariHesapHareket {
+  id          Int           @id @default(autoincrement())
+  fisId       Int           @map("fis_id")
+  fis         CariHesapFis  @relation(fields: [fisId], references: [id], onDelete: Cascade)
+  cariHesapId Int           @map("cari_hesap_id")
+  cariHesap   CariHesap     @relation("CariHesapHareketler", fields: [cariHesapId], references: [id])
+
+  ozelKod     String?       @map("ozel_kod") @db.VarChar(50)
+  hesapKodu   String?       @map("hesap_kodu") @db.VarChar(50)
+  hesapAdi    String?       @map("hesap_adi") @db.VarChar(200)
+  aciklama    String?       @db.VarChar(500)
+  vadeTarihi  DateTime?     @map("vade_tarihi") @db.Date
+  belgeNo     String?       @map("belge_no") @db.VarChar(50)
+  borc        Decimal       @default(0) @db.Decimal(18, 2)
+  alacak      Decimal       @default(0) @db.Decimal(18, 2)
+  doviz       String?       @db.VarChar(10)
+  dovizKuru   Decimal?      @map("doviz_kuru") @db.Decimal(18, 6)
+  borcYerel   Decimal       @default(0) @map("borc_yerel") @db.Decimal(18, 2)
+  alacakYerel Decimal       @default(0) @map("alacak_yerel") @db.Decimal(18, 2)
+  belgeTuru   String?       @map("belge_turu") @db.VarChar(20)
+  belgeId     Int?          @map("belge_id")
+  kontrol     String?       @db.VarChar(50)
+
+  @@index([fisId])
+  @@index([cariHesapId])
+  @@index([vadeTarihi])
+  @@index([belgeTuru, belgeId])
+  @@map("cari_hesap_hareket")
 }
 
 model CariHesapAdres {

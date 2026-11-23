@@ -256,6 +256,13 @@ export const modules: Module[] = [
           { key: 'kasa-hesaplari', label: 'Kasa Hesapları', isForm: true },
           { key: 'banka-hesaplari', label: 'Banka Hesapları', isForm: true },
           { key: 'doviz-tanimlari', label: 'Döviz Tanımları', isForm: true },
+          { key: 'odeme-planlari', label: 'Ödeme Planları', isForm: true },
+        ],
+      },
+      {
+        title: 'Hareketler',
+        items: [
+          { key: 'cari-hesap-fisleri', label: 'Cari Hesap Fişleri', isForm: true },
         ],
       },
       {

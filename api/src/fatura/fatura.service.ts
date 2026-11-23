@@ -242,20 +242,81 @@ export class FaturaService {
     return this.prisma.$transaction(async (tx) => {
       await tx.fatura.update({ where: { id }, data })
       if (Array.isArray(kalemler)) {
-        await tx.faturaKalem.deleteMany({ where: { faturaId: id } })
+        const mevcut = await tx.faturaKalem.findMany({
+          where: { faturaId: id },
+          select: { id: true, irsaliyeKalemId: true },
+        })
+        const mevcutById = new Map(mevcut.map((m) => [m.id, m]))
+        const gelenIds = new Set<number>()
+
         for (const k of kalemler) {
+          const kalemId = typeof k.id === 'number' ? k.id : null
+          if (kalemId) {
+            if (!mevcutById.has(kalemId)) {
+              throw new BadRequestException(`Fatura kalemi bulunamadı: ${kalemId}`)
+            }
+            gelenIds.add(kalemId)
+          }
+
           let kalemData: any = { ...k }
           delete kalemData.id
           delete kalemData.fatura
           delete kalemData.malzeme
+          delete kalemData.faturaId
+
           if (k.irsaliyeKalemId) {
             const kaynak = await tx.irsaliyeKalem.findUnique({ where: { id: k.irsaliyeKalemId } })
             if (!kaynak) throw new BadRequestException(`İrsaliye kalemi bulunamadı: ${k.irsaliyeKalemId}`)
+            const baskaKullanim = await tx.faturaKalem.findFirst({
+              where: { irsaliyeKalemId: k.irsaliyeKalemId, faturaId: { not: id } },
+              select: { id: true },
+            })
+            if (baskaKullanim) throw new BadRequestException('Bu irsaliye kalemi zaten faturaya bağlı')
             kalemData = this.snapshotKalem(kaynak, k)
+            const irs = await tx.irsaliye.findUnique({ where: { id: kaynak.irsaliyeId }, select: { id: true, faturaNo: true } })
+            if (irs && !irs.faturaNo) {
+              const guncelFatura = await tx.fatura.findUnique({ where: { id }, select: { faturaNo: true, faturaTarihi: true } })
+              await tx.irsaliye.update({
+                where: { id: irs.id },
+                data: { faturaNo: guncelFatura?.faturaNo, faturaTarihi: guncelFatura?.faturaTarihi },
+              })
+            }
           } else {
             kalemData.uuid = kalemData.uuid ?? randomUUID()
           }
-          await tx.faturaKalem.create({ data: { ...kalemData, faturaId: id } as any })
+
+          if (kalemId) {
+            await tx.faturaKalem.update({ where: { id: kalemId }, data: kalemData as any })
+          } else {
+            const olusan = await tx.faturaKalem.create({ data: { ...kalemData, faturaId: id } as any })
+            gelenIds.add(olusan.id)
+          }
+        }
+
+        const silinecekler = mevcut.filter((m) => !gelenIds.has(m.id))
+        if (silinecekler.length > 0) {
+          const silinecekIrsaliyeKalemIds = silinecekler
+            .map((m) => m.irsaliyeKalemId)
+            .filter((x): x is number => x != null)
+          await tx.faturaKalem.deleteMany({ where: { id: { in: silinecekler.map((m) => m.id) } } })
+          if (silinecekIrsaliyeKalemIds.length > 0) {
+            const etkilenenKalemler = await tx.irsaliyeKalem.findMany({
+              where: { id: { in: silinecekIrsaliyeKalemIds } },
+              select: { irsaliyeId: true },
+            })
+            const etkilenenIrsaliyeIds = [...new Set(etkilenenKalemler.map((k) => k.irsaliyeId))]
+            for (const irsId of etkilenenIrsaliyeIds) {
+              const kalan = await tx.faturaKalem.count({
+                where: { faturaId: id, irsaliyeKalem: { irsaliyeId: irsId } },
+              })
+              if (kalan === 0) {
+                await tx.irsaliye.update({
+                  where: { id: irsId },
+                  data: { faturaNo: null, faturaTarihi: null },
+                })
+              }
+            }
+          }
         }
       }
       const kayit = await tx.fatura.findUnique({ where: { id }, include: FATURA_INCLUDE })

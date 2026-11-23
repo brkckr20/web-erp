@@ -23,6 +23,7 @@ interface IrsaliyeRow {
   cariHesap: string
   depo: string
   sevkNo: string
+  faturaNo: string
   aciklama: string
   irsaliyeToplam: number
   eIrsaliye: string
@@ -51,6 +52,7 @@ const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
     cariHesap: i.cariHesap?.ad ?? '',
     depo: i.depo?.kod ?? '',
     sevkNo: i.sevkNo ?? '',
+    faturaNo: i.faturaNo ?? '',
     aciklama: i.aciklama ?? '',
     irsaliyeToplam,
     // 201 ve 202 talimat/sipariş belgeleri: durum dili "Teslim Alındı / Kesinleşti"
@@ -436,6 +438,12 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
       headerName: 'Sevk No', field: 'sevkNo', width: 100, resizable: true,
       valueFormatter: (p) => p.value || '-',
     },
+    ...((mod === 'satinalma'
+      ? [{
+          headerName: 'Fatura No', field: 'faturaNo', width: 110, resizable: true,
+          valueFormatter: (p: any) => p.value || '-',
+        }]
+      : []) as any[]),
     {
       headerName: 'Açıklama', field: 'aciklama', width: 150, resizable: true,
     },
@@ -449,7 +457,7 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
       ? [
           {
             headerName: 'e-İrsaliye No', field: 'eIrsaliyeNo', width: 150, resizable: true,
-            valueFormatter: (p) => p.value || '-',
+            valueFormatter: (p: any) => p.value || '-',
           },
           {
             headerName: 'e-İrsaliye', field: 'eIrsaliyeDurum', width: 130, resizable: true,

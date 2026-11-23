@@ -1,0 +1,15 @@
+BEGIN TRY
+
+BEGIN TRAN;
+
+ALTER TABLE [dbo].[odeme_plan] ADD [yetki_kodu] VARCHAR(100),
+[ozel_kod] VARCHAR(100),
+[uluslararasi_kod] VARCHAR(100);
+
+COMMIT TRAN;
+
+END TRY
+BEGIN CATCH
+IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+THROW;
+END CATCH

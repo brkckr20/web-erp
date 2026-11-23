@@ -126,6 +126,8 @@ export const EKRAN_TANIMLARI: ModulEkranTanimi[] = [
       { key: 'kasa-hesaplari', ad: 'Kasa Hesapları' },
       { key: 'banka-hesaplari', ad: 'Banka Hesapları' },
       { key: 'doviz-tanimlari', ad: 'Döviz Tanımları' },
+      { key: 'odeme-planlari', ad: 'Ödeme Planları' },
+      { key: 'cari-hesap-fisleri', ad: 'Cari Hesap Fişleri' },
       { key: 'doviz-kurlari', ad: 'Döviz Kurları' },
       { key: 'odeme-takip', ad: 'Ödeme Takibi' },
       { key: 'banka-islem', ad: 'Banka İşlemleri' },

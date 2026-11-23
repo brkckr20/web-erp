@@ -14,10 +14,7 @@ interface HesapRow {
   id: number
   kod: string
   ad: string
-  dovizKodu: string | null
-  acilisBakiye: number
   bankaAdi: string | null
-  iban: string | null
   kullanimda: boolean
 }
 
@@ -25,13 +22,6 @@ interface KasaBankaHesapListesiProps {
   tip: KasaBankaTipi
   onSelect?: (kod: string) => void
   onNew?: () => void
-}
-
-const bakiyeYaz = (v: number | string | null) => {
-  const n = Number(v ?? 0)
-  return isNaN(n)
-    ? '-'
-    : n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 export default function KasaBankaHesapListesi({ tip, onSelect, onNew }: KasaBankaHesapListesiProps) {
@@ -50,10 +40,7 @@ export default function KasaBankaHesapListesi({ tip, onSelect, onNew }: KasaBank
           id: d.id,
           kod: d.kod,
           ad: d.ad,
-          dovizKodu: d.dovizKodu,
-          acilisBakiye: Number(d.acilisBakiye) || 0,
           bankaAdi: d.bankaAdi,
-          iban: d.iban,
           kullanimda: d.kullanimda,
         })),
       )
@@ -82,19 +69,10 @@ export default function KasaBankaHesapListesi({ tip, onSelect, onNew }: KasaBank
         cellStyle: { color: '#f57c00', fontWeight: 500 },
       },
       { headerName: 'Adı', field: 'ad', flex: 1, minWidth: 160 },
-      { headerName: 'Döviz', field: 'dovizKodu', width: 80, valueFormatter: (p) => p.value ?? '-' },
-      {
-        headerName: 'Açılış Bakiyesi',
-        field: 'acilisBakiye',
-        width: 140,
-        cellStyle: { textAlign: 'right' },
-        valueFormatter: (p) => bakiyeYaz(p.value),
-      },
     ]
     if (tip === 'banka') {
       cols.push(
         { headerName: 'Banka', field: 'bankaAdi', flex: 1, minWidth: 140, valueFormatter: (p) => p.value ?? '-' },
-        { headerName: 'IBAN', field: 'iban', width: 220, valueFormatter: (p) => p.value ?? '-' },
       )
     }
     cols.push({

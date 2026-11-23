@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Input, InputNumber, Checkbox, Row, Col, Select, App, Spin } from 'antd'
+import { Input, Checkbox, Row, Col, Select, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { useKirli } from '@/lib/kirli'
 import { kasaBankaHesapApi } from '@/lib/kasa-banka-hesap-api'
 import type { CreateKasaBankaHesap, KasaBankaTipi } from '@/lib/kasa-banka-hesap-api'
 import { dovizApi } from '@/lib/doviz-api'
+import { BANKALAR } from '@/data/bankalar'
 
 const { TextArea } = Input
 
@@ -16,11 +17,16 @@ const emptyData = (tip: KasaBankaTipi): CreateKasaBankaHesap => ({
   ad: '',
   tip,
   dovizKodu: 'TRY',
-  acilisBakiye: 0,
+  isYeriKodu: '',
+  masrafYeriKodu: '',
   bankaAdi: '',
-  sube: '',
-  iban: '',
-  hesapNo: '',
+  anaBankaKodu: '',
+  subeKodu: '',
+  subeAdi: '',
+  swiftKodu: '',
+  ilgiliKisi: '',
+  erisimKodu: '',
+  ozelKod: '',
   kullanimda: true,
   aciklama: '',
 })
@@ -80,11 +86,16 @@ export default function KasaBankaHesapKarti({ tip, kod, onKirliChange }: KasaBan
           ad: data.ad,
           tip: data.tip,
           dovizKodu: data.dovizKodu ?? 'TRY',
-          acilisBakiye: Number(data.acilisBakiye) || 0,
+          isYeriKodu: data.isYeriKodu ?? '',
+          masrafYeriKodu: data.masrafYeriKodu ?? '',
           bankaAdi: data.bankaAdi ?? '',
-          sube: data.sube ?? '',
-          iban: data.iban ?? '',
-          hesapNo: data.hesapNo ?? '',
+          anaBankaKodu: data.anaBankaKodu ?? '',
+          subeKodu: data.subeKodu ?? '',
+          subeAdi: data.subeAdi ?? '',
+          swiftKodu: data.swiftKodu ?? '',
+          ilgiliKisi: data.ilgiliKisi ?? '',
+          erisimKodu: data.erisimKodu ?? '',
+          ozelKod: data.ozelKod ?? '',
           kullanimda: data.kullanimda,
           aciklama: data.aciklama ?? '',
         })
@@ -100,6 +111,15 @@ export default function KasaBankaHesapKarti({ tip, kod, onKirliChange }: KasaBan
 
   const set = <K extends keyof CreateKasaBankaHesap>(key: K, value: CreateKasaBankaHesap[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
+
+  const handleBankaSec = (kod: string | undefined) => {
+    const banka = BANKALAR.find((b) => b.kod === kod)
+    setForm((prev) => ({
+      ...prev,
+      anaBankaKodu: kod ?? '',
+      bankaAdi: banka?.ad ?? '',
+    }))
+  }
 
   const handleKodAra = async () => {
     if (!form.kod.trim()) return
@@ -253,27 +273,78 @@ export default function KasaBankaHesapKarti({ tip, kod, onKirliChange }: KasaBan
                     {ekranAdi} Tanım Bilgileri
                   </div>
                   <div className="!space-y-2.5">
-                    <FormField label="Tip">
-                      <Input size="small" value={tip === 'kasa' ? 'Kasa' : 'Banka'} disabled className="!text-[11px]" />
-                    </FormField>
-                    <FormField label="Döviz">
-                      <Select
-                        size="small"
-                        value={form.dovizKodu}
-                        onChange={(v) => set('dovizKodu', v)}
-                        options={dovizler}
-                        className="!w-full !text-[11px]"
-                      />
-                    </FormField>
-                    <FormField label="Açılış Bakiyesi">
-                      <InputNumber
-                        size="small"
-                        value={form.acilisBakiye}
-                        onChange={(v) => set('acilisBakiye', Number(v ?? 0))}
-                        step={0.01}
-                        className="!w-full !text-[11px]"
-                      />
-                    </FormField>
+                    {tip === 'banka' && (
+                      <>
+                        <FormField label="Ana Banka Kodu">
+                          <Select
+                            size="small"
+                            showSearch
+                            allowClear
+                            optionFilterProp="label"
+                            value={form.anaBankaKodu || undefined}
+                            onChange={handleBankaSec}
+                            options={BANKALAR.map((b) => ({ value: b.kod, label: `${b.kod} - ${b.ad}` }))}
+                            placeholder="Banka ara..."
+                            className="!w-full !text-[11px]"
+                          />
+                        </FormField>
+                        <FormField label="Şube Kodu">
+                          <Input size="small" value={form.subeKodu} onChange={(e) => set('subeKodu', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Şube Adı">
+                          <Input size="small" value={form.subeAdi} onChange={(e) => set('subeAdi', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Swift Kodu">
+                          <Input size="small" value={form.swiftKodu} onChange={(e) => set('swiftKodu', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="İlgili Kişi">
+                          <Input size="small" value={form.ilgiliKisi} onChange={(e) => set('ilgiliKisi', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Erişim Kodu">
+                          <Input size="small" value={form.erisimKodu} onChange={(e) => set('erisimKodu', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Özel Kod">
+                          <Input size="small" value={form.ozelKod} onChange={(e) => set('ozelKod', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                      </>
+                    )}
+                    {tip === 'kasa' && (
+                      <>
+                        <FormField label="İş Yeri Kodu">
+                          <Input
+                            size="small"
+                            suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
+                            value={form.isYeriKodu}
+                            onChange={(e) => set('isYeriKodu', e.target.value)}
+                            className="!text-[11px]"
+                          />
+                        </FormField>
+                        <FormField label="Masraf Yeri Kodu">
+                          <Input
+                            size="small"
+                            suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
+                            value={form.masrafYeriKodu}
+                            onChange={(e) => set('masrafYeriKodu', e.target.value)}
+                            className="!text-[11px]"
+                          />
+                        </FormField>
+                        <FormField label="Erişim Kodu">
+                          <Input size="small" value={form.erisimKodu} onChange={(e) => set('erisimKodu', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Özel Kod">
+                          <Input size="small" value={form.ozelKod} onChange={(e) => set('ozelKod', e.target.value)} className="!text-[11px]" />
+                        </FormField>
+                        <FormField label="Döviz">
+                          <Select
+                            size="small"
+                            value={form.dovizKodu}
+                            onChange={(v) => set('dovizKodu', v)}
+                            options={dovizler}
+                            className="!w-full !text-[11px]"
+                          />
+                        </FormField>
+                      </>
+                    )}
                     <FormField label="Açıklama">
                       <TextArea
                         size="small"
@@ -285,29 +356,6 @@ export default function KasaBankaHesapKarti({ tip, kod, onKirliChange }: KasaBan
                     </FormField>
                   </div>
                 </div>
-              </Col>
-              <Col span={12}>
-                {tip === 'banka' && (
-                  <div className="!border !border-gray-200 !rounded-sm !p-3">
-                    <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">
-                      Banka Bilgileri
-                    </div>
-                    <div className="!space-y-2.5">
-                      <FormField label="Banka Adı">
-                        <Input size="small" value={form.bankaAdi} onChange={(e) => set('bankaAdi', e.target.value)} className="!text-[11px]" />
-                      </FormField>
-                      <FormField label="Şube">
-                        <Input size="small" value={form.sube} onChange={(e) => set('sube', e.target.value)} className="!text-[11px]" />
-                      </FormField>
-                      <FormField label="IBAN">
-                        <Input size="small" value={form.iban} onChange={(e) => set('iban', e.target.value)} className="!text-[11px]" />
-                      </FormField>
-                      <FormField label="Hesap No">
-                        <Input size="small" value={form.hesapNo} onChange={(e) => set('hesapNo', e.target.value)} className="!text-[11px]" />
-                      </FormField>
-                    </div>
-                  </div>
-                )}
               </Col>
             </Row>
           </div>

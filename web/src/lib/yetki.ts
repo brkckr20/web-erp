@@ -62,6 +62,8 @@ const KART_ONEKLERI: { onek: string; ekran: string }[] = [
   { onek: 'sirket-karti', ekran: 'sirket-tanimlari' },
   { onek: 'kasa-hesabi-karti', ekran: 'kasa-hesaplari' },
   { onek: 'banka-hesabi-karti', ekran: 'banka-hesaplari' },
+  { onek: 'odeme-plani-karti', ekran: 'odeme-planlari' },
+  { onek: 'cari-hesap-fisi', ekran: 'cari-hesap-fisleri' },
   { onek: 'depo-karti', ekran: 'depo-tanimlari' },
   { onek: 'doviz-karti', ekran: 'doviz-tanimlari' },
   { onek: 'aksesuar-karti', ekran: 'aksesuar-kartlari' },
