@@ -257,12 +257,15 @@ export const modules: Module[] = [
           { key: 'banka-hesaplari', label: 'Banka Hesapları', isForm: true },
           { key: 'doviz-tanimlari', label: 'Döviz Tanımları', isForm: true },
           { key: 'odeme-planlari', label: 'Ödeme Planları', isForm: true },
+          { key: 'masraf-yerleri', label: 'Masraf Yerleri', isForm: true },
+          { key: 'hesap-plani', label: 'Hesap Planı', isForm: true },
+          { key: 'muhasebe-entegrasyon-tanimlari', label: 'Muhasebe Entegrasyon Tanımları', isForm: true },
         ],
       },
       {
         title: 'Hareketler',
         items: [
-          { key: 'cari-hesap-fisleri', label: 'Cari Hesap Fişleri', isForm: true },
+          { key: 'muhasebe-fisleri', label: 'Muhasebe Fişleri', isForm: true },
         ],
       },
       {
@@ -312,6 +315,7 @@ export const modules: Module[] = [
         items: [
           { key: 'renk-karti-transferi', label: 'Renk Kartı Transferi' },
           { key: 'cari-hesap-transferi', label: 'Cari Hesap Kartı Transferi' },
+          { key: 'muhasebe-hesap-transferi', label: 'Muhasebe Hesap Kartı Transferi' },
         ],
       },
       {

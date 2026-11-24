@@ -17,9 +17,14 @@ import KasaBankaHesapKarti from '@/components/pages/KasaBankaHesapKarti'
 import KasaBankaHesapListesi from '@/components/pages/KasaBankaHesapListesi'
 import OdemePlanKarti from '@/components/pages/OdemePlanKarti'
 import OdemePlanListesi from '@/components/pages/OdemePlanListesi'
-import CariHesapFisleriListesi from '@/components/pages/CariHesapFisleriListesi'
-import CariHesapFisKarti from '@/components/pages/CariHesapFisKarti'
-import { fisTipiEtiketi } from '@/data/cari-hesap-fis-tipleri'
+import MuhasebeFisleriListesi from '@/components/pages/MuhasebeFisleriListesi'
+import MuhasebeFisKarti from '@/components/pages/MuhasebeFisKarti'
+import MasrafYeriKarti from '@/components/pages/MasrafYeriKarti'
+import MasrafYeriListesi from '@/components/pages/MasrafYeriListesi'
+import HesapPlaniListesi from '@/components/pages/HesapPlaniListesi'
+import HesapPlaniKarti from '@/components/pages/HesapPlaniKarti'
+import MuhasebeHesapTransferi from '@/components/pages/MuhasebeHesapTransferi'
+import MuhasebeEntegrasyonTanimlari from '@/components/pages/MuhasebeEntegrasyonTanimlari'
 import RafKarti from '@/components/pages/RafKarti'
 import RafListesi from '@/components/pages/RafListesi'
 import KullaniciKarti from '@/components/pages/KullaniciKarti'
@@ -264,10 +269,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
-  const openCariHesapFisKarti = useCallback((id: number) => {
-    const key = 'cari-hesap-fisi-' + id
+  const openMasrafYeriKarti = useCallback((id: number) => {
+    const key = 'masraf-yeri-karti-' + id
     setTabs((prev) => {
-      const tab: Tab = { key, label: 'Cari Hesap Fişi - ' + id, moduleKey: 'muhasebe', isForm: true }
+      const tab: Tab = { key, label: 'Masraf Yeri - ' + id, moduleKey: 'muhasebe', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -275,15 +280,54 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setActiveTab(key)
   }, [])
 
-  const openYeniCariHesapFisi = useCallback((fisTipi: string) => {
-    const key = 'cari-hesap-fisi-yeni-' + fisTipi
+  const openYeniMasrafYeri = useCallback(() => {
+    const key = 'masraf-yeri-karti-yeni'
     setTabs((prev) => {
-      const tab: Tab = {
-        key,
-        label: 'Yeni ' + fisTipiEtiketi(fisTipi),
-        moduleKey: 'muhasebe',
-        isForm: true,
-      }
+      const tab: Tab = { key, label: 'Yeni Masraf Yeri', moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openHesapPlaniKarti = useCallback((id: number) => {
+    const key = 'hesap-plani-karti-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Muhasebe Hesabı - ' + id, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniHesapPlani = useCallback(() => {
+    const key = 'hesap-plani-karti-yeni'
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Muhasebe Hesabı', moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openMuhasebeFisKarti = useCallback((id: number) => {
+    const key = 'muhasebe-fisi-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Muhasebe Fişi - ' + id, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniMuhasebeFisi = useCallback((fisTipi: string) => {
+    const key = 'muhasebe-fisi-yeni-' + fisTipi
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Muhasebe Fişi', moduleKey: 'muhasebe', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -1220,30 +1264,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const planId = Number(tab.key.replace('odeme-plani-karti-', ''))
       if (!isNaN(planId)) return <OdemePlanKarti id={planId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
-    if (tab.key === 'cari-hesap-fisleri') {
-      return <CariHesapFisleriListesi onSelect={openCariHesapFisKarti} onNew={openYeniCariHesapFisi} />
+    if (tab.key === 'masraf-yerleri') {
+      return <MasrafYeriListesi onSelect={openMasrafYeriKarti} onNew={openYeniMasrafYeri} />
     }
-    if (tab.key.startsWith('cari-hesap-fisi-yeni-')) {
-      return (
-        <CariHesapFisKarti
-          key={tab.key}
-          fisTipi={tab.key.replace('cari-hesap-fisi-yeni-', '')}
-          onKirliChange={(b) => setKirli(tab.key, b)}
-        />
-      )
+    if (tab.key === 'masraf-yeri-karti-yeni') {
+      return <MasrafYeriKarti onKirliChange={(b) => setKirli(tab.key, b)} />
     }
-    if (tab.key.startsWith('cari-hesap-fisi-')) {
-      const fisId = Number(tab.key.replace('cari-hesap-fisi-', ''))
-      if (!isNaN(fisId)) {
-        return (
-          <CariHesapFisKarti
-            key={tab.key}
-            id={fisId}
-            fisTipi=""
-            onKirliChange={(b) => setKirli(tab.key, b)}
-          />
-        )
-      }
+    if (tab.key.startsWith('masraf-yeri-karti-')) {
+      const masrafYeriId = Number(tab.key.replace('masraf-yeri-karti-', ''))
+      if (!isNaN(masrafYeriId)) return <MasrafYeriKarti id={masrafYeriId} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key === 'hesap-plani') {
+      return <HesapPlaniListesi onSelect={openHesapPlaniKarti} onNew={openYeniHesapPlani} />
+    }
+    if (tab.key === 'muhasebe-entegrasyon-tanimlari') {
+      return <MuhasebeEntegrasyonTanimlari />
+    }
+    if (tab.key === 'hesap-plani-karti-yeni') {
+      return <HesapPlaniKarti onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('hesap-plani-karti-')) {
+      const hesapId = Number(tab.key.replace('hesap-plani-karti-', ''))
+      if (!isNaN(hesapId)) return <HesapPlaniKarti id={hesapId} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key === 'muhasebe-fisleri') {
+      return <MuhasebeFisleriListesi onSelect={openMuhasebeFisKarti} onNew={openYeniMuhasebeFisi} />
+    }
+    if (tab.key.startsWith('muhasebe-fisi-yeni-')) {
+      return <MuhasebeFisKarti key={tab.key} fisTipi={tab.key.replace('muhasebe-fisi-yeni-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('muhasebe-fisi-')) {
+      const fisId = Number(tab.key.replace('muhasebe-fisi-', ''))
+      if (!isNaN(fisId)) return <MuhasebeFisKarti key={tab.key} id={fisId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'depo-tanimlari') {
       return <DepoListesi onSelect={openDepoKarti} onNew={openYeniDepo} />
@@ -1310,6 +1362,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'cari-hesap-transferi') {
       return <CariHesapKartiTransferi />
+    }
+    if (tab.key === 'muhasebe-hesap-transferi') {
+      return <MuhasebeHesapTransferi />
     }
     if (tab.key === 'logo-yonetimi') {
       return <LogoYonetimi />
@@ -1821,13 +1876,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           baslangicIrsaliyeIds={tab.baslangicIrsaliyeIds}
           onDeleted={() => handleTabClose(tab.key, true)}
           onOpenIrsaliye={openIrsaliyeFromFatura}
+          onOpenCariHesapFis={openMuhasebeFisKarti}
           onKirliChange={(b) => setKirli(tab.key, b)}
         />
       )
     }
     if (tab.key.startsWith('fatura-karti-')) {
       const faturaId = Number(tab.key.replace('fatura-karti-', ''))
-      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key, true)} onKirliChange={(b) => setKirli(tab.key, b)} onOpenIrsaliye={openIrsaliyeFromFatura} />
+      return <FaturaKarti id={faturaId} faturaTipi={tab.faturaTipi} ekranAdi={tab.ekranAdi} onDeleted={() => handleTabClose(tab.key, true)} onKirliChange={(b) => setKirli(tab.key, b)} onOpenIrsaliye={openIrsaliyeFromFatura} onOpenCariHesapFis={openMuhasebeFisKarti} />
     }
     return (
       <div className="!p-3">

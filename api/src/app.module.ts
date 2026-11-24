@@ -56,9 +56,13 @@ import { RolModule } from './rol/rol.module';
 import { KasaBankaHesapModule } from './kasa-banka-hesap/kasa-banka-hesap.module';
 import { OdemePlanModule } from './odeme-plan/odeme-plan.module';
 import { CariHesapFisModule } from './cari-hesap-fis/cari-hesap-fis.module';
+import { MasrafYeriModule } from './masraf-yeri/masraf-yeri.module';
+import { MuhasebeHesapModule } from './muhasebe-hesap/muhasebe-hesap.module';
+import { MuhasebeFisModule } from './muhasebe-fis/muhasebe-fis.module';
+import { MuhasebeEntegrasyonModule } from './muhasebe-entegrasyon/muhasebe-entegrasyon.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FaturaModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, KumasTalepModule, KesimModule, UretimHareketModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, FiyatTeklifModule, IslemModule, RotaModule, AuditModule, SirketModule, NakliyeciModule, RolModule, KasaBankaHesapModule, OdemePlanModule, CariHesapFisModule],
+  imports: [ScheduleModule.forRoot(), PrismaModule, DepoModule, DepoRafModule, KullaniciModule, AuthModule, MalzemeModule, MakinaModule, CariHesapModule, KolonSecimiModule, KaliteKontrolModule, HataTanimModule, IsEmriModule, NumaratorModule, OzellikKodlamaModule, RenkModule, MarkaModule, GrupModule, BedenModule, ModelReceteModule, ModelBedenModule, KumasGrupModule, ModelKumasGrupModule, GtipModule, AksesuarTipiModule, MalzemeEkModule, DovizModule, MalzemeFiyatModule, IrsaliyeModule, FaturaModule, FasonTipiModule, SiparisModule, TedarikModule, ParametreModule, RenkTransferModule, CariTransferModule, IadeTalepModule, KumasTalepModule, KesimModule, UretimHareketModule, BarkodModule, LogoModule, SablonModule, RaporModule, HizmetTalepModule, FiyatTeklifModule, IslemModule, RotaModule, AuditModule, SirketModule, NakliyeciModule, RolModule, KasaBankaHesapModule, OdemePlanModule,     CariHesapFisModule, MasrafYeriModule, MuhasebeHesapModule, MuhasebeFisModule, MuhasebeEntegrasyonModule],
   controllers: [AppController],
   providers: [AppService],
 })

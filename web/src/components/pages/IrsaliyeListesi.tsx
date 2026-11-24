@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from 'react'
 import type { ColDef, CellDoubleClickedEvent, CellContextMenuEvent, SelectionChangedEvent } from 'ag-grid-community'
 import DataGrid from '@/components/shared/DataGrid'
 import { irsaliyeApi, type Irsaliye } from '@/lib/irsaliye-api'
+import { faturaApi } from '@/lib/fatura-api'
 import { eIrsaliyeApi } from '@/lib/e-irsaliye-api'
 import { hataMetni } from '@/lib/hata'
 import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
@@ -24,6 +25,7 @@ interface IrsaliyeRow {
   depo: string
   sevkNo: string
   faturaNo: string
+  faturaId: number | null
   aciklama: string
   irsaliyeToplam: number
   eIrsaliye: string
@@ -53,6 +55,7 @@ const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
     depo: i.depo?.kod ?? '',
     sevkNo: i.sevkNo ?? '',
     faturaNo: i.faturaNo ?? '',
+    faturaId: i.faturaId ?? null,
     aciklama: i.aciklama ?? '',
     irsaliyeToplam,
     // 201 ve 202 talimat/sipariş belgeleri: durum dili "Teslim Alındı / Kesinleşti"
@@ -196,9 +199,32 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
   const load = () => {
     setLoading(true)
     const tipler = new Set(mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : mod === 'fason-hareket' ? fasonHareketTipleri : satisTipleri)
-    irsaliyeApi
-      .list()
-      .then((res) => setData(res.filter((i) => tipler.has(String(i.irsaliyeTipi))).map(mapIrsaliye)))
+    // Satın alma listesindeki "Fatura No" kullanıcı için anlamlı olan fatura belge numarasıdır;
+    // irsaliyedeki fatura_no ise faturanın iç sayaç fiş numarasıdır. Bu yüzden bağlı fatura
+    // bulunup belge numarası (FaturaKarti'ndaki "Belge No") yazılır, boşsa fiş no kalır.
+    const faturaIstegi = mod === 'satinalma' ? faturaApi.list().catch(() => []) : Promise.resolve([])
+    Promise.all([irsaliyeApi.list(), faturaIstegi])
+      .then(([res, faturalar]) => {
+        const belgeNoById = new Map<number, string>()
+        const belgeNoByNo = new Map<string, string>()
+        for (const f of faturalar) {
+          if (!f.sevkNo) continue
+          belgeNoById.set(f.id, f.sevkNo)
+          belgeNoByNo.set(`${f.faturaTipi}|${f.faturaNo}`, f.sevkNo)
+        }
+        setData(
+          res
+            .filter((i) => tipler.has(String(i.irsaliyeTipi)))
+            .map(mapIrsaliye)
+            .map((r) => {
+              if (!r.faturaNo) return r
+              const belgeNo =
+                (r.faturaId != null ? belgeNoById.get(r.faturaId) : undefined) ??
+                belgeNoByNo.get(`${r.irsaliyeTipi}|${r.faturaNo}`)
+              return belgeNo ? { ...r, faturaNo: belgeNo } : r
+            }),
+        )
+      })
       .catch(() => setData([]))
       .finally(() => setLoading(false))
   }

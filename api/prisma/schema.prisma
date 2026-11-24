@@ -133,6 +133,7 @@ model Depo {
   irsaliyeler       Irsaliye[] @relation("IrsaliyeDepo")
   faturalar         Fatura[] @relation("FaturaDepo")
   rafi              DepoRaf[] @relation("DepoRafDepo")
+  muhasebeEntegrasyonTanimlari MuhasebeEntegrasyonTanimi[] @relation("DepoMuhasebeEntegrasyon")
 
   @@map("depo")
 }
@@ -504,6 +505,7 @@ model CariHesap {
   faturalar         Fatura[] @relation("FaturaCariHesap")
   siparisler        Siparis[] @relation("SiparisCariHesap")
   cariHareketler    CariHesapHareket[] @relation("CariHesapHareketler")
+  muhasebeFisSatirlari MuhasebeFisSatir[] @relation("CariMuhasebeFisSatir")
 
   @@index([vergiNo])
   @@index([createdAt])
@@ -566,6 +568,114 @@ model OdemePlanSatir {
   @@map("odeme_plan_satir")
 }
 
+model MasrafYeri {
+  id          Int      @id @default(autoincrement())
+  kod         String   @unique @db.VarChar(50)
+  ad          String   @db.VarChar(200)
+  ozelKod     String?  @map("ozel_kod") @db.VarChar(100)
+  erisimKodu  String?  @map("erisim_kodu") @db.VarChar(100)
+  aciklama    String?  @db.VarChar(1000)
+  dovizCinsi  String?  @map("doviz_cinsi") @db.VarChar(10)
+  kullanimda  Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("masraf_yeri")
+}
+
+model MuhasebeHesap {
+  id         Int      @id @default(autoincrement())
+  kod        String   @unique @db.VarChar(50)
+  ad         String   @db.VarChar(200)
+  erisimKodu String?  @map("erisim_kodu") @db.VarChar(100)
+  ozelKod    String?  @map("ozel_kod") @db.VarChar(100)
+  aciklama   String?  @db.VarChar(1000)
+  hesapTipi  String   @default("PARASAL") @map("hesap_tipi") @db.VarChar(30)
+  hesapTuru  String   @default("BORC_ALACAK") @map("hesap_turu") @db.VarChar(20)
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  entegrasyonTanimlari MuhasebeEntegrasyonTanimi[] @relation("MuhasebeHesapEntegrasyon")
+
+  @@map("muhasebe_hesap")
+}
+
+model MuhasebeFis {
+  id         Int      @id @default(autoincrement())
+  fisTipi    String   @map("fis_tipi") @db.VarChar(10)
+  fisNo      Int      @map("fis_no")
+  fisTarihi  DateTime @map("fis_tarihi")
+  belgeNo    String?  @map("belge_no") @db.VarChar(50)
+  k          String?  @db.VarChar(50)
+  ozelKod    String?  @map("ozel_kod") @db.VarChar(50)
+  erisimKodu String?  @map("erisim_kodu") @db.VarChar(50)
+  aciklama   String?  @db.VarChar(1000)
+  kaynakTuru String?  @map("kaynak_turu") @db.VarChar(30)
+  kaynakId   Int?     @map("kaynak_id")
+  fasonTipiId Int?    @map("fason_tipi_id")
+  fasonTipi   FasonTipi? @relation("FasonTipiMuhasebeFis", fields: [fasonTipiId], references: [id])
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  satirlar   MuhasebeFisSatir[]
+
+  @@unique([fisTipi, fisNo])
+  @@index([fisTarihi])
+  @@index([kaynakTuru, kaynakId])
+  @@index([fasonTipiId])
+  @@map("muhasebe_fis")
+}
+
+model MuhasebeFisSatir {
+  id           Int         @id @default(autoincrement())
+  fisId        Int         @map("fis_id")
+  fis          MuhasebeFis @relation(fields: [fisId], references: [id], onDelete: Cascade)
+  hesapKodu    String      @map("hesap_kodu") @db.VarChar(50)
+  hesapAdi     String?     @map("hesap_adi") @db.VarChar(200)
+  cariHesapId  Int?        @map("cari_hesap_id")
+  cariHesap    CariHesap?  @relation("CariMuhasebeFisSatir", fields: [cariHesapId], references: [id])
+  ozelKod      String?     @map("ozel_kod") @db.VarChar(50)
+  aciklama     String?     @db.VarChar(500)
+  vadeTarihi   DateTime?   @map("vade_tarihi") @db.Date
+  miktar       Decimal?    @db.Decimal(18, 4)
+  belgeNo      String?     @map("belge_no") @db.VarChar(50)
+  doviz        String?     @db.VarChar(10)
+  dovizKuru    Decimal?    @map("doviz_kuru") @db.Decimal(18, 6)
+  dovizTutari  Decimal?    @map("doviz_tutari") @db.Decimal(18, 2)
+  borc         Decimal     @default(0) @db.Decimal(18, 2)
+  alacak       Decimal     @default(0) @db.Decimal(18, 2)
+
+  @@index([fisId])
+  @@index([hesapKodu])
+  @@index([cariHesapId])
+  @@map("muhasebe_fis_satir")
+}
+
+model MuhasebeEntegrasyonTanimi {
+  id              Int       @id @default(autoincrement())
+  hesapTipi       String    @map("hesap_tipi") @db.VarChar(30)
+  faturaTipi      String?   @map("fatura_tipi") @db.VarChar(10)
+  depoId          Int?      @map("depo_id")
+  depo            Depo?     @relation("DepoMuhasebeEntegrasyon", fields: [depoId], references: [id])
+  fasonTipiId     Int?      @map("fason_tipi_id")
+  fasonTipi       FasonTipi? @relation("FasonTipiMuhasebeEntegrasyon", fields: [fasonTipiId], references: [id])
+  kdvOrani        Decimal?  @map("kdv_orani") @db.Decimal(5, 2)
+  muhasebeHesapId Int?      @map("muhasebe_hesap_id")
+  muhasebeHesap   MuhasebeHesap? @relation("MuhasebeHesapEntegrasyon", fields: [muhasebeHesapId], references: [id])
+  hesapKodu       String    @map("hesap_kodu") @db.VarChar(50)
+  sira            Int       @default(0)
+  aktif           Boolean   @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([hesapTipi, faturaTipi, depoId, fasonTipiId])
+  @@map("muhasebe_entegrasyon_tanimi")
+}
+
 model CariHesapFis {
   id          Int       @id @default(autoincrement())
   fisTipi     String    @map("fis_tipi") @db.VarChar(10)
@@ -593,8 +703,8 @@ model CariHesapFis {
 
 model CariHesapHareket {
   id          Int           @id @default(autoincrement())
-  fisId       Int           @map("fis_id")
-  fis         CariHesapFis  @relation(fields: [fisId], references: [id], onDelete: Cascade)
+  fisId       Int?          @map("fis_id")
+  fis         CariHesapFis? @relation(fields: [fisId], references: [id], onDelete: Cascade)
   cariHesapId Int           @map("cari_hesap_id")
   cariHesap   CariHesap     @relation("CariHesapHareketler", fields: [cariHesapId], references: [id])
 
@@ -1418,6 +1528,8 @@ model FasonTipi {
 
   fasonIrsaliyeler   Irsaliye[] @relation("IrsaliyeFasonTipi")
   fasonFaturalar    Fatura[] @relation("FaturaFasonTipi")
+  muhasebeEntegrasyonTanimlari MuhasebeEntegrasyonTanimi[] @relation("FasonTipiMuhasebeEntegrasyon")
+  muhasebeFisler    MuhasebeFis[] @relation("FasonTipiMuhasebeFis")
 
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

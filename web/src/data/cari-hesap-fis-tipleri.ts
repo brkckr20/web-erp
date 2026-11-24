@@ -17,6 +17,7 @@ export const CARI_HESAP_FIS_TIPLERI: CariHesapFisTipi[] = [
   { deger: '17', ad: 'Kur Farkı Alacak' },
   { deger: '18', ad: 'Vade Farkı Borç' },
   { deger: '19', ad: 'Vade Farkı Alacak' },
+
   { deger: '40', ad: 'Firma Kredi Kartı Fişi' },
   { deger: '41', ad: 'Firma Kredi Kartı İade Fişi' },
   { deger: '42', ad: 'Kredi Kartı Fişi' },

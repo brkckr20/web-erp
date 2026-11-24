@@ -2,6 +2,13 @@
 
 import { api } from './api'
 
+export interface FaturaMuhasebeFis {
+  id: number
+  fisTipi: string
+  fisNo: number
+  fisTarihi: string | null
+}
+
 export interface Fatura {
   id: number
   faturaNo: string
@@ -23,6 +30,7 @@ export interface Fatura {
   fasonTipi?: { id: number; ad: string } | null
   kalemler?: FaturaKalem[]
   irsaliyeler?: { id: number; irsaliyeTipi: string; irsaliyeNo: string | null }[]
+  muhasebeFis?: FaturaMuhasebeFis | null
 }
 
 export interface FaturaKalem {

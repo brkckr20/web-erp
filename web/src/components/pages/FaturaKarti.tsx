@@ -60,6 +60,7 @@ interface FaturaKartiProps {
   baslangicIrsaliyeIds?: number[]
   onDeleted?: (faturaTipi: string) => void
   onOpenIrsaliye?: (info: { id: number; irsaliyeTipi: string; irsaliyeNo: string }) => void
+  onOpenCariHesapFis?: (fisId: number) => void
   /** Kaydedilmemiş değişiklik durumu AppLayout'taki sekme rozeti için bildirilir. */
   onKirliChange?: (kirli: boolean) => void
 }
@@ -204,7 +205,7 @@ function CellTextInput({ value, onCommit, onEnter, className }: { value: string;
   )
 }
 
-export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, baslangicIrsaliyeIds, onDeleted, onOpenIrsaliye, onKirliChange }: FaturaKartiProps) {
+export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propId, ekranAdi, baslangicIrsaliyeIds, onDeleted, onOpenIrsaliye, onOpenCariHesapFis, onKirliChange }: FaturaKartiProps) {
   const { message, modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
@@ -224,6 +225,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const [sevkTarihi, setSevkTarihi] = useState<dayjs.Dayjs | null>(() => (propId ? null : dayjs()))
   const [belgeNo, setBelgeNo] = useState('')
   const [bagliIrsaliyeler, setBagliIrsaliyeler] = useState<{ id: number; irsaliyeTipi: string; irsaliyeNo: string | null }[]>([])
+  const [muhasebeFis, setMuhasebeFis] = useState<Fatura['muhasebeFis'] | null>(null)
+  const [muhasebeModal, setMuhasebeModal] = useState<Fatura['muhasebeFis'] | null>(null)
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
@@ -275,6 +278,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           setCariKod(f.cariHesap?.kod ?? '')
           setDepoKod(f.depo?.kod ?? '')
           setBagliIrsaliyeler(f.irsaliyeler ?? [])
+          setMuhasebeFis(f.muhasebeFis ?? null)
           const rows: KalemRow[] = (f.kalemler ?? []).map((k) => ({
             key: Math.random().toString(36).slice(2),
             irsaliyeKalemId: k.irsaliyeKalemId ?? null,
@@ -313,6 +317,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           temizle()
         })
     } else {
+      setMuhasebeFis(null)
+      setBagliIrsaliyeler([])
       faturaApi
         .nextFaturaNo(faturaTipi)
         .then((res) => setFaturaNo(res.faturaNo))
@@ -568,7 +574,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
       })) as FaturaKalem[]
 
       if (id) {
-        await faturaApi.update(id, {
+        const updated = await faturaApi.update(id, {
           faturaTarihi: faturaTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
           sevkNo: belgeNo || null,
@@ -580,6 +586,9 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           guncelleyen: kayitYapan,
           kalemler: kalemPayload,
         } as Fatura)
+        setBagliIrsaliyeler(updated.irsaliyeler ?? [])
+        setMuhasebeFis(updated.muhasebeFis ?? null)
+        setMuhasebeModal(updated.muhasebeFis ?? null)
         message.success('Fatura güncellendi')
         temizle()
       } else {
@@ -599,6 +608,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
         } as FaturaFormData & { kalemler: FaturaKalem[] })
         setLocalId(created.id)
         setBagliIrsaliyeler(created.irsaliyeler ?? [])
+        setMuhasebeFis(created.muhasebeFis ?? null)
+        setMuhasebeModal(created.muhasebeFis ?? null)
         message.success(
           (created.kalemler ?? []).some((k) => k.irsaliyeKalemId != null)
             ? 'Fatura ve kalemler kaydedildi'
@@ -1163,10 +1174,11 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                 </div>
               </div>
 
-              {bagliIrsaliyeler.length > 0 && (
+              {(bagliIrsaliyeler.length > 0 || muhasebeFis) && (
               <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
                 <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-1">Entegrasyon Bilgileri</div>
                 <div className="!space-y-0.5">
+                  {bagliIrsaliyeler.length > 0 && (
                   <div className="!flex !items-start !gap-3">
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">İrsaliye</div>
                     <div className="!flex !flex-wrap !gap-1">
@@ -1179,6 +1191,19 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                       ))}
                     </div>
                   </div>
+                  )}
+                  {muhasebeFis && (
+                  <div className="!flex !items-start !gap-3">
+                    <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Muhasebe</div>
+                    <div className="!flex !flex-wrap !gap-1">
+                      <Tooltip title="Mahsup fişini aç">
+                        <Tag color="purple" onClick={() => onOpenCariHesapFis?.(muhasebeFis.id)} className="!cursor-pointer !text-[12px] !mr-0">
+                          Fiş {String(muhasebeFis.fisNo).padStart(8, '0')}
+                        </Tag>
+                      </Tooltip>
+                    </div>
+                  </div>
+                  )}
                 </div>
               </div>
               )}
@@ -1316,6 +1341,21 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
             ))}
           </div>
         </div>
+      </Modal>
+      <Modal
+        open={!!muhasebeModal}
+        onCancel={() => setMuhasebeModal(null)}
+        footer={<Button onClick={() => setMuhasebeModal(null)}>Tamam</Button>}
+        title={<span className="!text-[13px] !font-semibold">Muhasebe Kaydı Oluşturuldu</span>}
+        width={520}
+      >
+        {muhasebeModal && (
+          <div className="!space-y-2 !text-[12px]">
+            <div className="!flex !gap-2"><span className="!text-[#6b7280] !w-32">Belge</span><span>Fatura {faturaNo}</span></div>
+            <div className="!flex !gap-2"><span className="!text-[#6b7280] !w-32">Mahsup Fişi</span><span>{String(muhasebeModal.fisNo).padStart(8, '0')}</span></div>
+            <div className="!text-[11px] !text-[#9ca3af] !pt-1">Mahsup fişi fatura ile otomatik senkronize edilir. Muhasebe &gt; Muhasebe Fişleri ekranından görüntüleyebilirsiniz.</div>
+          </div>
+        )}
       </Modal>
       <RaporSecimModal
         open={raporModalAcik}

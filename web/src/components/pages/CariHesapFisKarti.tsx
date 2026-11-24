@@ -642,7 +642,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
     <div className="!h-full !flex !flex-col">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
         <CardToolbar buttons={toolbarButtons} />
-        <Spin spinning={loading || saving}>
+        <Spin spinning={loading || saving} classNames={{ root: '!flex-1 !min-h-0 [&_.ant-spin-container]:!h-full [&_.ant-spin-container]:!flex [&_.ant-spin-container]:!flex-col' }}>
           <div className="!px-3 !py-2 !border-b !border-gray-200 !flex-shrink-0">
             <div className="!flex !flex-col !gap-1.5 !max-w-2xl">
               <div className="!flex !items-center !gap-1.5">
@@ -752,7 +752,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
               </Button>
             </div>
 
-            <div className="!flex-1 !min-h-0" style={{ minHeight: 240 }}>
+            <div className="!flex-1 !min-h-[260px]">
               <DataGrid
                 rowData={satirlar}
                 columnDefs={columns}
@@ -761,7 +761,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
                 rowSelection="single"
                 enableColumnChooser={false}
                 exportFileName={`cari-hesap-fisi-${fisTipi}`}
-                suppressCellFocus
+                suppressCellFocus={false}
               />
             </div>
 

@@ -155,6 +155,10 @@ export default function SearchableSelect<T extends SearchableItem>({
             : (input, option) =>
                 ((option as { searchText?: string })?.searchText ?? '').toLowerCase().includes(input.toLowerCase())
         }
+        onClick={(e) => {
+          const input = (e.currentTarget as HTMLElement).querySelector('input')
+          if (input) setTimeout(() => input.select(), 0)
+        }}
       />
       {!hideAdLabel && <span className="!text-[11px] !text-[#333] !min-w-0 !truncate" title={selectedAd}>{selectedAd}</span>}
     </div>
