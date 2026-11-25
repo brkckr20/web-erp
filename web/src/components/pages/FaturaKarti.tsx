@@ -14,6 +14,7 @@ import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import { faturaApi, type Fatura, type FaturaKalem, type FaturaFormData } from '@/lib/fatura-api'
+import { masrafYeriApi } from '@/lib/masraf-yeri-api'
 import type { Irsaliye } from '@/lib/irsaliye-api'
 import { irsaliyeApi } from '@/lib/irsaliye-api'
 import { fasonTipiApi } from '@/lib/fason-tipi-api'
@@ -130,6 +131,7 @@ const emptyKalem = (tip: KalemRow['tip'] = 'Malzeme'): KalemRow => ({
 
 // Fason fişleri: miktarlar brüt/net ayrı girilir (irsaliye ile aynı kolon seti).
 const fasonFisTipleri = ['6', '11', '12', '125', '133', '134']
+const SATINALMA_FATURA_TIPLERI = new Set(['1','5','6','7','9','11','22','92','122','124','133','139'])
 const uretimKolonlari = ['tip', 'barkod', 'brutKg', 'kg', 'brutMt', 'mt', 'adet', 'hesapBirimi']
 const defaultHiddenColsFor = (): Set<string> => new Set<string>()
 
@@ -210,6 +212,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
   const faturaTipiLabel = faturaTipiLabelMap[faturaTipi] || faturaTipi
+  const satinalmaFaturasi = SATINALMA_FATURA_TIPLERI.has(faturaTipi)
   const [localId, setLocalId] = useState<number | undefined>(propId)
   const id = localId
 
@@ -229,6 +232,8 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
   const [muhasebeModal, setMuhasebeModal] = useState<Fatura['muhasebeFis'] | null>(null)
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
+  const [masrafYeri, setMasrafYeri] = useState('')
+  const [masrafYerleri, setMasrafYerleri] = useState<{ id: number; kod: string; ad: string; kullanimda: boolean }[]>([])
   const [kalemler, setKalemler] = useState<KalemRow[]>([])
   const [loading, setLoading] = useState<boolean>(() => Boolean(propId))
   const [raporModalAcik, setRaporModalAcik] = useState(false)
@@ -247,6 +252,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     belgeNo,
     aciklama,
     yetkili,
+    masrafYeri,
     fasonTipiKayit,
     bagliIrsaliyeler,
     kalemler,
@@ -273,6 +279,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           setBelgeNo(f.sevkNo ?? '')
           setAciklama(f.aciklama ?? '')
           setYetkili(f.yetkili ?? '')
+          setMasrafYeri(f.masrafYeri ?? '')
           setFasonTipiKayit(f.fasonTipiId ?? null)
           setFasonTipiAd(f.fasonTipi?.ad ?? '')
           setCariKod(f.cariHesap?.kod ?? '')
@@ -327,11 +334,17 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
     return () => { cancelled = true }
   }, [propId, faturaTipi, message, temizle])
 
+  const masrafYeriSecenekleri = useMemo(
+    () => masrafYerleri.filter((m) => m.kullanimda).map((m) => ({ value: m.kod, label: `${m.kod} - ${m.ad}` })),
+    [masrafYerleri],
+  )
+
   useEffect(() => {
     fasonTipiApi
       .list()
       .then((list) => setFasonTipleri(list.filter((f) => f.kullanimda).map((f) => ({ id: f.id, ad: f.ad }))))
       .catch(() => setFasonTipleri([]))
+    masrafYeriApi.list().then(setMasrafYerleri).catch(() => setMasrafYerleri([]))
   }, [])
 
   useEffect(() => {
@@ -579,6 +592,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
           sevkNo: belgeNo || null,
           aciklama: aciklama || null,
+          masrafYeri: masrafYeri || null,
           cariHesapId,
           depoId,
           fasonTipiId: fasonTipiKayit,
@@ -599,6 +613,7 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
           sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
           sevkNo: belgeNo || null,
           aciklama: aciklama || null,
+          masrafYeri: masrafYeri || null,
           cariHesapId,
           depoId,
           fasonTipiId: fasonTipiKayit,
@@ -1147,6 +1162,22 @@ export default function FaturaKarti({ faturaTipi = '120', fasonTipiId, id: propI
                     <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Açıklama</div>
                     <Input size="small" value={aciklama} onChange={(e) => setAciklama(e.target.value)} className="!w-48 !text-[12px]" />
                   </div>
+                  {satinalmaFaturasi && (
+                    <div className="!flex !items-center !gap-3">
+                      <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Masraf Yeri</div>
+                      <Select
+                        size="small"
+                        showSearch
+                        allowClear
+                        optionFilterProp="label"
+                        value={masrafYeri || undefined}
+                        onChange={(v) => setMasrafYeri(v ?? '')}
+                        options={masrafYeriSecenekleri}
+                        placeholder="Seçiniz..."
+                        className="!w-48 !text-[12px]"
+                      />
+                    </div>
+                  )}
                   {fasonTipiAd && (
                     <div className="!flex !items-center !gap-3">
                       <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Fiş Alt Tipi</div>

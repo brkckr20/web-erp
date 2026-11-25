@@ -30,6 +30,9 @@ export interface MuhasebeFis {
   aciklama: string | null
   kaynakTuru: string | null
   kaynakId: number | null
+  fasonTipiId?: number | null
+  fasonTipi?: { id: number; ad: string } | null
+  masrafYeri?: string | null
   satirlar: MuhasebeFisSatir[]
 }
 

@@ -616,6 +616,7 @@ model MuhasebeFis {
   kaynakId   Int?     @map("kaynak_id")
   fasonTipiId Int?    @map("fason_tipi_id")
   fasonTipi   FasonTipi? @relation("FasonTipiMuhasebeFis", fields: [fasonTipiId], references: [id])
+  masrafYeri  String?  @map("masraf_yeri") @db.VarChar(100)
 
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -1028,6 +1029,7 @@ model Fatura {
 
   fasonTipiId       Int?     @map("fason_tipi_id")
   fasonTipi         FasonTipi? @relation("FaturaFasonTipi", fields: [fasonTipiId], references: [id])
+  masrafYeri        String?  @map("masraf_yeri") @db.VarChar(100)
 
   kalemler          FaturaKalem[] @relation("FaturaKalemleri")
 

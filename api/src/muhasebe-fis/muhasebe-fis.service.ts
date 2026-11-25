@@ -5,6 +5,7 @@ import { CreateMuhasebeFisDto, MuhasebeFisSatirDto } from './dto/create-muhasebe
 import { UpdateMuhasebeFisDto } from './dto/update-muhasebe-fis.dto'
 
 const include = {
+  fasonTipi: { select: { id: true, ad: true } },
   satirlar: { orderBy: { id: 'asc' as const }, include: { cariHesap: { select: { kod: true, ad: true } } } },
 }
 
@@ -84,6 +85,8 @@ export class MuhasebeFisService {
       if (k in dto) data[k] = metin((dto as any)[k])
     }
     if ('kaynakId' in dto) data.kaynakId = dto.kaynakId ?? null
+    if ('fasonTipiId' in dto) data.fasonTipiId = dto.fasonTipiId ?? null
+    if ('masrafYeri' in dto) data.masrafYeri = metin((dto as any).masrafYeri)
     return data
   }
 

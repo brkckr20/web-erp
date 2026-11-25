@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Tabs, Input, Checkbox, Row, Col, Select, App, Spin, Button } from 'antd'
 import { SearchOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { kullaniciApi } from '@/lib/kullanici-api'
 import type { CreateKullanici, KullaniciSeri, KullaniciTasarim } from '@/lib/kullanici-api'
 import { rolApi } from '@/lib/rol-api'
+import { masrafYeriApi, type MasrafYeri } from '@/lib/masraf-yeri-api'
 import { useKirli } from '@/lib/kirli'
 import { hataMetni } from '@/lib/hata'
 
@@ -63,6 +64,11 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
   const [form, setForm] = useState<CreateKullanici>(emptyData)
   const [id, setId] = useState<number | null>(null)
   const [rolSecenekleri, setRolSecenekleri] = useState<{ id: number; ad: string }[]>([])
+  const [masrafYerleri, setMasrafYerleri] = useState<MasrafYeri[]>([])
+  const masrafYeriSecenekleri = useMemo(
+    () => masrafYerleri.filter((m) => m.kullanimda).map((m) => ({ value: m.kod, label: `${m.kod} - ${m.ad}` })),
+    [masrafYerleri],
+  )
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const { kirli, temizle } = useKirli([form])
@@ -77,6 +83,7 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
         ),
       )
       .catch(() => setRolSecenekleri([]))
+    masrafYeriApi.list().then(setMasrafYerleri).catch(() => setMasrafYerleri([]))
   }, [])
 
   useEffect(() => {
@@ -403,7 +410,17 @@ export default function KullaniciKarti({ isNew, kod, onKirliChange }: KullaniciK
                             <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.personelKodu} onChange={(e) => set('personelKodu', e.target.value)} className="!text-[11px]" />
                           </FormField>
                           <FormField label="Masraf Yeri">
-                            <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.masrafYeri} onChange={(e) => set('masrafYeri', e.target.value)} className="!text-[11px]" />
+                            <Select
+                              size="small"
+                              showSearch
+                              allowClear
+                              optionFilterProp="label"
+                              value={form.masrafYeri || undefined}
+                              onChange={(v) => set('masrafYeri', v ?? '')}
+                              options={masrafYeriSecenekleri}
+                              placeholder="Seçiniz..."
+                              className="!w-full !text-[11px]"
+                            />
                           </FormField>
                         </div>
                       </div>

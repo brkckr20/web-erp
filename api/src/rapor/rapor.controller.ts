@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { RaporService } from './rapor.service';
 
 @Controller('rapor')
@@ -23,5 +23,14 @@ export class RaporController {
   @Get('malzeme-stok-ekstresi/:malzemeKod')
   malzemeStokEkstresi(@Param('malzemeKod') malzemeKod: string) {
     return this.raporService.malzemeStokEkstresi(malzemeKod);
+  }
+
+  @Get('yevmiye-defteri')
+  yevmiyeDefteri(
+    @Query('baslangic') baslangic?: string,
+    @Query('bitis') bitis?: string,
+    @Query('fisTipi') fisTipi?: string,
+  ) {
+    return this.raporService.yevmiyeDefteri({ baslangic, bitis, fisTipi });
   }
 }

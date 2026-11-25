@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Input, Checkbox, Row, Col, Select, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
@@ -8,6 +8,7 @@ import { useKirli } from '@/lib/kirli'
 import { kasaBankaHesapApi } from '@/lib/kasa-banka-hesap-api'
 import type { CreateKasaBankaHesap, KasaBankaTipi } from '@/lib/kasa-banka-hesap-api'
 import { dovizApi } from '@/lib/doviz-api'
+import { masrafYeriApi, type MasrafYeri } from '@/lib/masraf-yeri-api'
 import { BANKALAR } from '@/data/bankalar'
 
 const { TextArea } = Input
@@ -46,6 +47,11 @@ export default function KasaBankaHesapKarti({ tip, kod, onKirliChange }: KasaBan
   const [dovizler, setDovizler] = useState<{ value: string; label: string }[]>([
     { value: 'TRY', label: 'TRY' },
   ])
+  const [masrafYerleri, setMasrafYerleri] = useState<MasrafYeri[]>([])
+  const masrafYeriSecenekleri = useMemo(
+    () => masrafYerleri.filter((m) => m.kullanimda).map((m) => ({ value: m.kod, label: `${m.kod} - ${m.ad}` })),
+    [masrafYerleri],
+  )
   const { kirli, temizle } = useKirli([form])
   useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
@@ -58,6 +64,7 @@ export default function KasaBankaHesapKarti({ tip, kod, onKirliChange }: KasaBan
         setDovizler(opts)
       })
       .catch(() => {})
+    masrafYeriApi.list().then(setMasrafYerleri).catch(() => setMasrafYerleri([]))
   }, [])
 
   useEffect(() => {
@@ -319,13 +326,17 @@ export default function KasaBankaHesapKarti({ tip, kod, onKirliChange }: KasaBan
                             className="!text-[11px]"
                           />
                         </FormField>
-                        <FormField label="Masraf Yeri Kodu">
-                          <Input
+                        <FormField label="Masraf Yeri">
+                          <Select
                             size="small"
-                            suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />}
-                            value={form.masrafYeriKodu}
-                            onChange={(e) => set('masrafYeriKodu', e.target.value)}
-                            className="!text-[11px]"
+                            showSearch
+                            allowClear
+                            optionFilterProp="label"
+                            value={form.masrafYeriKodu || undefined}
+                            onChange={(v) => set('masrafYeriKodu', v ?? '')}
+                            options={masrafYeriSecenekleri}
+                            placeholder="Seçiniz..."
+                            className="!w-full !text-[11px]"
                           />
                         </FormField>
                         <FormField label="Erişim Kodu">

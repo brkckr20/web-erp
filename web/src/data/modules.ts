@@ -265,7 +265,14 @@ export const modules: Module[] = [
       {
         title: 'Hareketler',
         items: [
+          { key: 'cari-hesap-fisleri', label: 'Cari Hesap Fişleri', isForm: true },
           { key: 'muhasebe-fisleri', label: 'Muhasebe Fişleri', isForm: true },
+        ],
+      },
+      {
+        title: 'Raporlar',
+        items: [
+          { key: 'yevmiye-defteri', label: 'Yevmiye Defteri' },
         ],
       },
       {

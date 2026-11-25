@@ -9,5 +9,7 @@ export class UpdateMuhasebeFisDto {
   aciklama?: string | null
   kaynakTuru?: string | null
   kaynakId?: number | null
+  fasonTipiId?: number | null
+  masrafYeri?: string | null
   satirlar?: MuhasebeFisSatirDto[]
 }

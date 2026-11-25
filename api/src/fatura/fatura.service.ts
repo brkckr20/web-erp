@@ -216,6 +216,7 @@ export class FaturaService {
             cariHesapId: fatura.cariHesapId,
             depoId: fatura.depoId,
             fasonTipiId: fatura.fasonTipiId,
+            masrafYeri: fatura.masrafYeri,
             kayitYapan: fatura.kayitYapan,
             // Direkt faturadan doğan stok fişi de tamamlanmış sayılır.
             tamamlandi: stokTipiTamamlandi(fatura.faturaTipi),
@@ -254,6 +255,7 @@ export class FaturaService {
     data.cariHesap = cariHesapId ? { connect: { id: cariHesapId } } : { disconnect: true }
     data.depo = depoId ? { connect: { id: depoId } } : { disconnect: true }
     data.fasonTipi = fasonTipiId ? { connect: { id: fasonTipiId } } : { disconnect: true }
+    if ('masrafYeri' in data) data.masrafYeri = (data.masrafYeri ?? '')?.toString().trim() || null
 
     return this.prisma.$transaction(async (tx) => {
       await tx.fatura.update({ where: { id }, data })
@@ -446,7 +448,7 @@ export class FaturaService {
     const kurallar = await tx.muhasebeEntegrasyonTanimi.findMany({ where: { aktif: true } })
     const cariTip = yon === 'BORC' ? 'CARI_BORC' : 'CARI_ALACAK'
     const karsiTip = this.faturaKarsiHesapTipi(fatura.faturaTipi)
-    const cariHesapKodu = this.cozEntegrasyonHesapKodu(kurallar, cariTip, fatura.faturaTipi, fatura.depoId, null) ?? this.faturaCariHesapKodu(fatura)
+    const cariHesapKodu = this.cozEntegrasyonHesapKodu(kurallar, cariTip, fatura.faturaTipi, fatura.depoId, fatura.fasonTipiId ?? null, null) ?? await this.faturaCariHesapKodu(tx, fatura)
 
     const kdvGruplari = this.hesaplaKdvGruplari(fatura.kalemler ?? [])
     const toplamKdv = kdvGruplari.reduce((acc, g) => acc.add(g.tutar), new Prisma.Decimal(0)).toDecimalPlaces(2)
@@ -472,7 +474,7 @@ export class FaturaService {
       },
     ]
 
-    const karsiHesapKodu = this.cozEntegrasyonHesapKodu(kurallar, karsiTip, fatura.faturaTipi, fatura.depoId, fatura.fasonTipiId ?? null, null) ?? this.faturaKarsiHesapKodu(fatura.faturaTipi)
+    const karsiHesapKodu = this.cozEntegrasyonHesapKodu(kurallar, karsiTip, fatura.faturaTipi, fatura.depoId, fatura.fasonTipiId ?? null, null) ?? await this.faturaKarsiHesapKodu(tx, fatura.faturaTipi)
     satirlar.push({
       hesapKodu: karsiHesapKodu,
       hesapAdi: this.faturaKarsiHesapAdi(fatura.faturaTipi),
@@ -492,7 +494,9 @@ export class FaturaService {
     for (const g of kdvGruplari) {
       if (g.tutar.lte(0)) continue
       const kdvTip = yon === 'ALACAK' ? 'INDIRILECEK_KDV' : 'HESAPLANAN_KDV'
-      const kdvHesap = this.cozEntegrasyonHesapKodu(kurallar, kdvTip, fatura.faturaTipi, fatura.depoId, fatura.fasonTipiId ?? null, g.oran) ?? (yon === 'ALACAK' ? '191.00.0000' : '391.00.0000')
+      const kdvHesap = this.cozEntegrasyonHesapKodu(kurallar, kdvTip, fatura.faturaTipi, fatura.depoId, fatura.fasonTipiId ?? null, g.oran)
+        ?? await this.varsayilanHesapKodu(tx, [yon === 'ALACAK' ? '191' : '391'])
+        ?? (yon === 'ALACAK' ? '191' : '391')
       satirlar.push({
         hesapKodu: kdvHesap,
         hesapAdi: yon === 'ALACAK' ? `İndirilecek KDV %${g.oran}` : `Hesaplanan KDV %${g.oran}`,
@@ -510,6 +514,20 @@ export class FaturaService {
       })
     }
 
+    // Satırlarda sabit etiket yerine hesap planındaki gerçek hesap adını kullan.
+    const hesapKodlari = Array.from(new Set(satirlar.map((s) => s.hesapKodu).filter((k: string) => !!k)))
+    if (hesapKodlari.length) {
+      const hesapKartlari = await tx.muhasebeHesap.findMany({
+        where: { kod: { in: hesapKodlari } },
+        select: { kod: true, ad: true },
+      })
+      const adMap = new Map<string, string>(hesapKartlari.map((h: { kod: string; ad: string }) => [h.kod, h.ad]))
+      for (const s of satirlar) {
+        const ad = adMap.get(s.hesapKodu)
+        if (ad) s.hesapAdi = ad
+      }
+    }
+
     const fisData = {
       fisTarihi: fatura.faturaTarihi ?? new Date(),
       belgeNo: fatura.faturaNo ?? null,
@@ -520,6 +538,7 @@ export class FaturaService {
       kaynakTuru: 'FATURA',
       kaynakId: faturaId,
       fasonTipiId: fatura.fasonTipiId ?? null,
+      masrafYeri: fatura.masrafYeri ?? null,
     }
 
     if (mevcutFis) {
@@ -559,17 +578,31 @@ export class FaturaService {
     return 'SATIS'
   }
 
-  private faturaCariHesapKodu(fatura: any) {
+  private async faturaCariHesapKodu(tx: any, fatura: any) {
     const yon = this.faturaCariYonu(fatura.faturaTipi)
-    if (yon === 'BORC') return fatura.cariHesap?.musteriHesapKodu || '120.00.0000'
-    return fatura.cariHesap?.saticiHesapKodu || '320.00.0000'
+    const kartKodu = yon === 'BORC' ? fatura.cariHesap?.musteriHesapKodu : fatura.cariHesap?.saticiHesapKodu
+    if (kartKodu) return kartKodu
+    const kokKod = yon === 'BORC' ? '120' : '320'
+    return (await this.varsayilanHesapKodu(tx, [kokKod])) ?? kokKod
   }
 
-  private faturaKarsiHesapKodu(faturaTipi: string) {
-    if (['1', '22', '7', '9', '92', '11'].includes(faturaTipi)) return '153.00.0000'
-    if (['122', '124', '133', '139'].includes(faturaTipi)) return '153.00.0000'
-    if (['2', '3', '4', '12', '23'].includes(faturaTipi)) return '600.00.0000'
-    return '600.00.0000'
+  // Kural eşleşmezse hesap planındaki gerçek kök hesabı kullan (uydurma 153.00.0000 gibi kodlar yazılmasın).
+  private async varsayilanHesapKodu(tx: any, prefixler: string[]) {
+    for (const prefix of prefixler) {
+      const hesap = await tx.muhasebeHesap.findFirst({
+        where: { kod: { startsWith: prefix } },
+        orderBy: { kod: 'asc' },
+        select: { kod: true },
+      })
+      if (hesap?.kod) return hesap.kod as string
+    }
+    return null
+  }
+
+  private async faturaKarsiHesapKodu(tx: any, faturaTipi: string) {
+    const alis = ['1', '22', '7', '9', '92', '11', '122', '124', '133', '139'].includes(faturaTipi)
+    const kokKod = alis ? '153' : '600'
+    return (await this.varsayilanHesapKodu(tx, [kokKod])) ?? kokKod
   }
 
   private faturaKarsiHesapAdi(faturaTipi: string) {
@@ -601,7 +634,7 @@ export class FaturaService {
       && (k.fasonTipiId == null || k.fasonTipiId === fasonTipiId)
       && (k.kdvOrani == null || Number(k.kdvOrani) === Number(kdvOrani)))
     if (!adaylar.length) return null
-    const skor = (k: any) => (k.faturaTipi ? 8 : 0) + (k.depoId ? 4 : 0) + (k.fasonTipiId ? 2 : 0) + (k.kdvOrani != null ? 1 : 0)
+    const skor = (k: any) => (k.faturaTipi ? 8 : 0) + (k.fasonTipiId ? 4 : 0) + (k.depoId ? 2 : 0) + (k.kdvOrani != null ? 1 : 0)
     adaylar.sort((a, b) => skor(b) - skor(a) || (a.sira ?? 0) - (b.sira ?? 0))
     return adaylar[0].hesapKodu || null
   }

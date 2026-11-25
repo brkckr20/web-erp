@@ -290,7 +290,7 @@ export default function EIrsaliyeOnizlemeModal({
 
         {hata ? (
           <div className="!p-4">
-            <Alert type="error" showIcon message="e-İrsaliye oluşturulamadı" description={hata} />
+            <Alert type="error" showIcon title="e-İrsaliye oluşturulamadı" description={hata} />
           </div>
         ) : loading ? (
           <div className="!flex-1 !flex !items-center !justify-center">
@@ -298,7 +298,7 @@ export default function EIrsaliyeOnizlemeModal({
           </div>
         ) : renderHata ? (
           <div className="!p-4">
-            <Alert type="warning" showIcon message="Tasarım uygulanamadı" description={renderHata} />
+            <Alert type="warning" showIcon title="Tasarım uygulanamadı" description={renderHata} />
           </div>
         ) : (
           <iframe ref={iframeRef} title="e-İrsaliye" className="!flex-1 !w-full !border-0" />

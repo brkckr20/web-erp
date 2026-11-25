@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { App, Button, DatePicker, Input, Popconfirm, Spin } from 'antd'
+import { App, Button, DatePicker, Input, Popconfirm, Select, Spin } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { ColDef } from 'ag-grid-community'
@@ -10,10 +10,55 @@ import DataGrid from '@/components/shared/DataGrid'
 import { useKirli } from '@/lib/kirli'
 import { muhasebeFisApi, type MuhasebeFis, type MuhasebeFisFormData } from '@/lib/muhasebe-fis-api'
 import { muhasebeFisTipiEtiketi } from '@/data/muhasebe-fis-tipleri'
+import { api } from '@/lib/api'
 
 const { TextArea } = Input
 const formatTR = (v: number) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0)
 const parseTR = (s: string) => parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0
+
+function TurkishNumberInput({
+  value,
+  onChange,
+  className,
+  suffix,
+}: {
+  value: number
+  onChange: (v: number) => void
+  className?: string
+  suffix?: string
+}) {
+  const [focused, setFocused] = useState(false)
+  const [draft, setDraft] = useState('')
+  const display = focused ? draft : formatTR(value)
+  const commit = () => {
+    const v = parseTR(draft)
+    if (v !== value) onChange(v)
+    setFocused(false)
+  }
+
+  return (
+    <Input
+      size="small"
+      variant="borderless"
+      suffix={suffix ? <span className="!text-[10px] !text-[#9ca3af]">{suffix}</span> : undefined}
+      value={display}
+      onFocus={() => {
+        setFocused(true)
+        setDraft(value === 0 ? '' : String(value).replace('.', ','))
+      }}
+      onBlur={commit}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit()
+        }
+      }}
+      className={className}
+    />
+  )
+}
+
 let sayac = 0
 const yeniKey = () => `mfs-${Date.now()}-${++sayac}`
 
@@ -38,23 +83,27 @@ export default function MuhasebeFisKarti({ id: propId, fisTipi: propFisTipi, onK
   const [aciklama, setAciklama] = useState('')
   const [kaynakTuru, setKaynakTuru] = useState<string | null>(null)
   const [kaynakId, setKaynakId] = useState<number | null>(null)
+  const [fasonTipiId, setFasonTipiId] = useState<number | null>(null)
+  const [fasonTipleri, setFasonTipleri] = useState<{ id: number; ad: string }[]>([])
+  const [masrafYeri, setMasrafYeri] = useState('')
   const [satirlar, setSatirlar] = useState<Satir[]>([bosSatir()])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const kaynakli = kaynakTuru === 'FATURA'
-  const { kirli, temizle } = useKirli([fisTipi, fisTarihi, belgeNo, k, ozelKod, erisimKodu, aciklama, satirlar])
+  const { kirli, temizle } = useKirli([fisTipi, fisTarihi, belgeNo, k, ozelKod, erisimKodu, aciklama, fasonTipiId, masrafYeri, satirlar])
   useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
+  useEffect(() => { api.get<{ id: number; ad: string }[]>('/fason-tipi').then(setFasonTipleri).catch(() => {}) }, [])
 
   const doldur = useCallback((f: MuhasebeFis) => {
     setId(f.id); setFisTipi(f.fisTipi); setFisNo(f.fisNo); setFisTarihi(dayjs(f.fisTarihi))
     setBelgeNo(f.belgeNo ?? ''); setK(f.k ?? '0'); setOzelKod(f.ozelKod ?? ''); setErisimKodu(f.erisimKodu ?? ''); setAciklama(f.aciklama ?? '')
-    setKaynakTuru(f.kaynakTuru ?? null); setKaynakId(f.kaynakId ?? null)
+    setKaynakTuru(f.kaynakTuru ?? null); setKaynakId(f.kaynakId ?? null); setFasonTipiId(f.fasonTipiId ?? null); setMasrafYeri(f.masrafYeri ?? '')
     setSatirlar((f.satirlar ?? []).map(s => ({ key: String(s.id ?? yeniKey()), hesapKodu: s.hesapKodu ?? '', hesapAdi: s.hesapAdi ?? '', cariHesapId: s.cariHesapId ?? null, ozelKod: s.ozelKod ?? '', aciklama: s.aciklama ?? '', vadeTarihi: s.vadeTarihi ? dayjs(s.vadeTarihi) : null, miktar: Number(s.miktar) || 0, belgeNo: s.belgeNo ?? '', doviz: s.doviz ?? 'TRY', dovizKuru: Number(s.dovizKuru) || 1, dovizTutari: Number(s.dovizTutari) || 0, borc: Number(s.borc) || 0, alacak: Number(s.alacak) || 0 })))
     temizle()
   }, [temizle])
 
   const yeni = useCallback(() => {
-    setId(null); setFisNo(null); setFisTarihi(dayjs()); setBelgeNo(''); setK('0'); setOzelKod(''); setErisimKodu(''); setAciklama(''); setKaynakTuru(null); setKaynakId(null); setSatirlar([bosSatir()]); temizle()
+    setId(null); setFisNo(null); setFisTarihi(dayjs()); setBelgeNo(''); setK('0'); setOzelKod(''); setErisimKodu(''); setAciklama(''); setKaynakTuru(null); setKaynakId(null); setFasonTipiId(null); setMasrafYeri(''); setSatirlar([bosSatir()]); temizle()
   }, [temizle])
 
   useEffect(() => {
@@ -75,7 +124,7 @@ export default function MuhasebeFisKarti({ id: propId, fisTipi: propFisTipi, onK
     try {
       const payload: MuhasebeFisFormData = {
         fisTipi, fisTarihi: fisTarihi.format('YYYY-MM-DDTHH:mm:ss'), belgeNo: belgeNo.trim() || null, k: k.trim() || null,
-        ozelKod: ozelKod.trim() || null, erisimKodu: erisimKodu.trim() || null, aciklama: aciklama.trim() || null, kaynakTuru, kaynakId,
+        ozelKod: ozelKod.trim() || null, erisimKodu: erisimKodu.trim() || null, aciklama: aciklama.trim() || null, kaynakTuru, kaynakId, fasonTipiId, masrafYeri: masrafYeri.trim() || null,
         satirlar: gecerli.map(s => ({ hesapKodu: s.hesapKodu.trim(), hesapAdi: s.hesapAdi.trim() || null, cariHesapId: s.cariHesapId, ozelKod: s.ozelKod.trim() || null, aciklama: s.aciklama.trim() || null, vadeTarihi: s.vadeTarihi ? s.vadeTarihi.format('YYYY-MM-DD') : null, miktar: s.miktar || null, belgeNo: s.belgeNo.trim() || null, doviz: s.doviz || null, dovizKuru: s.dovizKuru || null, dovizTutari: s.dovizTutari || null, borc: s.borc, alacak: s.alacak })),
       }
       if (id) { await muhasebeFisApi.update(id, payload); message.success('Kaydedildi') }
@@ -91,13 +140,13 @@ export default function MuhasebeFisKarti({ id: propId, fisTipi: propFisTipi, onK
 
   const columns = useMemo<ColDef<Satir>[]>(() => [
     { headerName: 'Hesap Kodu', field: 'hesapKodu', width: 140, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.hesapKodu} onChange={e => updateSatir(p.data.key, { hesapKodu: e.target.value })} className="!w-full !h-full !text-[12px]" /> },
-    { headerName: 'Hesap Adı', field: 'hesapAdi', width: 180, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.hesapAdi} onChange={e => updateSatir(p.data.key, { hesapAdi: e.target.value })} className="!w-full !h-full !text-[12px]" /> },
+    { headerName: 'Hesap Adı', field: 'hesapAdi', width: 250, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" title={p.data.hesapAdi} value={p.data.hesapAdi} onChange={e => updateSatir(p.data.key, { hesapAdi: e.target.value })} className="!w-full !h-full !text-[12px]" /> },
     { headerName: 'Özel Kod', field: 'ozelKod', width: 100, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.ozelKod} onChange={e => updateSatir(p.data.key, { ozelKod: e.target.value })} className="!w-full !h-full !text-[12px]" /> },
     { headerName: 'Açıklama', field: 'aciklama', flex: 1, minWidth: 160, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.aciklama} onChange={e => updateSatir(p.data.key, { aciklama: e.target.value })} className="!w-full !h-full !text-[12px]" /> },
     { headerName: 'Vade Tarihi', field: 'vadeTarihi', width: 120, cellClass: '!p-0', cellRenderer: (p: any) => <DatePicker size="small" variant="borderless" value={p.data.vadeTarihi} onChange={d => updateSatir(p.data.key, { vadeTarihi: d })} format="DD.MM.YYYY" className="!w-full" /> },
     { headerName: 'Belge No', field: 'belgeNo', width: 110, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.belgeNo} onChange={e => updateSatir(p.data.key, { belgeNo: e.target.value })} className="!w-full !h-full !text-[12px]" /> },
-    { headerName: 'Borç', field: 'borc', width: 110, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.borc ? String(p.data.borc).replace('.', ',') : ''} onChange={e => updateSatir(p.data.key, { borc: parseTR(e.target.value), alacak: 0 })} className="!w-full !h-full !text-[12px] !text-right" /> },
-    { headerName: 'Alacak', field: 'alacak', width: 110, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.alacak ? String(p.data.alacak).replace('.', ',') : ''} onChange={e => updateSatir(p.data.key, { alacak: parseTR(e.target.value), borc: 0 })} className="!w-full !h-full !text-[12px] !text-right" /> },
+    { headerName: 'Borç', field: 'borc', width: 130, cellClass: '!p-0', cellRenderer: (p: any) => <TurkishNumberInput value={p.data.borc} onChange={v => updateSatir(p.data.key, { borc: v, alacak: 0 })} suffix="₺" className="!w-full !h-full !text-[12px] !text-right" /> },
+    { headerName: 'Alacak', field: 'alacak', width: 130, cellClass: '!p-0', cellRenderer: (p: any) => <TurkishNumberInput value={p.data.alacak} onChange={v => updateSatir(p.data.key, { alacak: v, borc: 0 })} suffix="₺" className="!w-full !h-full !text-[12px] !text-right" /> },
     { headerName: '', width: 44, cellClass: '!p-0 !flex !items-center !justify-center', cellRenderer: (p: any) => <Popconfirm title="Satır silinsin mi?" okText="Sil" cancelText="Vazgeç" onConfirm={() => satirSil(p.data.key)}><Button type="text" danger size="small" icon={<DeleteOutlined />} /></Popconfirm> },
   ], [updateSatir])
 
@@ -116,6 +165,8 @@ export default function MuhasebeFisKarti({ id: propId, fisTipi: propFisTipi, onK
             <div className="!flex !items-center !gap-2"><label className="!text-[11px] !w-24 !text-[#333]">Fiş Tarihi</label><DatePicker size="small" value={fisTarihi} onChange={d => d && setFisTarihi(d)} format="DD.MM.YYYY" allowClear={false} disabled={kaynakli} className="!w-48" /></div>
             <div className="!flex !items-center !gap-2"><label className="!text-[11px] !w-24 !text-[#333]">Erişim Kodu</label><Input size="small" value={erisimKodu} onChange={e => setErisimKodu(e.target.value)} className="!w-48" /></div>
             <div className="!flex !items-center !gap-2"><label className="!text-[11px] !w-24 !text-[#333]">Belge No</label><Input size="small" value={belgeNo} onChange={e => setBelgeNo(e.target.value)} disabled={kaynakli} className="!w-48" /></div>
+            <div className="!flex !items-center !gap-2"><label className="!text-[11px] !w-24 !text-[#333]">Fiş Alt Tipi</label><Select size="small" allowClear showSearch optionFilterProp="label" value={fasonTipiId ?? undefined} onChange={v => setFasonTipiId(v ?? null)} options={fasonTipleri.map(f => ({ value: f.id, label: f.ad }))} className="!w-48" /></div>
+            <div className="!flex !items-center !gap-2"><label className="!text-[11px] !w-24 !text-[#333]">Masraf Yeri</label><Input size="small" value={masrafYeri} onChange={e => setMasrafYeri(e.target.value)} className="!w-48" /></div>
             <div className="!flex !items-start !gap-2"><label className="!text-[11px] !w-24 !text-[#333] !pt-1">Açıklama</label><TextArea size="small" value={aciklama} onChange={e => setAciklama(e.target.value)} autoSize={{ minRows: 1, maxRows: 2 }} disabled={kaynakli} className="!w-48" /></div>
             {kaynakli && <div className="!col-span-2 !text-[10px] !text-[#888]">Bu fiş faturadan oluşturuldu; başlık alanları fatura tarafından yönetilir.</div>}
           </div>

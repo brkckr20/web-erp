@@ -449,7 +449,43 @@ export class RaporService {
       fisNo: r.fisNo,
       birim: r.birim,
       toplam: Number(r.toplam) || 0,
-      kalan: Number(r.kalan) || 0,
+        kalan: Number(r.kalan) || 0,
+    }));
+  }
+
+  async yevmiyeDefteri(params: { baslangic?: string; bitis?: string; fisTipi?: string }) {
+    const baslangic = params.baslangic ? new Date(params.baslangic) : null;
+    const bitis = params.bitis ? new Date(params.bitis) : null;
+    if (bitis) bitis.setHours(23, 59, 59, 999);
+
+    const fisler = await this.prisma.muhasebeFis.findMany({
+      where: {
+        ...(params.fisTipi ? { fisTipi: params.fisTipi } : {}),
+        ...((baslangic || bitis)
+          ? { fisTarihi: { ...(baslangic ? { gte: baslangic } : {}), ...(bitis ? { lte: bitis } : {}) } }
+          : {}),
+      },
+      include: { satirlar: { orderBy: { id: 'asc' } } },
+      orderBy: [{ fisTarihi: 'asc' }, { fisNo: 'asc' }, { id: 'asc' }],
+    });
+
+    return fisler.map((fis, index) => ({
+      maddeNo: index + 1,
+      fisId: fis.id,
+      fisTipi: fis.fisTipi,
+      fisNo: fis.fisNo,
+      fisTarihi: fis.fisTarihi,
+      belgeNo: fis.belgeNo,
+      aciklama: fis.aciklama,
+      satirlar: fis.satirlar.map((s) => ({
+        id: s.id,
+        hesapKodu: s.hesapKodu,
+        hesapAdi: s.hesapAdi,
+        aciklama: s.aciklama,
+        detay: s.belgeNo ?? s.aciklama ?? '',
+        borc: Number(s.borc) || 0,
+        alacak: Number(s.alacak) || 0,
+      })),
     }));
   }
 }

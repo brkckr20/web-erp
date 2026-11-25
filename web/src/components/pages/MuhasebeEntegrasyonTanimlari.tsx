@@ -8,6 +8,7 @@ import DataGrid from '@/components/shared/DataGrid'
 import { muhasebeEntegrasyonApi, type MuhasebeEntegrasyonTanimi } from '@/lib/muhasebe-entegrasyon-api'
 import { depoApi, type Depo } from '@/lib/depo-api'
 import { muhasebeHesapApi, type MuhasebeHesap } from '@/lib/muhasebe-hesap-api'
+import { fasonTipiApi } from '@/lib/fason-tipi-api'
 
 const HESAP_TIPLERI = [
   { value: 'CARI_BORC', label: 'Cari Borç (Alıcılar 120)' },
@@ -36,15 +37,17 @@ export default function MuhasebeEntegrasyonTanimlari() {
   const [rows, setRows] = useState<Row[]>([])
   const [depolar, setDepolar] = useState<Depo[]>([])
   const [hesaplar, setHesaplar] = useState<MuhasebeHesap[]>([])
+  const [fasonTipleri, setFasonTipleri] = useState<{ id: number; ad: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [list, depoList, hesapList] = await Promise.all([muhasebeEntegrasyonApi.list(), depoApi.list(), muhasebeHesapApi.list()])
+      const [list, depoList, hesapList, fasonList] = await Promise.all([muhasebeEntegrasyonApi.list(), depoApi.list(), muhasebeHesapApi.list(), fasonTipiApi.list()])
       setDepolar(depoList)
       setHesaplar(hesapList)
+      setFasonTipleri(fasonList.filter((f) => f.kullanimda).map((f) => ({ id: f.id, ad: f.ad })))
       setRows(list.map((r) => ({ ...r, key: String(r.id ?? yeniKey()), kdvOrani: r.kdvOrani == null ? '' : String(r.kdvOrani) })))
     } catch (e: any) { message.error(e?.message || 'Yüklenemedi') }
     finally { setLoading(false) }
@@ -53,7 +56,7 @@ export default function MuhasebeEntegrasyonTanimlari() {
   useEffect(() => { load() }, [load])
 
   const updateRow = useCallback((key: string, patch: Partial<Row>) => setRows(prev => prev.map(r => r.key === key ? { ...r, ...patch } : r)), [])
-  const addRow = () => setRows(prev => [...prev, { key: yeniKey(), hesapTipi: 'SATIS_GELIR', faturaTipi: '', depoId: null, kdvOrani: '', muhasebeHesapId: null, hesapKodu: '', sira: prev.length, aktif: true }])
+  const addRow = () => setRows(prev => [...prev, { key: yeniKey(), hesapTipi: 'SATIS_GELIR', faturaTipi: '', depoId: null, fasonTipiId: null, kdvOrani: '', muhasebeHesapId: null, hesapKodu: '', sira: prev.length, aktif: true }])
   const delRow = (key: string) => setRows(prev => prev.filter(r => r.key !== key))
 
   const kaydet = async () => {
@@ -68,17 +71,19 @@ export default function MuhasebeEntegrasyonTanimlari() {
   }
 
   const depoOptions = useMemo(() => [{ value: 0, label: '(Hepsi)' }, ...depolar.map(d => ({ value: d.id, label: `${d.kod} - ${d.ad}` }))], [depolar])
+  const fasonOptions = useMemo(() => [{ value: 0, label: '(Hepsi)' }, ...fasonTipleri.map(f => ({ value: f.id, label: f.ad }))], [fasonTipleri])
   const hesapOptions = useMemo(() => hesaplar.map(h => ({ value: h.kod, label: `${h.kod} - ${h.ad}` })), [hesaplar])
 
   const columns = useMemo<ColDef<Row>[]>(() => [
     { headerName: 'Hesap Tipi', field: 'hesapTipi', width: 200, cellClass: '!p-0', cellRenderer: (p: any) => <Select size="small" variant="borderless" value={p.data.hesapTipi} onChange={v => updateRow(p.data.key, { hesapTipi: v })} options={HESAP_TIPLERI} className="!w-full" /> },
     { headerName: 'Fatura Tipi', field: 'faturaTipi', width: 170, cellClass: '!p-0', cellRenderer: (p: any) => <Select size="small" variant="borderless" value={p.data.faturaTipi ?? ''} onChange={v => updateRow(p.data.key, { faturaTipi: v || null })} options={FATURA_TIPLERI} className="!w-full" /> },
+    { headerName: 'Fiş Alt Tipi', field: 'fasonTipiId', width: 180, cellClass: '!p-0', cellRenderer: (p: any) => <Select size="small" variant="borderless" showSearch optionFilterProp="label" value={p.data.fasonTipiId ?? 0} onChange={v => updateRow(p.data.key, { fasonTipiId: v === 0 ? null : v })} options={fasonOptions} className="!w-full" /> },
     { headerName: 'Depo', field: 'depoId', width: 220, cellClass: '!p-0', cellRenderer: (p: any) => <Select size="small" variant="borderless" showSearch optionFilterProp="label" value={p.data.depoId ?? 0} onChange={v => updateRow(p.data.key, { depoId: v === 0 ? null : v })} options={depoOptions} className="!w-full" /> },
     { headerName: 'KDV %', field: 'kdvOrani', width: 90, cellClass: '!p-0', cellRenderer: (p: any) => <Input size="small" variant="borderless" value={p.data.kdvOrani ?? ''} onChange={e => updateRow(p.data.key, { kdvOrani: e.target.value })} className="!w-full !text-right" /> },
     { headerName: 'Hesap Kodu', field: 'hesapKodu', width: 240, cellClass: '!p-0', cellRenderer: (p: any) => <Select size="small" variant="borderless" showSearch optionFilterProp="label" value={p.data.hesapKodu || undefined} onChange={v => updateRow(p.data.key, { hesapKodu: v })} options={hesapOptions} className="!w-full" placeholder="Hesap seç..." /> },
     { headerName: 'Aktif', field: 'aktif', width: 70, cellRenderer: (p: any) => <Switch size="small" checked={p.data.aktif !== false} onChange={v => updateRow(p.data.key, { aktif: v })} /> },
     { headerName: '', width: 44, cellClass: '!p-0 !flex !items-center !justify-center', cellRenderer: (p: any) => <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => delRow(p.data.key)} /> },
-  ], [depoOptions, hesapOptions, updateRow])
+  ], [depoOptions, fasonOptions, hesapOptions, updateRow])
 
   return (
     <div className="!p-3 !h-full !flex !flex-col">
@@ -90,7 +95,7 @@ export default function MuhasebeEntegrasyonTanimlari() {
           <Button size="small" type="primary" icon={<SaveOutlined />} loading={saving} onClick={kaydet}>Kaydet</Button>
         </div>
       </div>
-      <div className="!text-[11px] !text-[#6b7280] !mb-2">Boş koşul = tümü/geçerli. En spesifik kural (depo/KDV/fatura tipi dolu) önceliklidir. Fatura muhasebeleşmesi bu tablodaki hesap kodlarını kullanır.</div>
+      <div className="!text-[11px] !text-[#6b7280] !mb-2">Boş koşul = tümü/geçerli. En spesifik kural (fatura tipi &gt; fiş alt tipi &gt; depo &gt; KDV) önceliklidir. Fatura muhasebeleşmesi bu tablodaki hesap kodlarını kullanır.</div>
       <div className="!flex-1 !min-h-[300px]">
         <Spin spinning={loading} classNames={{ root: '!h-full [&_.ant-spin-container]:!h-full' }}>
           <DataGrid rowData={rows} columnDefs={columns} domLayout="normal" getRowId={p => p.data.key} rowSelection="single" enableColumnChooser={false} exportFileName="muhasebe-entegrasyon-tanimlari" suppressCellFocus={false} />

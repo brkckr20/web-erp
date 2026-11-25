@@ -15,6 +15,7 @@ import {
   type CariHesapFisFormData,
 } from '@/lib/cari-hesap-fis-api'
 import { dovizApi, type Doviz } from '@/lib/doviz-api'
+import { masrafYeriApi, type MasrafYeri } from '@/lib/masraf-yeri-api'
 import { fisTipiEtiketi } from '@/data/cari-hesap-fis-tipleri'
 
 const { TextArea } = Input
@@ -143,6 +144,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
   const [aciklama, setAciklama] = useState('')
   const [satirlar, setSatirlar] = useState<FisSatir[]>(() => [bosSatir('TRY', 1)])
   const [dovizler, setDovizler] = useState<Doviz[]>([])
+  const [masrafYerleri, setMasrafYerleri] = useState<MasrafYeri[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -157,6 +159,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
       .list()
       .then((list) => setDovizler(list.filter((d) => d.kullanimda)))
       .catch(() => setDovizler([]))
+    masrafYeriApi.list().then(setMasrafYerleri).catch(() => setMasrafYerleri([]))
   }, [])
 
   const dovizSecenekleri = useMemo(() => {
@@ -164,6 +167,11 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
     if (!opts.some((o) => o.value === 'TRY')) opts.unshift({ value: 'TRY', label: 'TRY - Türk Lirası' })
     return opts
   }, [dovizler])
+
+  const masrafYeriSecenekleri = useMemo(
+    () => masrafYerleri.filter((m) => m.kullanimda).map((m) => ({ value: m.kod, label: `${m.kod} - ${m.ad}` })),
+    [masrafYerleri],
+  )
 
   const satirlaraKurUygula = useCallback((doviz: string, kur: number) => {
     setSatirlar((prev) =>
@@ -721,12 +729,15 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
               </div>
               <div className="!flex !items-center !gap-1.5">
                 <label className="!text-[10px] !font-semibold !uppercase !w-24 !shrink-0 !text-[#333]">Masraf Yeri</label>
-                <AutoComplete
+                <Select
                   size="small"
-                  value={masrafYeri}
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  value={masrafYeri || undefined}
                   onChange={(v) => setMasrafYeri(v ?? '')}
-                  options={[]}
-                  placeholder="Ara..."
+                  options={masrafYeriSecenekleri}
+                  placeholder="Seçiniz..."
                   className="!w-48 !text-[11px]"
                 />
               </div>

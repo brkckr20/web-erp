@@ -9,7 +9,7 @@ import YeniButonu from '@/components/shared/YeniButonu'
 import { muhasebeFisApi, type MuhasebeFis } from '@/lib/muhasebe-fis-api'
 import { MUHASEBE_FIS_TIPLERI, muhasebeFisTipiEtiketi } from '@/data/muhasebe-fis-tipleri'
 
-interface Row { key: string; id: number; fisTipi: string; fisTipiAd: string; fisNo: string; fisTarihi: string; belgeNo: string; ozelKod: string; aciklama: string }
+interface Row { key: string; id: number; fisTipi: string; fisTipiAd: string; fisNo: string; fisTarihi: string; belgeNo: string; ozelKod: string; aciklama: string; fasonTipiAd: string }
 interface Props { onSelect?: (id: number) => void; onNew?: (fisTipi: string) => void }
 
 const fmtTarih = (d: string | null) => { if (!d) return '-'; const dt = new Date(d); return isNaN(dt.getTime()) ? '-' : dt.toLocaleDateString('tr-TR') }
@@ -26,7 +26,7 @@ export default function MuhasebeFisleriListesi({ onSelect, onNew }: Props) {
       setData(list.map((f: MuhasebeFis) => ({
         key: String(f.id), id: f.id, fisTipi: f.fisTipi, fisTipiAd: muhasebeFisTipiEtiketi(f.fisTipi),
         fisNo: String(f.fisNo).padStart(8, '0'), fisTarihi: fmtTarih(f.fisTarihi),
-        belgeNo: f.belgeNo ?? '', ozelKod: f.ozelKod ?? '', aciklama: f.aciklama ?? '',
+        belgeNo: f.belgeNo ?? '', ozelKod: f.ozelKod ?? '', aciklama: f.aciklama ?? '', fasonTipiAd: f.fasonTipi?.ad ?? '',
       })))
     } catch { setData([]) } finally { setLoading(false) }
   }
@@ -39,6 +39,7 @@ export default function MuhasebeFisleriListesi({ onSelect, onNew }: Props) {
     { headerName: 'Fiş Tarihi', field: 'fisTarihi', width: 110 },
     { headerName: 'Belge No', field: 'belgeNo', width: 130 },
     { headerName: 'Özel Kod', field: 'ozelKod', width: 120 },
+    { headerName: 'Fiş Alt Tipi', field: 'fasonTipiAd', width: 140 },
     { headerName: 'Açıklama', field: 'aciklama', flex: 1, minWidth: 180 },
   ], [])
 
