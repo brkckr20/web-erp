@@ -178,6 +178,8 @@ model Kullanici {
   departmanKodu     String?  @map("departman_kodu") @db.VarChar(50)
   personelKodu      String?  @map("personel_kodu") @db.VarChar(50)
   masrafYeri        String?  @map("masraf_yeri") @db.VarChar(100)
+  masrafYeriId      Int?     @map("masraf_yeri_id")
+  masrafYeriRef    MasrafYeri? @relation("KullaniciMasrafYeri", fields: [masrafYeriId], references: [id])
   dilOndegeri       String?  @map("dil_ondegeri") @db.VarChar(20)
   ozelKod           String?  @map("ozel_kod") @db.VarChar(50)
   aciklama          String?  @db.VarChar(500)
@@ -493,6 +495,7 @@ model CariHesap {
   vergiNo            String?  @map("vergi_no") @db.VarChar(50)
   dovizCinsi         String?  @map("doviz_cinsi") @db.VarChar(10)
   dovizKurTipi       String?  @map("doviz_kur_tipi") @db.VarChar(50)
+  riskLimiti         Decimal? @map("risk_limiti") @db.Decimal(18, 2)
 
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -520,6 +523,8 @@ model KasaBankaHesap {
   dovizKodu    String?  @map("doviz_kodu") @db.VarChar(10)
   isYeriKodu   String?  @map("is_yeri_kodu") @db.VarChar(50)
   masrafYeriKodu String? @map("masraf_yeri_kodu") @db.VarChar(50)
+  masrafYeriId   Int?    @map("masraf_yeri_id")
+  masrafYeriRef  MasrafYeri? @relation("KasaBankaMasrafYeri", fields: [masrafYeriId], references: [id])
   bankaAdi     String?  @map("banka_adi") @db.VarChar(200)
   anaBankaKodu String?  @map("ana_banka_kodu") @db.VarChar(5)
   subeKodu     String?  @map("sube_kodu") @db.VarChar(20)
@@ -581,6 +586,12 @@ model MasrafYeri {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  kullanicilar     Kullanici[]     @relation("KullaniciMasrafYeri")
+  kasaBankaHesaplar KasaBankaHesap[] @relation("KasaBankaMasrafYeri")
+  muhasebeFisler   MuhasebeFis[]   @relation("MuhasebeFisMasrafYeri")
+  cariHesapFisler  CariHesapFis[]  @relation("CariHesapFisMasrafYeri")
+  faturalar        Fatura[]        @relation("FaturaMasrafYeri")
+
   @@map("masraf_yeri")
 }
 
@@ -617,6 +628,8 @@ model MuhasebeFis {
   fasonTipiId Int?    @map("fason_tipi_id")
   fasonTipi   FasonTipi? @relation("FasonTipiMuhasebeFis", fields: [fasonTipiId], references: [id])
   masrafYeri  String?  @map("masraf_yeri") @db.VarChar(100)
+  masrafYeriId Int?    @map("masraf_yeri_id")
+  masrafYeriRef MasrafYeri? @relation("MuhasebeFisMasrafYeri", fields: [masrafYeriId], references: [id])
 
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -690,6 +703,8 @@ model CariHesapFis {
   dovizKuru   Decimal?  @map("doviz_kuru") @db.Decimal(18, 6)
   kurTarihi   DateTime? @map("kur_tarihi") @db.Date
   masrafYeri  String?   @map("masraf_yeri") @db.VarChar(100)
+  masrafYeriId Int?     @map("masraf_yeri_id")
+  masrafYeriRef MasrafYeri? @relation("CariHesapFisMasrafYeri", fields: [masrafYeriId], references: [id])
   aciklama    String?   @db.VarChar(1000)
 
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -1030,6 +1045,8 @@ model Fatura {
   fasonTipiId       Int?     @map("fason_tipi_id")
   fasonTipi         FasonTipi? @relation("FaturaFasonTipi", fields: [fasonTipiId], references: [id])
   masrafYeri        String?  @map("masraf_yeri") @db.VarChar(100)
+  masrafYeriId      Int?     @map("masraf_yeri_id")
+  masrafYeriRef     MasrafYeri? @relation("FaturaMasrafYeri", fields: [masrafYeriId], references: [id])
 
   kalemler          FaturaKalem[] @relation("FaturaKalemleri")
 

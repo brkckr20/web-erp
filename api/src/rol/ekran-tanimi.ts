@@ -133,6 +133,7 @@ export const EKRAN_TANIMLARI: ModulEkranTanimi[] = [
       { key: 'hesap-plani', ad: 'Hesap Planı' },
       { key: 'muhasebe-entegrasyon-tanimlari', ad: 'Muhasebe Entegrasyon Tanımları' },
       { key: 'yevmiye-defteri', ad: 'Yevmiye Defteri' },
+      { key: 'cari-hesap-ekstresi', ad: 'Cari Hesap Ekstresi' },
       { key: 'doviz-kurlari', ad: 'Döviz Kurları' },
       { key: 'odeme-takip', ad: 'Ödeme Takibi' },
       { key: 'banka-islem', ad: 'Banka İşlemleri' },
@@ -164,6 +165,7 @@ export const EKRAN_TANIMLARI: ModulEkranTanimi[] = [
       { key: 'malzeme-yonetim-parametreleri', ad: 'Malzeme Yönetim Parametreleri' },
       { key: 'siparis-parametreleri', ad: 'Sipariş Parametreleri' },
       { key: 'program-parametreleri', ad: 'Program Parametreleri' },
+      { key: 'muhasebe-parametreleri', ad: 'Muhasebe Parametreleri' },
     ],
   },
 ]

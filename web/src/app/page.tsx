@@ -3,7 +3,7 @@
 import { Card, Row, Col } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { depoApi } from '@/lib/depo-api'
-import { dovizApi, type DovizKuruSatir } from '@/lib/doviz-api'
+import { dovizApi, getMerkezKurTipi, kurDegeri, type DovizKuruSatir, type KurTipi } from '@/lib/doviz-api'
 import { irsaliyeApi, type Irsaliye } from '@/lib/irsaliye-api'
 
 interface SonHareket {
@@ -45,6 +45,7 @@ export default function Home() {
   const [buAyGiris, setBuAyGiris] = useState<number | null>(null)
   const [buAyCikis, setBuAyCikis] = useState<number | null>(null)
   const [kurlar, setKurlar] = useState<DovizKuruSatir[]>([])
+  const [kurTipi, setKurTipi] = useState<KurTipi>('satis')
 
   useEffect(() => {
     depoApi
@@ -52,6 +53,7 @@ export default function Home() {
       .then((depolar) => setAktifDepo(depolar.filter((d) => d.durum).length))
       .catch(() => setAktifDepo(null))
     dovizApi.getSonKurlar().then(setKurlar).catch(() => setKurlar([]))
+    getMerkezKurTipi().then(setKurTipi).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -108,24 +110,26 @@ export default function Home() {
   const stats = useMemo(() => {
     const usd = kurlar.find((k) => k.dovizKodu === 'USD')
     const eur = kurlar.find((k) => k.dovizKodu === 'EUR')
+    const altTip: KurTipi = kurTipi === 'alis' ? 'satis' : 'alis'
+    const altLabel = altTip === 'alis' ? 'Alış' : 'Satış'
     return [
       { label: 'Bu Ay Giriş', value: buAyGiris === null ? '—' : String(buAyGiris), color: '#10b981' },
       { label: 'Bu Ay Çıkış', value: buAyCikis === null ? '—' : String(buAyCikis), color: '#ef4444' },
       { label: 'Aktif Depo', value: aktifDepo === null ? '—' : String(aktifDepo), color: '#3b82f6' },
       {
         label: `USD${usd?.tarih ? ' · ' + formatTarihKisa(usd.tarih) : ''}`,
-        value: formatKur(usd?.satisKuru ?? null),
-        sub: usd ? `Alış ${formatKur(usd.alisKuru)}` : undefined,
+        value: formatKur(kurDegeri(usd, kurTipi)),
+        sub: usd ? `${altLabel} ${formatKur(kurDegeri(usd, altTip))}` : undefined,
         color: '#8b5cf6',
       },
       {
         label: `EUR${eur?.tarih ? ' · ' + formatTarihKisa(eur.tarih) : ''}`,
-        value: formatKur(eur?.satisKuru ?? null),
-        sub: eur ? `Alış ${formatKur(eur.alisKuru)}` : undefined,
+        value: formatKur(kurDegeri(eur, kurTipi)),
+        sub: eur ? `${altLabel} ${formatKur(kurDegeri(eur, altTip))}` : undefined,
         color: '#f59e0b',
       },
     ]
-  }, [aktifDepo, buAyGiris, buAyCikis, kurlar])
+  }, [aktifDepo, buAyGiris, buAyCikis, kurlar, kurTipi])
 
   return (
     <div className="!p-3">

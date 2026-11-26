@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Tabs, Input, Switch, Select, Row, Col, App, Spin } from 'antd'
+import { Tabs, Input, InputNumber, Switch, Select, Row, Col, App, Spin } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import { cariHesapApi, type CariHesapFormData } from '@/lib/cari-hesap-api'
@@ -40,6 +40,7 @@ interface CariForm {
   vergiNo: string
   dovizCinsi: string
   dovizKurTipi: string
+  riskLimiti: number | null
 }
 
 const emptyData: CariForm = {
@@ -74,6 +75,7 @@ const emptyData: CariForm = {
   vergiNo: '',
   dovizCinsi: 'tl',
   dovizKurTipi: 'Parametre',
+  riskLimiti: null,
 }
 
 interface CariHesapKartiProps {
@@ -137,6 +139,7 @@ export default function CariHesapKarti({ isNew, kod, onKirliChange }: CariHesapK
         vergiNo: data.vergiNo ?? '',
         dovizCinsi: data.dovizCinsi ?? 'tl',
         dovizKurTipi: data.dovizKurTipi ?? 'Parametre',
+        riskLimiti: data.riskLimiti == null ? null : Number(data.riskLimiti),
       })
     } catch {
       message.warning('Kod bulunamadı')
@@ -367,6 +370,9 @@ export default function CariHesapKarti({ isNew, kod, onKirliChange }: CariHesapK
                             </FormField>
                             <FormField label="Ödeme Planı">
                               <Input size="small" suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A' }} />} value={form.odemePlani} onChange={(e) => set('odemePlani', e.target.value)} className="!text-[11px]" />
+                            </FormField>
+                            <FormField label="Risk Limiti">
+                              <InputNumber size="small" value={form.riskLimiti} onChange={(v) => set('riskLimiti', v == null ? null : Number(v))} min={0} precision={2} className="!w-full !text-[11px]" placeholder="0,00" />
                             </FormField>
                             <FormField label="İndirim / Fiyat Kodu">
                               <div className="!flex !items-center !gap-1">

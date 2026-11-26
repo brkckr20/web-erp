@@ -27,6 +27,7 @@ export class CreateCariHesapFisDto {
   dovizKuru?: number | string | null
   kurTarihi?: string | null
   masrafYeri?: string | null
+  masrafYeriId?: number | null
   aciklama?: string | null
   hareketler: CariHesapHareketDto[]
 }

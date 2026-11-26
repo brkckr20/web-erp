@@ -33,10 +33,10 @@ export class KasaBankaHesapService {
     if (!dto.kod?.trim()) throw new BadRequestException('Kod zorunludur')
     if (!dto.ad?.trim()) throw new BadRequestException('Ad zorunludur')
     if (!TIPLER.includes(dto.tip)) throw new BadRequestException('Geçersiz hesap tipi')
+    const data: any = { ...dto, kod: dto.kod.trim(), ad: dto.ad.trim() }
+    await this.resolveMasrafYeri(this.prisma, data)
     try {
-      return await this.prisma.kasaBankaHesap.create({
-        data: { ...dto, kod: dto.kod.trim(), ad: dto.ad.trim() },
-      })
+      return await this.prisma.kasaBankaHesap.create({ data })
     } catch (e) {
       this.kodHatasiniCevir(e)
       throw e
@@ -46,19 +46,41 @@ export class KasaBankaHesapService {
   async update(id: number, dto: UpdateKasaBankaHesapDto) {
     await this.findOne(id)
     if (dto.tip && !TIPLER.includes(dto.tip)) throw new BadRequestException('Geçersiz hesap tipi')
+    const data: any = { ...dto, kod: dto.kod?.trim(), ad: dto.ad?.trim() }
+    await this.resolveMasrafYeri(this.prisma, data)
     try {
-      return await this.prisma.kasaBankaHesap.update({
-        where: { id },
-        data: {
-          ...dto,
-          kod: dto.kod?.trim(),
-          ad: dto.ad?.trim(),
-        },
-      })
+      return await this.prisma.kasaBankaHesap.update({ where: { id }, data })
     } catch (e) {
       this.kodHatasiniCevir(e)
       throw e
     }
+  }
+
+  private async resolveMasrafYeri(db: any, data: any) {
+    const hasId = 'masrafYeriId' in data
+    const hasKod = 'masrafYeriKodu' in data
+    if (!hasId && !hasKod) return
+    const id = hasId ? (data.masrafYeriId ?? null) : null
+    const kod = hasKod ? ((data.masrafYeriKodu ?? '')?.toString().trim() || null) : null
+    delete data.masrafYeriId
+    if (id != null) {
+      const kayit = await db.masrafYeri.findUnique({ where: { id: Number(id) } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      data.masrafYeriId = kayit.id
+      data.masrafYeriKodu = kayit.kod
+      return
+    }
+    if (kod) {
+      const kayit = await db.masrafYeri.findUnique({ where: { kod } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      data.masrafYeriId = kayit.id
+      data.masrafYeriKodu = kayit.kod
+      return
+    }
+    data.masrafYeriId = null
+    data.masrafYeriKodu = null
   }
 
   async remove(id: number) {

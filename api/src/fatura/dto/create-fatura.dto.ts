@@ -45,6 +45,7 @@ export class CreateFaturaDto {
   depoId?: number
   fasonTipiId?: number
   masrafYeri?: string
+  masrafYeriId?: number | null
   kalemler?: CreateFaturaKalemDto[]
   // Fatura kartından çoklu irsaliye bağlama: bu irsaliyelerin kalemleri snapshot alınır.
   irsaliyeIds?: number[]

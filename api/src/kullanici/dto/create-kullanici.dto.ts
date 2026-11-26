@@ -26,6 +26,7 @@ export class CreateKullaniciDto {
   departmanKodu?: string
   personelKodu?: string
   masrafYeri?: string
+  masrafYeriId?: number | null
   dilOndegeri?: string
   ozelKod?: string
   aciklama?: string

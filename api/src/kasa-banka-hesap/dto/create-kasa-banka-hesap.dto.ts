@@ -5,6 +5,7 @@ export class CreateKasaBankaHesapDto {
   dovizKodu?: string
   isYeriKodu?: string
   masrafYeriKodu?: string
+  masrafYeriId?: number | null
   bankaAdi?: string
   anaBankaKodu?: string
   subeKodu?: string

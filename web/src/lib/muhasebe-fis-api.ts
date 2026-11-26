@@ -33,6 +33,7 @@ export interface MuhasebeFis {
   fasonTipiId?: number | null
   fasonTipi?: { id: number; ad: string } | null
   masrafYeri?: string | null
+  masrafYeriId?: number | null
   satirlar: MuhasebeFisSatir[]
 }
 

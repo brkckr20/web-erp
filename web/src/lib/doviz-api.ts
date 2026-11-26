@@ -1,4 +1,5 @@
 import { api } from './api'
+import { parametreApi } from './parametre-api'
 
 export interface Doviz {
   kod: string
@@ -20,6 +21,31 @@ export interface DovizKuruSatir {
   efektifAlis: number | null
   efektifSatis: number | null
   tarih: string | null
+}
+
+export type KurTipi = 'alis' | 'satis' | 'efektifAlis' | 'efektifSatis'
+
+export const KUR_TIPI_ALAN: Record<KurTipi, keyof Pick<DovizKuruSatir, 'alisKuru' | 'satisKuru' | 'efektifAlis' | 'efektifSatis'>> = {
+  alis: 'alisKuru',
+  satis: 'satisKuru',
+  efektifAlis: 'efektifAlis',
+  efektifSatis: 'efektifSatis',
+}
+
+export const kurDegeri = (satir: DovizKuruSatir | null | undefined, tip: KurTipi): number | null => {
+  if (!satir) return null
+  const v = satir[KUR_TIPI_ALAN[tip]]
+  return v == null ? null : Number(v)
+}
+
+export const getMerkezKurTipi = async (): Promise<KurTipi> => {
+  try {
+    const p = await parametreApi.get('doviz', 'kurTipi')
+    const v = p?.deger
+    return v === 'alis' || v === 'satis' || v === 'efektifAlis' || v === 'efektifSatis' ? v : 'satis'
+  } catch {
+    return 'satis'
+  }
 }
 
 export const dovizApi = {

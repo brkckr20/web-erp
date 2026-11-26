@@ -118,6 +118,7 @@ export class KullaniciService {
     if (!roller) throw new BadRequestException('En az bir rol seçilmelidir')
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await this.resolveMasrafYeri(tx, data)
         const created = await tx.kullanici.create({
           data: { ...data, ...(sifreHash ? { sifre: sifreHash } : {}) },
         })
@@ -140,6 +141,7 @@ export class KullaniciService {
     const roller = await this.rolIdleriHazirla(rolIdler)
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await this.resolveMasrafYeri(tx, data)
         await tx.kullanici.update({
           where: { id },
           data: { ...data, ...(sifreHash ? { sifre: sifreHash } : {}) },
@@ -215,6 +217,33 @@ export class KullaniciService {
     await tx.kullaniciRol.createMany({
       data: rolIdler.map((rolId) => ({ kullaniciId, rolId })),
     })
+  }
+
+  private async resolveMasrafYeri(tx: Prisma.TransactionClient, data: any) {
+    const hasId = 'masrafYeriId' in data
+    const hasKod = 'masrafYeri' in data
+    if (!hasId && !hasKod) return
+    const id = hasId ? (data.masrafYeriId ?? null) : null
+    const kod = hasKod ? ((data.masrafYeri ?? '')?.toString().trim() || null) : null
+    delete data.masrafYeriId
+    if (id != null) {
+      const kayit = await tx.masrafYeri.findUnique({ where: { id: Number(id) } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      data.masrafYeriId = kayit.id
+      data.masrafYeri = kayit.kod
+      return
+    }
+    if (kod) {
+      const kayit = await tx.masrafYeri.findUnique({ where: { kod } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      data.masrafYeriId = kayit.id
+      data.masrafYeri = kayit.kod
+      return
+    }
+    data.masrafYeriId = null
+    data.masrafYeri = null
   }
 
   private hataCevir(e: unknown): never {

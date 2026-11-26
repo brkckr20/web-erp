@@ -34,6 +34,7 @@ export interface CariHesapFis {
   dovizKuru: number | string | null
   kurTarihi: string | null
   masrafYeri: string | null
+  masrafYeriId?: number | null
   aciklama: string | null
   hareketler: CariHesapFisHareket[]
 }
@@ -66,6 +67,7 @@ export interface CariHesapFisFormData {
   dovizKuru?: number | null
   kurTarihi?: string | null
   masrafYeri?: string | null
+  masrafYeriId?: number | null
   aciklama?: string | null
   hareketler: CariHesapFisHareketFormData[]
 }

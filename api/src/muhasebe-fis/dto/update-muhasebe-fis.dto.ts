@@ -11,5 +11,6 @@ export class UpdateMuhasebeFisDto {
   kaynakId?: number | null
   fasonTipiId?: number | null
   masrafYeri?: string | null
+  masrafYeriId?: number | null
   satirlar?: MuhasebeFisSatirDto[]
 }

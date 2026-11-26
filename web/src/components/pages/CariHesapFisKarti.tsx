@@ -14,8 +14,9 @@ import {
   type CariHesapFis,
   type CariHesapFisFormData,
 } from '@/lib/cari-hesap-fis-api'
-import { dovizApi, type Doviz } from '@/lib/doviz-api'
+import { dovizApi, getMerkezKurTipi, kurDegeri, type Doviz, type KurTipi } from '@/lib/doviz-api'
 import { masrafYeriApi, type MasrafYeri } from '@/lib/masraf-yeri-api'
+import { muhasebeHesapApi } from '@/lib/muhasebe-hesap-api'
 import { fisTipiEtiketi } from '@/data/cari-hesap-fis-tipleri'
 
 const { TextArea } = Input
@@ -141,16 +142,19 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
   const [dovizKuru, setDovizKuru] = useState<number | null>(1)
   const [kurTarihi, setKurTarihi] = useState<string | null>(null)
   const [masrafYeri, setMasrafYeri] = useState('')
+  const [masrafYeriId, setMasrafYeriId] = useState<number | null>(null)
   const [aciklama, setAciklama] = useState('')
   const [satirlar, setSatirlar] = useState<FisSatir[]>(() => [bosSatir('TRY', 1)])
   const [dovizler, setDovizler] = useState<Doviz[]>([])
   const [masrafYerleri, setMasrafYerleri] = useState<MasrafYeri[]>([])
+  const [hesaplar, setHesaplar] = useState<{ kod: string; ad: string }[]>([])
+  const [kurTipi, setKurTipi] = useState<KurTipi>('satis')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const { kirli, temizle } = useKirli([
     fisTipi, fisTarihi, saat, belgeNo, k, erisimKodu, ozelKod,
-    dovizCinsi, dovizKuru, masrafYeri, aciklama, satirlar,
+    dovizCinsi, dovizKuru, masrafYeri, masrafYeriId, aciklama, satirlar,
   ])
   useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
@@ -160,6 +164,11 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
       .then((list) => setDovizler(list.filter((d) => d.kullanimda)))
       .catch(() => setDovizler([]))
     masrafYeriApi.list().then(setMasrafYerleri).catch(() => setMasrafYerleri([]))
+    muhasebeHesapApi
+      .list()
+      .then((list) => setHesaplar(list.map((h) => ({ kod: h.kod, ad: h.ad }))))
+      .catch(() => setHesaplar([]))
+    getMerkezKurTipi().then(setKurTipi).catch(() => {})
   }, [])
 
   const dovizSecenekleri = useMemo(() => {
@@ -171,6 +180,12 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
   const masrafYeriSecenekleri = useMemo(
     () => masrafYerleri.filter((m) => m.kullanimda).map((m) => ({ value: m.kod, label: `${m.kod} - ${m.ad}` })),
     [masrafYerleri],
+  )
+
+  const hesapAdMap = useMemo(() => new Map(hesaplar.map((h) => [h.kod, h.ad])), [hesaplar])
+  const hesapSecenekleri = useMemo(
+    () => hesaplar.map((h) => ({ value: h.kod, label: `${h.kod} - ${h.ad}` })),
+    [hesaplar],
   )
 
   const satirlaraKurUygula = useCallback((doviz: string, kur: number) => {
@@ -197,8 +212,11 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
         const gun = tarih.format('YYYY-MM-DD')
         const [gunluk, son] = await Promise.all([dovizApi.getKurlar(gun), dovizApi.getSonKurlar()])
         const ayniGun = gunluk.find((x) => x.dovizKodu === doviz)
-        const kur = ayniGun?.satisKuru ?? son.find((x) => x.dovizKodu === doviz)?.satisKuru ?? null
-        const kurTarih = ayniGun?.satisKuru != null ? (ayniGun.tarih ?? gun) : (son.find((x) => x.dovizKodu === doviz)?.tarih ?? null)
+        const sonSatir = son.find((x) => x.dovizKodu === doviz)
+        const ayniGunKur = kurDegeri(ayniGun, kurTipi)
+        const sonKur = kurDegeri(sonSatir, kurTipi)
+        const kur = ayniGunKur ?? sonKur
+        const kurTarih = ayniGunKur != null ? (ayniGun?.tarih ?? gun) : sonKur != null ? (sonSatir?.tarih ?? null) : null
         if (kur == null) {
           setDovizKuru(null)
           setKurTarihi(null)
@@ -213,7 +231,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
         message.warning('Kur bilgisi alınamadı')
       }
     },
-    [message, satirlaraKurUygula],
+    [message, satirlaraKurUygula, kurTipi],
   )
 
   const doldur = useCallback((f: CariHesapFis) => {
@@ -231,6 +249,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
     setDovizKuru(f.dovizKuru == null ? 1 : Number(f.dovizKuru))
     setKurTarihi(f.kurTarihi ?? null)
     setMasrafYeri(f.masrafYeri ?? '')
+    setMasrafYeriId((f as any).masrafYeriId ?? null)
     setAciklama(f.aciklama ?? '')
     setSatirlar(
       (f.hareketler ?? []).map((h) => ({
@@ -285,6 +304,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
     setDovizKuru(1)
     setKurTarihi(null)
     setMasrafYeri('')
+    setMasrafYeriId(null)
     setAciklama('')
     setSatirlar([bosSatir('TRY', 1)])
     temizle()
@@ -347,6 +367,15 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
         message.warning('Her satırda borç veya alacak girilmelidir')
         return
       }
+      const kod = s.hesapKodu.trim()
+      if (kod && hesaplar.length && !hesapAdMap.has(kod)) {
+        message.warning(`Hesap planında bulunamadı: ${kod}`)
+        return
+      }
+    }
+    if (masrafYeri.trim() && masrafYerleri.length && !masrafYerleri.some((m) => m.kullanimda && m.kod === masrafYeri.trim())) {
+      message.warning('Masraf yeri aktif tanımlarda bulunamadı')
+      return
     }
     setSaving(true)
     try {
@@ -361,12 +390,13 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
         dovizKuru,
         kurTarihi,
         masrafYeri: masrafYeri.trim() || null,
+        masrafYeriId,
         aciklama: aciklama.trim() || null,
         hareketler: gecerli.map((s) => ({
           cariHesapId: s.cariHesapId,
           ozelKod: s.ozelKod.trim() || null,
           hesapKodu: s.hesapKodu.trim() || null,
-          hesapAdi: s.hesapAdi.trim() || null,
+          hesapAdi: hesapAdMap.get(s.hesapKodu.trim()) ?? (s.hesapAdi.trim() || null),
           aciklama: s.aciklama.trim() || null,
           vadeTarihi: s.vadeTarihi ? s.vadeTarihi.format('YYYY-MM-DD') : null,
           belgeNo: s.belgeNo.trim() || null,
@@ -466,7 +496,6 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
                 cariKod: kod,
                 cariAd: rec?.ad ?? '',
                 cariHesapId: rec?.id ?? 0,
-                hesapKodu: rec?.musteriHesapKodu ?? rec?.saticiHesapKodu ?? p.data.hesapKodu,
               })
             }
           />
@@ -491,14 +520,26 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
       {
         headerName: 'Hesap Kodu',
         field: 'hesapKodu',
-        width: 120,
+        width: 160,
         cellClass: '!p-0',
         cellRenderer: (p: { data: FisSatir }) => (
-          <Input
+          <AutoComplete
             size="small"
             variant="borderless"
             value={p.data.hesapKodu}
-            onChange={(e) => updateSatir(p.data.key, { hesapKodu: e.target.value })}
+            options={hesapSecenekleri}
+            placeholder="Hesap ara..."
+            popupMatchSelectWidth={420}
+            filterOption={(input: string, option: any) =>
+              String(option?.label ?? option?.value ?? '')
+                .toLocaleLowerCase('tr-TR')
+                .includes(input.toLocaleLowerCase('tr-TR'))
+            }
+            onChange={(v: string) => {
+              const kod = v ?? ''
+              updateSatir(p.data.key, { hesapKodu: kod, hesapAdi: hesapAdMap.get(kod.trim()) ?? '' })
+            }}
+            onSelect={(v: string) => updateSatir(p.data.key, { hesapKodu: v, hesapAdi: hesapAdMap.get(v) ?? '' })}
             className="!w-full !h-full !text-[12px]"
           />
         ),
@@ -643,7 +684,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
         ),
       },
     ],
-    [updateSatir],
+    [updateSatir, hesapSecenekleri, hesapAdMap],
   )
 
   return (
@@ -735,7 +776,7 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
                   allowClear
                   optionFilterProp="label"
                   value={masrafYeri || undefined}
-                  onChange={(v) => setMasrafYeri(v ?? '')}
+                  onChange={(v) => { const kod = v ?? ''; setMasrafYeri(kod); setMasrafYeriId(masrafYerleri.find((m) => m.kod === kod)?.id ?? null) }}
                   options={masrafYeriSecenekleri}
                   placeholder="Seçiniz..."
                   className="!w-48 !text-[11px]"

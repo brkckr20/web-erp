@@ -134,7 +134,9 @@ export class FaturaService {
 
   async create(dto: CreateFaturaDto) {
     this.dogrulaCariHesap(dto.faturaTipi, dto.cariHesapId)
+    await this.kontrolCariRisk(dto.faturaTipi, dto.cariHesapId, dto.kalemler ?? [])
     const data: any = { ...dto }
+    await this.resolveMasrafYeri(this.prisma, data)
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
     if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
     if (dto.kayitTarihi) data.kayitTarihi = new Date(dto.kayitTarihi)
@@ -236,6 +238,8 @@ export class FaturaService {
     const faturaTipi = dto.faturaTipi ?? mevcut.faturaTipi
     const cariHesapIdGelen = dto.cariHesapId ?? mevcut.cariHesapId
     this.dogrulaCariHesap(faturaTipi, cariHesapIdGelen)
+    const kontrolKalemler = (dto as any).kalemler ?? (mevcut as any).kalemler ?? []
+    await this.kontrolCariRisk(faturaTipi, cariHesapIdGelen, kontrolKalemler, id)
     const data: any = { ...dto }
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
     if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
@@ -255,7 +259,7 @@ export class FaturaService {
     data.cariHesap = cariHesapId ? { connect: { id: cariHesapId } } : { disconnect: true }
     data.depo = depoId ? { connect: { id: depoId } } : { disconnect: true }
     data.fasonTipi = fasonTipiId ? { connect: { id: fasonTipiId } } : { disconnect: true }
-    if ('masrafYeri' in data) data.masrafYeri = (data.masrafYeri ?? '')?.toString().trim() || null
+    await this.resolveMasrafYeri(this.prisma, data)
 
     return this.prisma.$transaction(async (tx) => {
       await tx.fatura.update({ where: { id }, data })
@@ -405,6 +409,104 @@ export class FaturaService {
     if (!cariHesapId) throw new BadRequestException('Cari hesap seçilmelidir')
   }
 
+  private async resolveMasrafYeri(db: any, data: any) {
+    const hasId = 'masrafYeriId' in data
+    const hasKod = 'masrafYeri' in data
+    if (!hasId && !hasKod) return
+    const id = hasId ? (data.masrafYeriId ?? null) : null
+    const kod = hasKod ? ((data.masrafYeri ?? '')?.toString().trim() || null) : null
+    delete data.masrafYeriId
+    if (id != null) {
+      const kayit = await db.masrafYeri.findUnique({ where: { id: Number(id) } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      data.masrafYeriId = kayit.id
+      data.masrafYeri = kayit.kod
+      return
+    }
+    if (kod) {
+      const kayit = await db.masrafYeri.findUnique({ where: { kod } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      data.masrafYeriId = kayit.id
+      data.masrafYeri = kayit.kod
+      return
+    }
+    data.masrafYeriId = null
+    data.masrafYeri = null
+  }
+
+  private async kontrolCariRisk(faturaTipi: string, cariHesapId: number | null | undefined, kalemler: any[], haricFaturaId?: number) {
+    if (!cariHesapId || FATURA_CARI_HAREKET_ATLA.has(faturaTipi)) return
+    const [riskParam, vadeParam, cari] = await Promise.all([
+      this.prisma.parametre.findUnique({ where: { grup_anahtar: { grup: 'cari', anahtar: 'riskLimitKontrol' } } }),
+      this.prisma.parametre.findUnique({ where: { grup_anahtar: { grup: 'cari', anahtar: 'vadeKontrol' } } }),
+      this.prisma.cariHesap.findUnique({ where: { id: cariHesapId }, select: { riskLimiti: true, ad: true, kod: true } }),
+    ])
+    const riskKontrol = riskParam?.deger || 'uyar'
+    const vadeKontrol = vadeParam?.deger || 'uyar'
+
+    // Risk limiti: cari borç bakiyesi + bu faturanın borç etkisi
+    if (riskKontrol !== 'izin' && cari?.riskLimiti != null) {
+      const limit = new Prisma.Decimal(cari.riskLimiti as any)
+      if (limit.gt(0)) {
+        const bakiye = await this.prisma.muhasebeFisSatir.aggregate({
+          where: { cariHesapId },
+          _sum: { borc: true, alacak: true },
+        })
+        const mevcutBorc = new Prisma.Decimal(bakiye._sum.borc ?? 0).sub(new Prisma.Decimal(bakiye._sum.alacak ?? 0))
+        let buFaturaEtkisi = new Prisma.Decimal(0)
+        const yon = this.faturaCariYonu(faturaTipi)
+        const tutar = (kalemler ?? []).reduce((acc: Prisma.Decimal, k: any) => acc.add(new Prisma.Decimal(Number(k?.satirTutari ?? 0))), new Prisma.Decimal(0))
+        if (yon === 'BORC') buFaturaEtkisi = tutar
+        else if (yon === 'ALACAK') buFaturaEtkisi = tutar.neg()
+        // update'de eski fatura etkisini düş: mevcut mahsup fiş zaten bakiyede; en basit yol haric tutmamak, ama çift sayım olur.
+        // Basit yaklaşım: update'te mevcut fatura'nın cari satırını bakiyeden düş.
+        let eskiEtki = new Prisma.Decimal(0)
+        if (haricFaturaId) {
+          const eski = await this.prisma.muhasebeFisSatir.aggregate({
+            where: { cariHesapId, fis: { kaynakTuru: 'FATURA', kaynakId: haricFaturaId } },
+            _sum: { borc: true, alacak: true },
+          })
+          eskiEtki = new Prisma.Decimal(eski._sum.borc ?? 0).sub(new Prisma.Decimal(eski._sum.alacak ?? 0))
+        }
+        const yeniBakiye = mevcutBorc.sub(eskiEtki).add(buFaturaEtkisi)
+        if (yeniBakiye.gt(limit)) {
+          const msg = `Cari risk limiti aşıldı (${cari.kod} - ${cari.ad}). Limit: ${limit.toFixed(2)}, Bakiye: ${yeniBakiye.toFixed(2)}`
+          if (riskKontrol === 'engelle') throw new BadRequestException(msg)
+          throw new BadRequestException(`UYARI: ${msg}. Kayda devam için Muhasebe Parametreleri > Cari Kontroller'den "Risk limiti aşımı"nı İzin Ver yapın.`)
+        }
+      }
+    }
+
+    // Vade kontrolü: vadesi geçmiş açık borç var mı?
+    if (vadeKontrol !== 'izin') {
+      const bugun = new Date(); bugun.setHours(0, 0, 0, 0)
+      const gecmis = await this.prisma.muhasebeFisSatir.findFirst({
+        where: {
+          cariHesapId,
+          vadeTarihi: { lt: bugun },
+          OR: [{ borc: { gt: 0 } }],
+        },
+        select: { id: true },
+        orderBy: { vadeTarihi: 'asc' },
+      })
+      // Basit kontrol: vadesi geçmiş borç satırı var ve cari borç bakiyesi > 0
+      if (gecmis) {
+        const bakiye = await this.prisma.muhasebeFisSatir.aggregate({
+          where: { cariHesapId },
+          _sum: { borc: true, alacak: true },
+        })
+        const borcBakiye = new Prisma.Decimal(bakiye._sum.borc ?? 0).sub(new Prisma.Decimal(bakiye._sum.alacak ?? 0))
+        if (borcBakiye.gt(0)) {
+          const msg = `Carinin vadesi geçmiş açık borcu var (${cari?.kod ?? ''} - ${cari?.ad ?? ''})`
+          if (vadeKontrol === 'engelle') throw new BadRequestException(msg)
+          throw new BadRequestException(`UYARI: ${msg}. Kayda devam için Muhasebe Parametreleri > Cari Kontroller'den "Vadesi geçmiş borç"ü İzin Ver yapın.`)
+        }
+      }
+    }
+  }
+
   private faturaCariYonu(faturaTipi: string): 'BORC' | 'ALACAK' | null {
     if (FATURA_CARI_HAREKET_ATLA.has(faturaTipi)) return null
     if (FATURA_BORC_TIPLERI.has(faturaTipi)) return 'BORC'
@@ -539,6 +641,7 @@ export class FaturaService {
       kaynakId: faturaId,
       fasonTipiId: fatura.fasonTipiId ?? null,
       masrafYeri: fatura.masrafYeri ?? null,
+      masrafYeriId: fatura.masrafYeriId ?? null,
     }
 
     if (mevcutFis) {

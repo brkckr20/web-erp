@@ -273,6 +273,7 @@ export const modules: Module[] = [
         title: 'Raporlar',
         items: [
           { key: 'yevmiye-defteri', label: 'Yevmiye Defteri' },
+          { key: 'cari-hesap-ekstresi', label: 'Cari Hesap Ekstresi' },
         ],
       },
       {
@@ -331,6 +332,7 @@ export const modules: Module[] = [
           { key: 'malzeme-yonetim-parametreleri', label: 'Malzeme Yönetim Parametreleri', isForm: true },
           { key: 'siparis-parametreleri', label: 'Sipariş Parametreleri', isForm: true },
           { key: 'program-parametreleri', label: 'Program Parametreleri', isForm: true },
+          { key: 'muhasebe-parametreleri', label: 'Muhasebe Parametreleri', isForm: true },
         ],
       },
     ],

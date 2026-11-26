@@ -30,4 +30,5 @@ export class CreateCariHesapDto {
   vergiNo?: string
   dovizCinsi?: string
   dovizKurTipi?: string
+  riskLimiti?: number | string | null
 }

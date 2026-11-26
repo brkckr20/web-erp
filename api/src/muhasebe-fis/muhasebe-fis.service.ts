@@ -40,12 +40,14 @@ export class MuhasebeFisService {
       try {
         return await this.prisma.$transaction(async (tx) => {
           const son = await tx.muhasebeFis.findFirst({ where: { fisTipi: dto.fisTipi }, orderBy: { fisNo: 'desc' }, select: { fisNo: true } })
+          const masraf = await this.resolveMasrafYeri(tx, dto)
           return tx.muhasebeFis.create({
             data: {
               fisTipi: dto.fisTipi,
               fisNo: (son?.fisNo ?? 0) + 1,
               fisTarihi,
               ...this.baslikData(dto),
+              ...masraf,
               satirlar: { create: this.satirDataList(dto.satirlar) },
             },
             include,
@@ -65,7 +67,8 @@ export class MuhasebeFisService {
     return this.prisma.$transaction(async (tx) => {
       const fisTarihi = dto.fisTarihi !== undefined ? tarih(dto.fisTarihi) : undefined
       if (dto.fisTarihi !== undefined && !fisTarihi) throw new BadRequestException('Fiş tarihi geçersiz')
-      await tx.muhasebeFis.update({ where: { id }, data: { ...this.baslikData(dto), ...(fisTarihi ? { fisTarihi } : {}) } })
+      const masraf = await this.resolveMasrafYeri(tx, dto)
+      await tx.muhasebeFis.update({ where: { id }, data: { ...this.baslikData(dto), ...masraf, ...(fisTarihi ? { fisTarihi } : {}) } })
       if (dto.satirlar) {
         await tx.muhasebeFisSatir.deleteMany({ where: { fisId: id } })
         if (dto.satirlar.length) await tx.muhasebeFisSatir.createMany({ data: this.satirDataList(dto.satirlar).map((s) => ({ ...s, fisId: id })) })
@@ -86,8 +89,28 @@ export class MuhasebeFisService {
     }
     if ('kaynakId' in dto) data.kaynakId = dto.kaynakId ?? null
     if ('fasonTipiId' in dto) data.fasonTipiId = dto.fasonTipiId ?? null
-    if ('masrafYeri' in dto) data.masrafYeri = metin((dto as any).masrafYeri)
     return data
+  }
+
+  private async resolveMasrafYeri(tx: any, dto: CreateMuhasebeFisDto | UpdateMuhasebeFisDto) {
+    const hasId = 'masrafYeriId' in dto
+    const hasKod = 'masrafYeri' in dto
+    if (!hasId && !hasKod) return {}
+    const id = hasId ? ((dto as any).masrafYeriId ?? null) : null
+    const kod = hasKod ? metin((dto as any).masrafYeri) : null
+    if (id != null) {
+      const kayit = await tx.masrafYeri.findUnique({ where: { id: Number(id) } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      return { masrafYeriId: kayit.id, masrafYeri: kayit.kod }
+    }
+    if (kod) {
+      const kayit = await tx.masrafYeri.findUnique({ where: { kod } })
+      if (!kayit) throw new BadRequestException('Masraf yeri bulunamadı')
+      if (!kayit.kullanimda) throw new BadRequestException('Masraf yeri pasif')
+      return { masrafYeriId: kayit.id, masrafYeri: kayit.kod }
+    }
+    return { masrafYeriId: null, masrafYeri: null }
   }
 
   private satirDataList(satirlar: MuhasebeFisSatirDto[]) {

@@ -21,6 +21,7 @@ import MuhasebeFisleriListesi from '@/components/pages/MuhasebeFisleriListesi'
 import MuhasebeFisKarti from '@/components/pages/MuhasebeFisKarti'
 import CariHesapFisleriListesi from '@/components/pages/CariHesapFisleriListesi'
 import CariHesapFisKarti from '@/components/pages/CariHesapFisKarti'
+import CariHesapEkstre from '@/components/pages/CariHesapEkstre'
 import MasrafYeriKarti from '@/components/pages/MasrafYeriKarti'
 import MasrafYeriListesi from '@/components/pages/MasrafYeriListesi'
 import HesapPlaniListesi from '@/components/pages/HesapPlaniListesi'
@@ -99,6 +100,7 @@ import FaturaKarti from '@/components/pages/FaturaKarti'
 import MalzemeYonetimParametreleri from '@/components/pages/MalzemeYonetimParametreleri'
 import SiparisParametreleri from '@/components/pages/SiparisParametreleri'
 import ProgramParametreleri from '@/components/pages/ProgramParametreleri'
+import MuhasebeParametreleri from '@/components/pages/MuhasebeParametreleri'
 import RenkKartiTransferi from '@/components/pages/RenkKartiTransferi'
 import CariHesapKartiTransferi from '@/components/pages/CariHesapKartiTransferi'
 import LogoYonetimi from '@/components/pages/LogoYonetimi'
@@ -1312,6 +1314,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const hesapId = Number(tab.key.replace('hesap-plani-karti-', ''))
       if (!isNaN(hesapId)) return <HesapPlaniKarti id={hesapId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
+    if (tab.key === 'cari-hesap-ekstresi') {
+      return <CariHesapEkstre />
+    }
     if (tab.key === 'cari-hesap-fisleri') {
       return <CariHesapFisleriListesi onSelect={openCariHesapFisKarti} onNew={openYeniCariHesapFisi} />
     }
@@ -1391,6 +1396,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     if (tab.key === 'program-parametreleri') {
       return <ProgramParametreleri />
+    }
+    if (tab.key === 'muhasebe-parametreleri') {
+      return <MuhasebeParametreleri />
     }
     if (tab.key === 'renk-karti-transferi') {
       return <RenkKartiTransferi />

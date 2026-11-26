@@ -11,7 +11,7 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import { fiyatTeklifApi, type FiyatTeklif, type FiyatTeklifDosya, type FiyatTeklifKalem } from '@/lib/fiyat-teklif-api'
-import { dovizApi, type DovizKuruSatir } from '@/lib/doviz-api'
+import { dovizApi, getMerkezKurTipi, kurDegeri, type DovizKuruSatir, type KurTipi } from '@/lib/doviz-api'
 import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import { useKirli } from '@/lib/kirli'
 import { useAuth } from '@/context/AuthContext'
@@ -247,9 +247,11 @@ export default function SatinalmaFiyatTeklifKarti({ id, onClose, onKaydet, onKir
 
   const [dovizSecenekleri, setDovizSecenekleri] = useState<string[]>(['TL', 'USD', 'EUR', 'GBP'])
   const [kurlar, setKurlar] = useState<DovizKuruSatir[]>([])
+  const [kurTipi, setKurTipi] = useState<KurTipi>('satis')
 
   useEffect(() => {
     dovizApi.getSonKurlar().then(setKurlar).catch(() => {})
+    getMerkezKurTipi().then(setKurTipi).catch(() => {})
     dovizApi
       .list()
       .then((d) => {
@@ -300,9 +302,9 @@ export default function SatinalmaFiyatTeklifKarti({ id, onClose, onKaydet, onKir
   const satirSil = useCallback((key: string) => setSatirlar((prev) => prev.filter((s) => s.key !== key)), [])
 
   const dovizDegistir = useCallback((key: string, doviz: string) => {
-    const kur = doviz === 'TL' ? 1 : kurlar.find((k) => k.dovizKodu === doviz)?.satisKuru ?? 0
+    const kur = doviz === 'TL' ? 1 : (kurDegeri(kurlar.find((k) => k.dovizKodu === doviz), kurTipi) ?? 0)
     guncelle(key, { dovizCinsi: doviz, dovizKuru: kur })
-  }, [kurlar, guncelle])
+  }, [kurlar, guncelle, kurTipi])
 
   const toplamTL = useMemo(
     () => satirlar.reduce((acc, s) => acc + satirTutarTL(s), 0),

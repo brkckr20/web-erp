@@ -11,7 +11,7 @@ import { rotaApi, type Rota } from '../../lib/rota-api'
 import { siparisApi, type Siparis } from '../../lib/siparis-api'
 import { uretimHareketApi, type UretimHareket as ApiUretimHareket } from '../../lib/uretim-hareket-api'
 import { useAuth } from '@/context/AuthContext'
-import { dovizApi, type DovizKuruSatir } from '../../lib/doviz-api'
+import { dovizApi, getMerkezKurTipi, kurDegeri, type DovizKuruSatir, type KurTipi } from '../../lib/doviz-api'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 
 export interface UretimHareket {
@@ -76,9 +76,9 @@ const islemRenkleri: Record<string, string> = {
 }
 
 const mockKurlar: DovizKuruSatir[] = [
-  { dovizKodu: 'USD', dovizAd: 'Amerikan Doları', alisKuru: 34.25, satisKuru: 34.32, tarih: null },
-  { dovizKodu: 'EUR', dovizAd: 'Euro', alisKuru: 37.10, satisKuru: 37.22, tarih: null },
-  { dovizKodu: 'GBP', dovizAd: 'İngiliz Sterlini', alisKuru: 43.50, satisKuru: 43.68, tarih: null },
+  { dovizKodu: 'USD', dovizAd: 'Amerikan Doları', alisKuru: 34.25, satisKuru: 34.32, efektifAlis: null, efektifSatis: null, tarih: null },
+  { dovizKodu: 'EUR', dovizAd: 'Euro', alisKuru: 37.10, satisKuru: 37.22, efektifAlis: null, efektifSatis: null, tarih: null },
+  { dovizKodu: 'GBP', dovizAd: 'İngiliz Sterlini', alisKuru: 43.50, satisKuru: 43.68, efektifAlis: null, efektifSatis: null, tarih: null },
 ]
 
 export default function UretimHareketGirisi() {
@@ -113,11 +113,13 @@ export default function UretimHareketGirisi() {
   const [dovizCinsi, setDovizCinsi] = useState<string>('TL')
   const [dovizKuru, setDovizKuru] = useState<number | null>(1)
   const [kurlar, setKurlar] = useState<DovizKuruSatir[]>([])
+  const [kurTipi, setKurTipi] = useState<KurTipi>('satis')
 
   const efektikKurlar = kurlar.length > 0 ? kurlar : mockKurlar
 
   useEffect(() => {
     dovizApi.getSonKurlar().then(setKurlar).catch(() => setKurlar(mockKurlar))
+    getMerkezKurTipi().then(setKurTipi).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -125,9 +127,10 @@ export default function UretimHareketGirisi() {
       setDovizKuru(1)
     } else {
       const k = efektikKurlar.find((k) => k.dovizKodu === dovizCinsi)
-      if (k?.satisKuru) setDovizKuru(k.satisKuru)
+      const kur = kurDegeri(k, kurTipi)
+      if (kur != null) setDovizKuru(kur)
     }
-  }, [dovizCinsi, kurlar])
+  }, [dovizCinsi, kurlar, kurTipi])
 
   useEffect(() => {
     setVeriYukleniyor(true)

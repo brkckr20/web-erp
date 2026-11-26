@@ -35,6 +35,7 @@ export interface CariHesap {
   vergiNo: string | null
   dovizCinsi: string | null
   dovizKurTipi: string | null
+  riskLimiti: number | string | null
 }
 
 export type CariHesapFormData = Omit<CariHesap, 'id'>
@@ -62,6 +63,31 @@ export interface CariHesapAdres {
 
 export type CariHesapAdresFormData = Omit<CariHesapAdres, 'id' | 'cariHesapId' | 'kod'>
 
+export interface CariHesapEkstreSatir {
+  id: number
+  tarih: string
+  fisTipi: string
+  fisNo: number
+  belgeNo: string | null
+  aciklama: string | null
+  hesapKodu: string
+  hesapAdi: string | null
+  borc: number
+  alacak: number
+  bakiye: number
+  kaynakTuru: string | null
+}
+
+export interface CariHesapEkstre {
+  cari: { id: number; kod: string; ad: string }
+  baslangic: string | null
+  bitis: string | null
+  devir: { borc: number; alacak: number; bakiye: number }
+  satirlar: CariHesapEkstreSatir[]
+  toplam: { borc: number; alacak: number }
+  bakiye: number
+}
+
 export const cariHesapApi = {
   list: (search?: string, page?: number, limit?: number, prefix?: string) => {
     const params: string[] = []
@@ -74,6 +100,12 @@ export const cariHesapApi = {
   },
   get: (id: number) => api.get<CariHesap>(`/cari-hesap/${id}`),
   getByKod: (kod: string) => api.get<CariHesap>(`/cari-hesap/by-kod/${kod}`),
+  ekstre: (id: number, baslangic?: string, bitis?: string) => {
+    const params: string[] = []
+    if (baslangic) params.push(`baslangic=${baslangic}`)
+    if (bitis) params.push(`bitis=${bitis}`)
+    return api.get<CariHesapEkstre>(`/cari-hesap/${id}/ekstre${params.length ? `?${params.join('&')}` : ''}`)
+  },
   create: (data: CariHesapFormData) => api.post<CariHesap>('/cari-hesap', data),
   update: (id: number, data: Partial<CariHesapFormData>) => api.put<CariHesap>(`/cari-hesap/${id}`, data),
   remove: (id: number) => api.delete<void>(`/cari-hesap/${id}`),

@@ -11,7 +11,7 @@ import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolb
 import SearchableMalzemeSelect from '@/components/shared/SearchableMalzemeSelect'
 import SearchableRenkSelect from '@/components/shared/SearchableRenkSelect'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
-import { dovizApi } from '@/lib/doviz-api'
+import { dovizApi, getMerkezKurTipi, kurDegeri, type KurTipi } from '@/lib/doviz-api'
 import { modelBedenApi, type ModelBeden } from '@/lib/model-beden-api'
 import { modelKumasGrupApi, type ModelKumasGrup } from '@/lib/model-kumas-grup-api'
 import { numaratorApi } from '@/lib/numarator-api'
@@ -573,22 +573,26 @@ export default function SiparisKarti({ isNew, id, onTedarik, onKirliChange }: Si
   }
 
   const tarihRef = useRef(form.tarih)
+  const kurTipiRef = useRef<KurTipi>('satis')
 
   useEffect(() => {
     tarihRef.current = form.tarih
   }, [form.tarih])
 
+  useEffect(() => { getMerkezKurTipi().then((t) => { kurTipiRef.current = t }).catch(() => {}) }, [])
+
   const kurGetir = useCallback(async (dovizCinsi: string, tarih: string): Promise<number | null> => {
     if (!dovizCinsi) return null
     if (dovizCinsi === 'TL' || dovizCinsi === 'TRY') return 1
     try {
+      const tip = kurTipiRef.current
       if (tarih) {
         const kurlar = await dovizApi.getKurlar(tarih)
-        const kur = kurlar.find((k) => k.dovizKodu === dovizCinsi && k.satisKuru != null)?.satisKuru
+        const kur = kurDegeri(kurlar.find((k) => k.dovizKodu === dovizCinsi), tip)
         if (kur != null) return kur
       }
       const sonKurlar = await dovizApi.getSonKurlar()
-      return sonKurlar.find((k) => k.dovizKodu === dovizCinsi && k.satisKuru != null)?.satisKuru ?? null
+      return kurDegeri(sonKurlar.find((k) => k.dovizKodu === dovizCinsi), tip)
     } catch {
       return null
     }
