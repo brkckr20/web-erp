@@ -24,6 +24,15 @@ export class CariHesapController {
     return this.cariHesapService.findByKod(kod)
   }
 
+  @Get(':id/ekstre')
+  ekstre(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('baslangic') baslangic?: string,
+    @Query('bitis') bitis?: string,
+  ) {
+    return this.cariHesapService.ekstre(id, baslangic, bitis)
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.cariHesapService.findOne(id)

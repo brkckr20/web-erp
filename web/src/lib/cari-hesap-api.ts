@@ -72,6 +72,9 @@ export interface CariHesapEkstreSatir {
   aciklama: string | null
   hesapKodu: string
   hesapAdi: string | null
+  doviz: string | null
+  dovizKuru: number | null
+  dovizTutari: number | null
   borc: number
   alacak: number
   bakiye: number
