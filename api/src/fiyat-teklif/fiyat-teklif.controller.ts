@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Param, Query, Body, ParseIntPipe, Res, UseInterceptors, UploadedFile } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import type { Response } from 'express'
+import { Public } from '../auth/public.decorator'
 import { FiyatTeklifService } from './fiyat-teklif.service'
 import { CreateFiyatTeklifDto, UpdateFiyatTeklifDto } from './dto/create-fiyat-teklif.dto'
 
@@ -47,6 +48,7 @@ export class FiyatTeklifController {
     return this.service.uploadDosya(file, fiyatTeklifId)
   }
 
+  @Public()
   @Get('dosya/:id')
   async getDosya(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
     const row = await this.service.getDosya(id)

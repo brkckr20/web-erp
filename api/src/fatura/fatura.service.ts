@@ -215,10 +215,9 @@ export class FaturaService {
             sevkNo: fatura.sevkNo,
             sevkTarihi: fatura.sevkTarihi,
             aciklama: fatura.aciklama,
-            cariHesapId: fatura.cariHesapId,
-            depoId: fatura.depoId,
-            fasonTipiId: fatura.fasonTipiId,
-            masrafYeri: fatura.masrafYeri,
+            ...(fatura.cariHesapId ? { cariHesap: { connect: { id: fatura.cariHesapId } } } : {}),
+            ...(fatura.depoId ? { depo: { connect: { id: fatura.depoId } } } : {}),
+            ...(fatura.fasonTipiId ? { fasonTipi: { connect: { id: fatura.fasonTipiId } } } : {}),
             kayitYapan: fatura.kayitYapan,
             // Direkt faturadan doğan stok fişi de tamamlanmış sayılır.
             tamamlandi: stokTipiTamamlandi(fatura.faturaTipi),

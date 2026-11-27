@@ -508,6 +508,7 @@ model CariHesap {
   faturalar         Fatura[] @relation("FaturaCariHesap")
   siparisler        Siparis[] @relation("SiparisCariHesap")
   cariHareketler    CariHesapHareket[] @relation("CariHesapHareketler")
+  bankaFisHareketler BankaFisHareket[] @relation("BankaFisHareketler")
   muhasebeFisSatirlari MuhasebeFisSatir[] @relation("CariMuhasebeFisSatir")
 
   @@index([vergiNo])
@@ -590,6 +591,7 @@ model MasrafYeri {
   kasaBankaHesaplar KasaBankaHesap[] @relation("KasaBankaMasrafYeri")
   muhasebeFisler   MuhasebeFis[]   @relation("MuhasebeFisMasrafYeri")
   cariHesapFisler  CariHesapFis[]  @relation("CariHesapFisMasrafYeri")
+  bankaFisler      BankaFis[]      @relation("BankaFisMasrafYeri")
   faturalar        Fatura[]        @relation("FaturaMasrafYeri")
 
   @@map("masraf_yeri")
@@ -747,6 +749,64 @@ model CariHesapHareket {
   @@map("cari_hesap_hareket")
 }
 
+/// Banka fişi, cari hesap fişiyle aynı başlık/satır yapısını kullanır; ayrı seri numarası vardır.
+model BankaFis {
+  id          Int       @id @default(autoincrement())
+  fisTipi     String    @map("fis_tipi") @db.VarChar(10)
+  fisNo       Int       @map("fis_no")
+  fisTarihi   DateTime  @map("fis_tarihi")
+  belgeNo     String?   @map("belge_no") @db.VarChar(50)
+  k           String?   @db.VarChar(50)
+  erisimKodu  String?   @map("erisim_kodu") @db.VarChar(50)
+  ozelKod     String?   @map("ozel_kod") @db.VarChar(50)
+  dovizCinsi  String?   @map("doviz_cinsi") @db.VarChar(10)
+  dovizKuru   Decimal?  @map("doviz_kuru") @db.Decimal(18, 6)
+  kurTarihi   DateTime? @map("kur_tarihi") @db.Date
+  masrafYeri  String?   @map("masraf_yeri") @db.VarChar(100)
+  masrafYeriId Int?     @map("masraf_yeri_id")
+  masrafYeriRef MasrafYeri? @relation("BankaFisMasrafYeri", fields: [masrafYeriId], references: [id])
+  aciklama    String?   @db.VarChar(1000)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  hareketler  BankaFisHareket[]
+
+  @@unique([fisTipi, fisNo])
+  @@index([fisTarihi])
+  @@map("banka_fis")
+}
+
+model BankaFisHareket {
+  id          Int          @id @default(autoincrement())
+  fisId       Int?         @map("fis_id")
+  fis         BankaFis?    @relation(fields: [fisId], references: [id], onDelete: Cascade)
+  cariHesapId Int          @map("cari_hesap_id")
+  cariHesap   CariHesap    @relation("BankaFisHareketler", fields: [cariHesapId], references: [id])
+
+  ozelKod     String?      @map("ozel_kod") @db.VarChar(50)
+  hesapKodu   String?      @map("hesap_kodu") @db.VarChar(50)
+  hesapAdi    String?      @map("hesap_adi") @db.VarChar(200)
+  aciklama    String?      @db.VarChar(500)
+  vadeTarihi  DateTime?    @map("vade_tarihi") @db.Date
+  belgeNo     String?      @map("belge_no") @db.VarChar(50)
+  borc        Decimal      @default(0) @db.Decimal(18, 2)
+  alacak      Decimal      @default(0) @db.Decimal(18, 2)
+  doviz       String?      @db.VarChar(10)
+  dovizKuru   Decimal?     @map("doviz_kuru") @db.Decimal(18, 6)
+  borcYerel   Decimal      @default(0) @map("borc_yerel") @db.Decimal(18, 2)
+  alacakYerel Decimal      @default(0) @map("alacak_yerel") @db.Decimal(18, 2)
+  belgeTuru   String?      @map("belge_turu") @db.VarChar(20)
+  belgeId     Int?         @map("belge_id")
+  kontrol     String?      @db.VarChar(50)
+
+  @@index([fisId])
+  @@index([cariHesapId])
+  @@index([vadeTarihi])
+  @@index([belgeTuru, belgeId])
+  @@map("banka_fis_hareket")
+}
+
 model CariHesapAdres {
   id           Int       @id @default(autoincrement())
   cariHesapId  Int       @map("cari_hesap_id")
@@ -824,6 +884,9 @@ model Irsaliye {
   sevkTarihi        DateTime? @map("sevk_tarihi")
   terminTarihi      DateTime? @map("termin_tarihi")
   onaylandi         Boolean  @default(false)
+  // Onayı veren kullanıcı ve onay zamanı (yalnızca 201-Satın Alma Siparişi).
+  onaylayan         String?  @map("onaylayan") @db.VarChar(100)
+  onayTarihi        DateTime? @map("onay_tarihi")
   tamamlandi        Boolean  @default(false)
   kayitYapan        String?  @map("kayit_yapan") @db.VarChar(100)
   kayitTarihi       DateTime? @map("kayit_tarihi")
@@ -960,6 +1023,8 @@ model IrsaliyeKalem {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
+  // 201 → 1 (ve 202 → 134 → 11) zincirinde ters sorgu: bu kalemden türetilenler.
+  @@index([kaynakKalemId])
   @@map("irsaliye_kalem")
 }
 

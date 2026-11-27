@@ -21,6 +21,8 @@ import MuhasebeFisleriListesi from '@/components/pages/MuhasebeFisleriListesi'
 import MuhasebeFisKarti from '@/components/pages/MuhasebeFisKarti'
 import CariHesapFisleriListesi from '@/components/pages/CariHesapFisleriListesi'
 import CariHesapFisKarti from '@/components/pages/CariHesapFisKarti'
+import BankaFisleriListesi from '@/components/pages/BankaFisleriListesi'
+import BankaFisKarti from '@/components/pages/BankaFisKarti'
 import CariHesapEkstre from '@/components/pages/CariHesapEkstre'
 import MasrafYeriKarti from '@/components/pages/MasrafYeriKarti'
 import MasrafYeriListesi from '@/components/pages/MasrafYeriListesi'
@@ -355,6 +357,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const key = 'cari-hesap-fisi-yeni-' + fisTipi
     setTabs((prev) => {
       const tab: Tab = { key, label: 'Yeni Cari Hesap Fişi', moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openBankaFisKarti = useCallback((id: number) => {
+    const key = 'banka-fisi-' + id
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Banka Fişi - ' + id, moduleKey: 'muhasebe', isForm: true }
+      const exists = prev.find((t) => t.key === key)
+      if (!exists) return [...prev, tab]
+      return prev
+    })
+    setActiveTab(key)
+  }, [])
+
+  const openYeniBankaFisi = useCallback((fisTipi: string) => {
+    const key = 'banka-fisi-yeni-' + fisTipi
+    setTabs((prev) => {
+      const tab: Tab = { key, label: 'Yeni Banka Fişi', moduleKey: 'muhasebe', isForm: true }
       const exists = prev.find((t) => t.key === key)
       if (!exists) return [...prev, tab]
       return prev
@@ -1327,6 +1351,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const fisId = Number(tab.key.replace('cari-hesap-fisi-', ''))
       if (!isNaN(fisId)) return <CariHesapFisKarti key={tab.key} id={fisId} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
+    if (tab.key === 'banka-fisleri') {
+      return <BankaFisleriListesi onSelect={openBankaFisKarti} onNew={openYeniBankaFisi} />
+    }
+    if (tab.key.startsWith('banka-fisi-yeni-')) {
+      return <BankaFisKarti key={tab.key} fisTipi={tab.key.replace('banka-fisi-yeni-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
+    if (tab.key.startsWith('banka-fisi-')) {
+      const fisId = Number(tab.key.replace('banka-fisi-', ''))
+      if (!isNaN(fisId)) return <BankaFisKarti key={tab.key} id={fisId} onKirliChange={(b) => setKirli(tab.key, b)} />
+    }
     if (tab.key === 'muhasebe-fisleri') {
       return <MuhasebeFisleriListesi onSelect={openMuhasebeFisKarti} onNew={openYeniMuhasebeFisi} />
     }
@@ -1608,10 +1642,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <KumasListesi onSelect={openKumasKarti} onNew={openYeniKumas} />
     }
     if (tab.key === 'kumas-karti-yeni') {
-      return <KumasKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <KumasKarti isNew onOpenSiparis={openSiparisKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('kumas-karti-')) {
-      return <KumasKarti kod={tab.key.replace('kumas-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <KumasKarti kod={tab.key.replace('kumas-karti-', '')} onOpenSiparis={openSiparisKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'rota-tanimlari') {
       return <RotaListesi onSelect={openRotaKarti} onNew={openYeniRota} />
@@ -1626,10 +1660,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <IplikListesi onSelect={openIplikKarti} onNew={openYeniIplik} />
     }
     if (tab.key === 'iplik-karti-yeni') {
-      return <IplikKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <IplikKarti isNew onOpenSiparis={openSiparisKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('iplik-karti-')) {
-      return <IplikKarti kod={tab.key.replace('iplik-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <IplikKarti kod={tab.key.replace('iplik-karti-', '')} onOpenSiparis={openSiparisKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'numarator-tanimlari') {
       return <NumaratorListesi onSelect={openNumaratorKarti} onNew={openYeniNumarator} />
@@ -1746,14 +1780,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return <AksesuarListesi onSelect={openAksesuarKarti} onNew={openYeniAksesuar} onNewTipi={openYeniAksesuarTipi} />
     }
     if (tab.key === 'aksesuar-karti-yeni') {
-      return <AksesuarKarti isNew onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <AksesuarKarti isNew onOpenSiparis={openSiparisKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('aksesuar-karti-yeni-')) {
       const tipId = Number(tab.key.replace('aksesuar-karti-yeni-', ''))
-      return <AksesuarKarti isNew selectedTipId={tipId} onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <AksesuarKarti isNew selectedTipId={tipId} onOpenSiparis={openSiparisKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key.startsWith('aksesuar-karti-')) {
-      return <AksesuarKarti kod={tab.key.replace('aksesuar-karti-', '')} onKirliChange={(b) => setKirli(tab.key, b)} />
+      return <AksesuarKarti kod={tab.key.replace('aksesuar-karti-', '')} onOpenSiparis={openSiparisKarti} onKirliChange={(b) => setKirli(tab.key, b)} />
     }
     if (tab.key === 'siparis-girisi') {
       return <SiparisGirisi onSelect={openSiparisKarti} onNew={openYeniSiparis} onTedarik={openTedarik} />

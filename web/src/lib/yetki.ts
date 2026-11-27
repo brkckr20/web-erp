@@ -1,6 +1,6 @@
 import { modules, type Module } from '@/data/modules'
 
-export const EKRAN_ISLEMLERI = ['goruntule', 'kaydet', 'sil', 'iptal'] as const
+export const EKRAN_ISLEMLERI = ['goruntule', 'kaydet', 'sil', 'iptal', 'onayla'] as const
 export type EkranIslemi = (typeof EKRAN_ISLEMLERI)[number]
 
 export const YETKI_YOK = 'Bu işlem için yetkiniz yok'
@@ -67,6 +67,7 @@ const KART_ONEKLERI: { onek: string; ekran: string }[] = [
   { onek: 'hesap-plani-karti', ekran: 'hesap-plani' },
   { onek: 'muhasebe-entegrasyon-tanimlari', ekran: 'muhasebe-entegrasyon-tanimlari' },
   { onek: 'cari-hesap-fisi', ekran: 'cari-hesap-fisleri' },
+  { onek: 'banka-fisi', ekran: 'banka-fisleri' },
   { onek: 'muhasebe-fisi', ekran: 'muhasebe-fisleri' },
   { onek: 'depo-karti', ekran: 'depo-tanimlari' },
   { onek: 'doviz-karti', ekran: 'doviz-tanimlari' },

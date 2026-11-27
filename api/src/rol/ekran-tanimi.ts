@@ -7,6 +7,8 @@ export type EkranIslemi = (typeof EKRAN_ISLEMLERI)[number]
 export interface EkranTanimi {
   key: string
   ad: string
+  /** Standart işlemler dışında ek izinler (ör. onayla). Yalnızca onay akışı olan ekranlarda. */
+  ekIslemler?: { key: string; ad: string }[]
 }
 
 export interface ModulEkranTanimi {
@@ -18,6 +20,9 @@ export interface ModulEkranTanimi {
 /** Ekran izin kodu: ekran.<modul>.<ekran>.<islem> */
 export const ekranIzinKodu = (modul: string, ekran: string, islem: string) =>
   `ekran.${modul}.${ekran}.${islem}`
+
+/** 201-Satın Alma Siparişi onay izni (kaydet izninden ayrıdır). */
+export const SATINALMA_SIPARIS_ONAY_IZNI = ekranIzinKodu('satinalma', 'satinalma-siparis', 'onayla')
 
 export const EKRAN_TANIMLARI: ModulEkranTanimi[] = [
   {
@@ -87,7 +92,7 @@ export const EKRAN_TANIMLARI: ModulEkranTanimi[] = [
     ad: 'Satın Alma',
     ekranlar: [
       { key: 'hizmet-kartlari', ad: 'Alınan Hizmet Kartları' },
-      { key: 'satinalma-siparis', ad: 'Satın Alma Siparişi' },
+      { key: 'satinalma-siparis', ad: 'Satın Alma Siparişi', ekIslemler: [{ key: 'onayla', ad: 'Onayla' }] },
       { key: 'satinalma-fiyat-teklifleri', ad: 'Satın Alma Fiyat Teklifleri' },
       { key: 'teslimat-takip', ad: 'Teslimat Takibi' },
       { key: 'tedarikci-degerlendirme', ad: 'Tedarikçi Değerlendirme' },
@@ -129,6 +134,7 @@ export const EKRAN_TANIMLARI: ModulEkranTanimi[] = [
       { key: 'odeme-planlari', ad: 'Ödeme Planları' },
       { key: 'masraf-yerleri', ad: 'Masraf Yerleri' },
       { key: 'cari-hesap-fisleri', ad: 'Cari Hesap Fişleri' },
+      { key: 'banka-fisleri', ad: 'Banka Fişleri' },
       { key: 'muhasebe-fisleri', ad: 'Muhasebe Fişleri' },
       { key: 'hesap-plani', ad: 'Hesap Planı' },
       { key: 'muhasebe-entegrasyon-tanimlari', ad: 'Muhasebe Entegrasyon Tanımları' },

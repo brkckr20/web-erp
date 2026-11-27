@@ -101,6 +101,32 @@ async function tahsisleriYaz(tx: any, irsaliyeKalemId: number, tahsisler: any[] 
   }
 }
 
+// Bu kalemlerden türetilmiş irsaliye kalemleri (kaynak_kalem_id ile bağlı).
+// Skaler FK olduğu için silme öncesi elle kontrol edilir; aksi halde bağ boşa düşer.
+async function turetilmisKalemler(tx: Prisma.TransactionClient, kaynakKalemIds: number[]) {
+  if (kaynakKalemIds.length === 0) return []
+  return tx.irsaliyeKalem.findMany({
+    where: { kaynakKalemId: { in: kaynakKalemIds } },
+    select: {
+      id: true,
+      kaynakKalemId: true,
+      irsaliye: { select: { id: true, irsaliyeNo: true, irsaliyeTipi: true } },
+    },
+  })
+}
+
+function turetilmisEtiket(
+  rows: { irsaliye: { id: number; irsaliyeNo: string | null; irsaliyeTipi: string } }[],
+): string {
+  return [
+    ...new Set(
+      rows.map(
+        (r) => `${r.irsaliye.irsaliyeTipi}-${r.irsaliye.irsaliyeNo ?? `#${r.irsaliye.id}`}`,
+      ),
+    ),
+  ].join(', ')
+}
+
 @Injectable()
 export class IrsaliyeService {
   constructor(private prisma: PrismaService) {}
@@ -313,6 +339,10 @@ export class IrsaliyeService {
 
   async create(dto: CreateIrsaliyeDto) {
     const data: any = { ...dto }
+    // 201'de onay yalnızca yetkili onay uç noktasından verilir; kaydet onayı değiştiremez.
+    if (data.irsaliyeTipi === '201') delete data.onaylandi
+    delete data.onaylayan
+    delete data.onayTarihi
     // Otomatik oluşan stok fişleri taslak kalmasın ( örn. 201'den Mal Alım ).
     if (data.tamamlandi !== true && stokTipiTamamlandi(data.irsaliyeTipi)) data.tamamlandi = true
     if (dto.irsaliyeTarihi) data.irsaliyeTarihi = new Date(dto.irsaliyeTarihi)
@@ -352,8 +382,15 @@ export class IrsaliyeService {
   }
 
   async update(id: number, dto: UpdateIrsaliyeDto) {
-    await this.findOne(id)
+    const mevcut = await this.findOne(id)
     const data: any = { ...dto }
+    if (mevcut.irsaliyeTipi === '201' && mevcut.onaylandi && Array.isArray((dto as any).kalemler)) {
+      throw new BadRequestException('Onaylı siparişin satırları değiştirilemez. Önce onayı kaldırın.')
+    }
+    // 201'de kaydet, onay bilgisini (ve onaylayan/tarihi) ezmez.
+    if (mevcut.irsaliyeTipi === '201') delete data.onaylandi
+    delete data.onaylayan
+    delete data.onayTarihi
     if (dto.irsaliyeTarihi) data.irsaliyeTarihi = new Date(dto.irsaliyeTarihi)
     if (dto.faturaTarihi) data.faturaTarihi = new Date(dto.faturaTarihi)
     if (dto.sevkTarihi) data.sevkTarihi = new Date(dto.sevkTarihi)
@@ -445,6 +482,13 @@ export class IrsaliyeService {
                 'Önce faturayı silin veya irsaliye bağlantısını kaldırın.',
             )
           }
+          const turetilmis = await turetilmisKalemler(tx, silinecekIdler)
+          if (turetilmis.length > 0) {
+            throw new BadRequestException(
+              `Bu kalemlerden türetilmiş irsaliye var (${turetilmisEtiket(turetilmis)}). ` +
+                'Önce bağlı irsaliyeyi silin veya bu kalemleri koruyun.',
+            )
+          }
           await tx.irsaliyeKalemTahsis.deleteMany({ where: { irsaliyeKalemId: { in: silinecekIdler } } })
           await tx.irsaliyeKalemIslem.deleteMany({ where: { irsaliyeKalemId: { in: silinecekIdler } } })
           await tx.irsaliyeKalem.deleteMany({ where: { id: { in: silinecekIdler } } })
@@ -466,23 +510,61 @@ export class IrsaliyeService {
     })
   }
 
-  async setOnay(id: number, onaylandi: boolean) {
+  async setOnay(id: number, onaylandi: boolean, kullanici?: { kod?: string | null; ad?: string | null }) {
     const fis = await this.findOne(id)
     if (fis.irsaliyeTipi !== '201') throw new BadRequestException('Yalnızca 201-Satın Alma Siparişi onaylanabilir')
+    const onaylayan = onaylandi
+      ? [kullanici?.kod, kullanici?.ad].filter(Boolean).join(' - ') || null
+      : null
     return this.prisma.irsaliye.update({
       where: { id },
       data: {
         onaylandi,
-        // Onay kalkınca Teslim Alındı da düşer (Taslak'a döner).
+        onaylayan,
+        onayTarihi: onaylandi ? new Date() : null,
+        // Onay kalkınca Teslim Alındı da düşer (Onaysız'a döner).
         tamamlandi: onaylandi ? fis.tamamlandi : false,
         guncellemeTarihi: new Date(),
       },
     })
   }
 
+  async setTamamlandi(id: number, tamamlandi: boolean) {
+    const fis = await this.findOne(id)
+    if (fis.irsaliyeTipi !== '201') throw new BadRequestException('Yalnızca 201-Satın Alma Siparişi tamamlandı olarak işaretlenebilir')
+    if (tamamlandi && !fis.onaylandi) throw new BadRequestException('Onaysız sipariş tamamlandı olarak işaretlenemez')
+    return this.prisma.irsaliye.update({
+      where: { id },
+      data: { tamamlandi, guncellemeTarihi: new Date() },
+    })
+  }
+
+  async kaynakSiparisler(id: number) {
+    const fis = await this.findOne(id)
+    const kaynakKalemIds = fis.kalemler.map((k) => k.kaynakKalemId).filter((v): v is number => v != null)
+    if (kaynakKalemIds.length === 0) return []
+    const kaynakKalemler = await this.prisma.irsaliyeKalem.findMany({
+      where: { id: { in: kaynakKalemIds } },
+      select: { irsaliye: { select: { id: true, irsaliyeNo: true, irsaliyeTipi: true, tamamlandi: true } } },
+    })
+    const map = new Map<number, { id: number; irsaliyeNo: string | null; irsaliyeTipi: string; tamamlandi: boolean }>()
+    for (const k of kaynakKalemler) {
+      if (k.irsaliye.irsaliyeTipi === '201') map.set(k.irsaliye.id, k.irsaliye)
+    }
+    return [...map.values()]
+  }
+
   async remove(id: number) {
-    await this.findOne(id)
+    const fis = await this.findOne(id)
     return this.prisma.$transaction(async (tx) => {
+      // Bu fişten türetilmiş irsaliyeler varsa silme engellenir (kaynak_kalem_id boşa düşmesin).
+      const turetilmis = await turetilmisKalemler(tx, fis.kalemler.map((k) => k.id))
+      if (turetilmis.length > 0) {
+        throw new BadRequestException(
+          `Bu fişten türetilmiş irsaliye var (${turetilmisEtiket(turetilmis)}). ` +
+            'Önce bağlı irsaliyeyi silin.',
+        )
+      }
       // Kalite kontrol girişine bağlı kalemler varsa silme engellenir (uyarı).
       const bagliKK = await tx.kaliteKontrolKalem.findMany({
         where: { irsaliyeKalem: { irsaliyeId: id } },
@@ -521,6 +603,12 @@ export class IrsaliyeService {
 
   async createKalem(dto: CreateIrsaliyeKalemDto) {
     return this.prisma.$transaction(async (tx) => {
+      if (dto.irsaliyeId) {
+        const fis = await tx.irsaliye.findUnique({ where: { id: dto.irsaliyeId }, select: { irsaliyeTipi: true, onaylandi: true } })
+        if (fis?.irsaliyeTipi === '201' && fis.onaylandi) {
+          throw new BadRequestException('Onaylı siparişin satırları değiştirilemez. Önce onayı kaldırın.')
+        }
+      }
       const kalem = await tx.irsaliyeKalem.create({ data: kalemDataHazirla(dto) as any })
       await islemleriYaz(tx, kalem.id, (dto as any).prosesler)
       return kalem
@@ -529,6 +617,10 @@ export class IrsaliyeService {
 
   async updateKalem(id: number, dto: CreateIrsaliyeKalemDto) {
     return this.prisma.$transaction(async (tx) => {
+      const mevcut = await tx.irsaliyeKalem.findUnique({ where: { id }, select: { irsaliye: { select: { irsaliyeTipi: true, onaylandi: true } } } })
+      if (mevcut?.irsaliye?.irsaliyeTipi === '201' && mevcut.irsaliye.onaylandi) {
+        throw new BadRequestException('Onaylı siparişin satırları değiştirilemez. Önce onayı kaldırın.')
+      }
       const kalem = await tx.irsaliyeKalem.update({ where: { id }, data: kalemDataHazirla(dto) as any })
       if (Array.isArray((dto as any).prosesler)) {
         await tx.irsaliyeKalemIslem.deleteMany({ where: { irsaliyeKalemId: id } })
@@ -540,6 +632,17 @@ export class IrsaliyeService {
 
   async removeKalem(id: number) {
     return this.prisma.$transaction(async (tx) => {
+      const mevcut = await tx.irsaliyeKalem.findUnique({ where: { id }, select: { irsaliye: { select: { irsaliyeTipi: true, onaylandi: true } } } })
+      if (mevcut?.irsaliye?.irsaliyeTipi === '201' && mevcut.irsaliye.onaylandi) {
+        throw new BadRequestException('Onaylı siparişin satırları değiştirilemez. Önce onayı kaldırın.')
+      }
+      const turetilmis = await turetilmisKalemler(tx, [id])
+      if (turetilmis.length > 0) {
+        throw new BadRequestException(
+          `Bu kalemden türetilmiş irsaliye var (${turetilmisEtiket(turetilmis)}). ` +
+            'Önce bağlı irsaliyeyi silin.',
+        )
+      }
       const bagliKK = await tx.kaliteKontrolKalem.findMany({
         where: { irsaliyeKalemId: id },
         select: { fis: { select: { fisNo: true } } },

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Delete, Param, ParseIntPipe, Res, UseInterceptors, UploadedFiles } from '@nestjs/common'
 import { FilesInterceptor } from '@nestjs/platform-express'
 import type { Response } from 'express'
+import { Public } from '../auth/public.decorator'
 import { MalzemeEkService } from './malzeme-ek.service'
 import type { MalzemeEkDto } from './dto/malzeme-ek.dto'
 
@@ -35,6 +36,7 @@ export class MalzemeEkController {
     return created
   }
 
+  @Public()
   @Get('dosya/:id')
   async download(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
     const row = await this.service.findOne(id)

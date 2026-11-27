@@ -482,42 +482,6 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
   const columns = useMemo<ColDef<FisSatir>[]>(
     () => [
       {
-        headerName: 'Cari Hesap Kodu',
-        field: 'cariKod',
-        width: 160,
-        cellClass: '!p-0',
-        cellRenderer: (p: { data: FisSatir }) => (
-          <SearchableCariSelect
-            value={p.data.cariKod}
-            widthClass="!w-full"
-            className="!w-full !h-full !text-[12px]"
-            onChange={(kod, rec) =>
-              updateSatir(p.data.key, {
-                cariKod: kod,
-                cariAd: rec?.ad ?? '',
-                cariHesapId: rec?.id ?? 0,
-              })
-            }
-          />
-        ),
-      },
-      { headerName: 'Cari Hesap Adı', field: 'cariAd', flex: 1, minWidth: 150 },
-      {
-        headerName: 'Özel Kod',
-        field: 'ozelKod',
-        width: 100,
-        cellClass: '!p-0',
-        cellRenderer: (p: { data: FisSatir }) => (
-          <Input
-            size="small"
-            variant="borderless"
-            value={p.data.ozelKod}
-            onChange={(e) => updateSatir(p.data.key, { ozelKod: e.target.value })}
-            className="!w-full !h-full !text-[12px]"
-          />
-        ),
-      },
-      {
         headerName: 'Hesap Kodu',
         field: 'hesapKodu',
         width: 160,
@@ -560,6 +524,43 @@ export default function CariHesapFisKarti({ id: propId, fisTipi: propFisTipi, on
           />
         ),
       },
+      {
+        headerName: 'Özel Kod',
+        field: 'ozelKod',
+        width: 100,
+        cellClass: '!p-0',
+        cellRenderer: (p: { data: FisSatir }) => (
+          <Input
+            size="small"
+            variant="borderless"
+            value={p.data.ozelKod}
+            onChange={(e) => updateSatir(p.data.key, { ozelKod: e.target.value })}
+            className="!w-full !h-full !text-[12px]"
+          />
+        ),
+      },
+      {
+        headerName: 'Cari Hesap Kodu',
+        field: 'cariKod',
+        width: 160,
+        cellClass: '!p-0',
+        cellRenderer: (p: { data: FisSatir }) => (
+          <SearchableCariSelect
+            value={p.data.cariKod}
+            widthClass="!w-full"
+            hideAdLabel
+            className="!w-full !h-full !text-[12px]"
+            onChange={(kod, rec) =>
+              updateSatir(p.data.key, {
+                cariKod: kod,
+                cariAd: rec?.ad ?? '',
+                cariHesapId: rec?.id ?? 0,
+              })
+            }
+          />
+        ),
+      },
+      { headerName: 'Cari Hesap Adı', field: 'cariAd', flex: 1, minWidth: 150 },
       {
         headerName: 'Açıklama',
         field: 'aciklama',

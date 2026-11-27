@@ -7,7 +7,7 @@ import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import type { ColDef, GridApi, CellFocusedEvent } from 'ag-grid-community'
 import dayjs from 'dayjs'
-import { PlusOutlined, DeleteOutlined, SettingOutlined, SearchOutlined, FileTextOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, SettingOutlined, SearchOutlined, FileTextOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableCariSelect from '@/components/shared/SearchableCariSelect'
 import SearchableDepoSelect from '@/components/shared/SearchableDepoSelect'
@@ -32,6 +32,7 @@ import { kalemMiktari } from '@/lib/miktar'
 import { kolonSecimiApi, type KolonKaydi } from '@/lib/kolon-secimi-api'
 import { applyKolonDurumu } from '@/lib/kolon-durumu'
 import { useKirli } from '@/lib/kirli'
+import { ekranYetkisi } from '@/lib/yetki'
 import { useAuth } from '@/context/AuthContext'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 
@@ -529,6 +530,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const { modal } = App.useApp()
   const { kullanici } = useAuth()
   const kayitYapan = kullanici ? `${kullanici.kod} - ${kullanici.ad}` : null
+  // Onay izni kaydetten ayrıdır: ekran.satinalma.satinalma-siparis.onayla
+  const onayIzinli = ekranYetkisi(kullanici?.izinler, 'satinalma', 'satinalma-siparis', 'onayla')
   const irsaliyeTipiLabel = irsaliyeTipiMap[irsaliyeTipi] || irsaliyeTipi
   const [localId, setLocalId] = useState<number | undefined>(propId)
   const id = localId
@@ -554,7 +557,10 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
   const [aciklama, setAciklama] = useState('')
   const [yetkili, setYetkili] = useState('')
   const [onaylandi, setOnaylandi] = useState(false)
+  const [onaylayan, setOnaylayan] = useState<string | null>(null)
+  const [onayTarihi, setOnayTarihi] = useState<string | null>(null)
   const [tamamlandi, setTamamlandi] = useState(false)
+  const satirKilitli = irsaliyeTipi === '201' && onaylandi
   const [eIrsaliye, setEIrsaliye] = useState<EIrsaliyeForm>({ ...bosEIrsaliye })
   const [nakliyeciPlakalar, setNakliyeciPlakalar] = useState<string[]>([])
   const [eIrsaliyeModal, setEIrsaliyeModal] = useState<{ open: boolean; otomatik: boolean; yeniden: boolean }>({
@@ -816,6 +822,8 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           setAciklama(i.aciklama ?? '')
           setYetkili((i as Irsaliye).yetkili ?? '')
           setOnaylandi(!!i.onaylandi)
+          setOnaylayan(i.onaylayan ?? null)
+          setOnayTarihi(i.onayTarihi ?? null)
           setTamamlandi(!!i.tamamlandi)
           setEIrsaliye({
             durum: i.eIrsaliyeDurum ?? '',
@@ -1127,7 +1135,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
         : {}
 
       if (id) {
-        await irsaliyeApi.update(id, {
+        const updatePayload: any = {
           irsaliyeTarihi: irsaliyeTarihi.format('YYYY-MM-DD'),
           sevkTarihi: sevkTarihi ? sevkTarihi.format('YYYY-MM-DD') : null,
           terminTarihi: terminTarihi ? terminTarihi.format('YYYY-MM-DD') : null,
@@ -1142,8 +1150,9 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
           yetkili: yetkili || null,
           guncelleyen: kayitYapan,
           ...eIrsaliyePayload,
-          kalemler: kalemPayload,
-         } as Irsaliye)
+        }
+        if (!satirKilitli) updatePayload.kalemler = kalemPayload
+        await irsaliyeApi.update(id, updatePayload as Irsaliye)
       message.success('İrsaliye güncellendi')
       temizle()
     } else {
@@ -1881,10 +1890,72 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
       .finally(() => setAcikTalimatlariYukleniyor(false))
   }
 
+  // Onay yalnızca yetkili kullanıcı tarafından, kaydetten ayrı onay uç noktasıyla verilir.
+  const handleOnay = async (onay: boolean) => {
+    if (!id) {
+      message.warning('Onaydan önce fişi kaydetmelisiniz')
+      return
+    }
+    try {
+      const guncel = await irsaliyeApi.setOnay(id, onay)
+      setOnaylandi(!!guncel.onaylandi)
+      setTamamlandi(!!guncel.tamamlandi)
+      setOnaylayan(guncel.onaylayan ?? null)
+      setOnayTarihi(guncel.onayTarihi ?? null)
+      temizle()
+      message.success(onay ? 'Fiş onaylandı (Kesinleşti)' : 'Onay kaldırıldı (Onaysız)')
+    } catch (err: unknown) {
+      message.error('Onay işlemi hatası: ' + hataMetni(err))
+    }
+  }
+
+  const handleTamamlandi = async (tamam: boolean) => {
+    if (!id) {
+      message.warning('Önce fişi kaydetmelisiniz')
+      return
+    }
+    try {
+      const guncel = await irsaliyeApi.setTamamlandi(id, tamam)
+      setTamamlandi(!!guncel.tamamlandi)
+      message.success(tamam ? 'Sipariş tamamlandı olarak işaretlendi' : 'Tamamlandı durumu kaldırıldı')
+    } catch (err: unknown) {
+      message.error('İşlem hatası: ' + hataMetni(err))
+    }
+  }
+
+  const handleKaynakSiparisTamamla = async () => {
+    if (!id) return
+    try {
+      const kaynaklar = await irsaliyeApi.kaynakSiparisler(id)
+      if (kaynaklar.length === 0) {
+        message.info('Bu irsaliyeye bağlı 201 siparişi yok')
+        return
+      }
+      const hedef = kaynaklar.filter((k) => !k.tamamlandi)
+      if (hedef.length === 0) {
+        message.info('Bağlı sipariş(ler) zaten tamamlandı')
+        return
+      }
+      const nolar = hedef.map((k) => k.irsaliyeNo ?? `#${k.id}`).join(', ')
+      modal.confirm({
+        title: 'Siparişi Tamamlandı İşaretle',
+        content: `${nolar} numaralı sipariş(ler) tamamlandı olarak işaretlenecek. Devam edilsin mi?`,
+        okText: 'Evet',
+        cancelText: 'Vazgeç',
+        onOk: async () => {
+          for (const k of hedef) await irsaliyeApi.setTamamlandi(k.id, true)
+          message.success(`${hedef.length} sipariş tamamlandı olarak işaretlendi`)
+        },
+      })
+    } catch (err: unknown) {
+      message.error('İşlem hatası: ' + hataMetni(err))
+    }
+  }
+
   const handleIrsaliyeOlustur = () => {
-    // 201: onaysız (Taslak) siparişten irsaliye oluşturulamaz.
+    // 201: onaysız siparişten irsaliye oluşturulamaz.
     if (irsaliyeTipi === '201' && !onaylandi) {
-      message.warning('Onaysız sipariş üzerinden irsaliye oluşturamazsınız. Önce Durumu Kesinleşti yapıp kaydedin.')
+      message.warning('Onaysız sipariş üzerinden irsaliye oluşturamazsınız. Önce context menüden Onayla yapın.')
       return
     }
     // Belge bazında aktarım: seçimden bağımsız TÜM geçerli satırlar aktarılır.
@@ -2112,23 +2183,24 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
               { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
               { key: 'prosesler', label: 'Prosesler...', onClick: openProsesler },
             ]
-          : irsaliyeTipi === '134'
-            ? [
-                { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
-                { key: 'acik-talimatlar', label: 'Açık Talimatlar (202)...', onClick: openAcikTalimatlari },
-                ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
-                { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
-                { key: 'prosesler', label: 'Prosesler...', onClick: openProsesler },
-              ]
-            : id
+            : irsaliyeTipi === '134'
               ? [
                   { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
-                  ...(HAM_STOK_GIRIS_TIPLERI.has(irsaliyeTipi)
-                    ? [{ key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay }]
-                    : []),
-                  { key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }
+                  { key: 'acik-talimatlar', label: 'Açık Talimatlar (202)...', onClick: openAcikTalimatlari },
+                  ...(id ? [{ key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) }] : []),
+                  { key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay },
+                  { key: 'prosesler', label: 'Prosesler...', onClick: openProsesler },
                 ]
-              : [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }]
+              : id
+                ? [
+                    { key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar },
+                    ...(HAM_STOK_GIRIS_TIPLERI.has(irsaliyeTipi)
+                      ? [{ key: 'tahsis-detay', label: 'Tahsis Detayları', onClick: openTahsisDetay }]
+                      : []),
+                    { key: 'fatura-olustur', label: 'Fatura Oluştur', onClick: () => onCreateFatura?.({ faturaTipi: irsaliyeTipi, irsaliyeIds: [id], fasonTipiId: fasonTipiKayit }) },
+                    ...(irsaliyeTipi === '1' && onayIzinli ? [{ key: 'siparis-tamamlandi', label: 'Siparişi Tamamlandı İşaretle', onClick: handleKaynakSiparisTamamla }] : []),
+                  ]
+                : [{ key: 'save-columns', label: 'Kolon Durumu Kaydet', onClick: saveKolonlar }]
 
   const eIrsaliyeMenuItems: NonNullable<MenuProps['items']> = [
     {
@@ -2603,6 +2675,36 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
     </div>
   )
 
+  const onayMenuItems: MenuProps['items'] = [
+    {
+      key: 'onayla',
+      label: 'Onayla (Kesinleşti)',
+      icon: <CheckCircleOutlined />,
+      disabled: onaylandi,
+      onClick: () => handleOnay(true),
+    },
+    {
+      key: 'onay-kaldir',
+      label: 'Onayı Kaldır (Onaysız)',
+      icon: <CloseCircleOutlined />,
+      disabled: !onaylandi,
+      onClick: () => handleOnay(false),
+    },
+    { type: 'divider' },
+    {
+      key: 'tamamlandi',
+      label: 'Tamamlandı Olarak İşaretle',
+      disabled: !onaylandi || tamamlandi,
+      onClick: () => handleTamamlandi(true),
+    },
+    {
+      key: 'tamamlandi-kaldir',
+      label: 'Tamamlandıyı Kaldır',
+      disabled: !tamamlandi,
+      onClick: () => handleTamamlandi(false),
+    },
+  ]
+
   const toplam = kalemler.reduce((acc, k) => acc + (k.satirTutari || 0), 0)
   const toplamMatrah = kalemler.reduce((acc, k) => acc + satirHesapla(k).matrah, 0)
   const toplamKdv = toplam - toplamMatrah
@@ -2636,6 +2738,11 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                 label: 'Genel',
                 children: (
                   <div className="!flex !flex-col !h-full">
+          <Dropdown
+            menu={{ items: onayMenuItems }}
+            trigger={['contextMenu']}
+            disabled={irsaliyeTipi !== '201' || !onayIzinli}
+          >
           <div className="!flex-shrink-0 !space-y-1.5">
             <div className="!flex !gap-2">
               <div className="!shrink-0 !border !border-gray-200 !rounded-sm !p-2">
@@ -2700,21 +2807,51 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                       {(irsaliyeTipi === '201' || irsaliyeTipi === '202') && (
                         <div className="!flex !items-center !gap-3">
                           <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Durum</div>
-                          <Select
-                            size="small"
-                            className="!w-48 !text-[12px]"
-                            value={tamamlandi ? 'tamamlandi' : onaylandi ? 'kesinlesti' : 'taslak'}
-                            onChange={(val) => {
-                              setTamamlandi(val === 'tamamlandi')
-                              setOnaylandi(val === 'kesinlesti' || val === 'tamamlandi')
-                            }}
-                            options={[
-                              { value: 'taslak', label: 'Taslak' },
-                              { value: 'kesinlesti', label: 'Kesinleşti' },
-                              { value: 'tamamlandi', label: 'Teslim Alındı' },
-                            ]}
-                          />
+                          {irsaliyeTipi === '201' ? (
+                            // 201 onayı context menüden verilir; burada yalnızca teslim durumu seçilir.
+                            onaylandi ? (
+                              <Select
+                                size="small"
+                                className="!w-48 !text-[12px]"
+                                value={tamamlandi ? 'tamamlandi' : 'kesinlesti'}
+                                onChange={(val) => setTamamlandi(val === 'tamamlandi')}
+                                options={[
+                                  { value: 'kesinlesti', label: 'Kesinleşti' },
+                                  { value: 'tamamlandi', label: 'Teslim Alındı' },
+                                ]}
+                              />
+                            ) : (
+                              <Tag color="default" className="!text-[12px] !mr-0">Onaysız</Tag>
+                            )
+                          ) : (
+                            <Select
+                              size="small"
+                              className="!w-48 !text-[12px]"
+                              value={tamamlandi ? 'tamamlandi' : onaylandi ? 'kesinlesti' : 'onaylandi'}
+                              onChange={(val) => {
+                                setTamamlandi(val === 'tamamlandi')
+                                setOnaylandi(val === 'kesinlesti' || val === 'tamamlandi')
+                              }}
+                              options={[
+                                { value: 'onaylandi', label: 'Onaysız' },
+                                { value: 'kesinlesti', label: 'Kesinleşti' },
+                                { value: 'tamamlandi', label: 'Teslim Alındı' },
+                              ]}
+                            />
+                          )}
                         </div>
+                      )}
+                      {irsaliyeTipi === '201' && (onaylayan || onayTarihi) && (
+                        <>
+                          <div className="!flex !items-center !gap-3">
+                            <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Onaylayan</div>
+                            <Input size="small" readOnly value={onaylayan ?? ''} placeholder="-" className="!w-48 !text-[11px]" />
+                          </div>
+                          <div className="!flex !items-center !gap-3">
+                            <div className="!text-[12px] !text-[#6b7280] !w-24 !shrink-0">Onay Tarihi</div>
+                            <Input size="small" readOnly value={onayTarihi ? dayjs(onayTarihi).format('DD.MM.YYYY HH:mm') : ''} placeholder="-" className="!w-48 !text-[11px]" />
+                          </div>
+                        </>
                       )}
                       {fasonTipiAd || fasonTipiKayit ? (
                         <div className="!flex !items-center !gap-3">
@@ -2761,11 +2898,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
               )}
             </div>
           </div>
+          </Dropdown>
 
           <div className="!border !border-gray-200 !rounded-sm !flex-1 !min-h-0 !flex !flex-col !mt-1.5">
             <div className="!flex !items-center !justify-between !px-3 !pt-2 !pb-1 !flex-shrink-0">
               <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide">Satır Detayları</div>
               <div className="!flex !items-center !gap-1">
+                {satirKilitli && <Tag color="warning" className="!text-[11px] !mr-1">Satırlar kilitli (onaylı)</Tag>}
                 <Popover
                   content={kolonChooserContent}
                   title={<span className="!text-[12px] !font-semibold">Sütunlar</span>}
@@ -2785,12 +2924,13 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                     title="Sütunları göster/gizle"
                   />
                 </Popover>
-                <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} className="!text-[12px]">
+                <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addKalem} disabled={satirKilitli} className="!text-[12px]">
                   Satır Ekle
                 </Button>
               </div>
             </div>
-            <div style={{ width: '100%' }} className="kalemler-grid !h-full">
+            <div style={{ width: '100%' }} className={`kalemler-grid !h-full ${satirKilitli ? '!opacity-60' : ''}`}>
+              <div className={satirKilitli ? '!pointer-events-none !h-full' : '!h-full'}>
               <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
                 <div style={{ height: '100%', width: '100%' }}>
                     <AgGridReact
@@ -2820,6 +2960,7 @@ export default function IrsaliyeKarti({ irsaliyeTipi = '120', fasonTipiId, id: p
                   />
                 </div>
               </Dropdown>
+              </div>
             </div>
             <div className="!flex !items-center !justify-between !px-3 !py-2 !border-t !border-gray-100 !flex-shrink-0">
               <div className="!flex !items-center !gap-4">

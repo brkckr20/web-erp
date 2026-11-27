@@ -168,9 +168,33 @@ export class SiparisService {
         renkler: { select: { bedenler: { select: { miktar: true } } } },
       },
     });
+    return this.siparisOzetFromKalemler(kalemler);
+  }
+
+  /** Bir malzemenin (kumaş/aksesuar/iplik) reçetelerde kullanıldığı modeller üzerinden siparişleri listeler. */
+  async findByMalzeme(malzemeId: number) {
+    const receteKalemler = await this.prisma.receteKalem.findMany({
+      where: { malzemeId },
+      select: { recete: { select: { malzemeId: true } } },
+    });
+    const modelIds = [...new Set(receteKalemler.map((k) => k.recete?.malzemeId).filter((id): id is number => !!id))];
+    if (modelIds.length === 0) return [];
+
+    const kalemler = await this.prisma.siparisKalem.findMany({
+      where: { malzemeId: { in: modelIds } },
+      select: {
+        siparisId: true,
+        renkler: { select: { bedenler: { select: { miktar: true } } } },
+      },
+    });
+    return this.siparisOzetFromKalemler(kalemler);
+  }
+
+  private async siparisOzetFromKalemler(
+    kalemler: { siparisId: number; renkler: { bedenler: { miktar: any }[] }[] }[],
+  ) {
     if (kalemler.length === 0) return [];
 
-    // Aynı model aynı siparişte birden çok kalem satırında geçebilir: sipariş bazında topla
     const miktarlar = new Map<number, number>();
     for (const kalem of kalemler) {
       let toplam = 0;
@@ -179,10 +203,7 @@ export class SiparisService {
           toplam += Number(beden.miktar ?? 0);
         }
       }
-      miktarlar.set(
-        kalem.siparisId,
-        (miktarlar.get(kalem.siparisId) ?? 0) + toplam,
-      );
+      miktarlar.set(kalem.siparisId, (miktarlar.get(kalem.siparisId) ?? 0) + toplam);
     }
 
     const siparisler = await this.prisma.siparis.findMany({

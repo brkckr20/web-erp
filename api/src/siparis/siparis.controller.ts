@@ -40,6 +40,11 @@ export class SiparisController {
     return this.service.findByModel(malzemeId);
   }
 
+  @Get('malzeme/:malzemeId')
+  findByMalzeme(@Param('malzemeId', ParseIntPipe) malzemeId: number) {
+    return this.service.findByMalzeme(malzemeId);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import {
   EKRAN_ISLEMLERI,
   EKRAN_TANIMLARI,
+  SATINALMA_SIPARIS_ONAY_IZNI,
   ekranIzinKodu,
 } from '../src/rol/ekran-tanimi'
 
@@ -29,6 +30,17 @@ async function ekranIzinleriniYaz(): Promise<number> {
       for (const islem of EKRAN_ISLEMLERI) {
         const kod = ekranIzinKodu(modul.modul, ekran.key, islem)
         const ad = `${modul.ad} - ${ekran.ad} - ${ISLEM_ADLARI[islem]}`
+        await prisma.izin.upsert({
+          where: { kod },
+          create: { kod, ad },
+          update: { ad },
+        })
+        yazilan++
+      }
+      // Ekranın standart işlemler dışındaki izinleri (ör. 201 sipariş onayı).
+      for (const ek of ekran.ekIslemler ?? []) {
+        const kod = ekranIzinKodu(modul.modul, ekran.key, ek.key)
+        const ad = `${modul.ad} - ${ekran.ad} - ${ek.ad}`
         await prisma.izin.upsert({
           where: { kod },
           create: { kod, ad },
@@ -83,8 +95,30 @@ async function rolGecisiniUygula(): Promise<{ rol: string; eklenen: number }[]> 
   return sonuc
 }
 
+// Onay izni hiçbir role atanmamışsa, aynı ekranın kaydet izni olan rollere verilir
+// (Yönetici, Satınalma). Rol Yönetimi'nden kaldırılan yetki geri gelmez; yalnızca
+// izin tüm rollerden düşmüşse yeniden dağıtılır.
+async function onayIzniniDevral(): Promise<number> {
+  const onay = await prisma.izin.findUnique({ where: { kod: SATINALMA_SIPARIS_ONAY_IZNI } })
+  if (!onay) return 0
+  const atanmis = await prisma.rolIzin.count({ where: { izinId: onay.id } })
+  if (atanmis > 0) return 0
+  const kaydet = await prisma.izin.findUnique({
+    where: { kod: ekranIzinKodu('satinalma', 'satinalma-siparis', 'kaydet') },
+  })
+  if (!kaydet) return 0
+  const roller = await prisma.rolIzin.findMany({ where: { izinId: kaydet.id }, select: { rolId: true } })
+  if (roller.length === 0) return 0
+  await prisma.rolIzin.createMany({
+    data: roller.map((r) => ({ rolId: r.rolId, izinId: onay.id })),
+  })
+  return roller.length
+}
+
 async function main() {
   const yazilan = await ekranIzinleriniYaz()
+  const onayRolSayisi = await onayIzniniDevral()
+  if (onayRolSayisi > 0) console.log(`Onay izni ${onayRolSayisi} role verildi`)
   const rolSonuc = await rolGecisiniUygula()
   const toplam = await prisma.izin.count()
   console.log(`Ekran izinleri yazıldı: ${yazilan} | tablodaki toplam izin: ${toplam}`)

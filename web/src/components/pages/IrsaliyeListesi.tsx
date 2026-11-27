@@ -14,6 +14,8 @@ import EIrsaliyeOnizlemeModal from './EIrsaliyeOnizlemeModal'
 import RaporSecimModal from '@/components/shared/RaporSecimModal'
 import { fasonTipiApi, type FasonTipi } from '@/lib/fason-tipi-api'
 import YeniButonu, { useYeniYetkisi } from '@/components/shared/YeniButonu'
+import { useAuth } from '@/context/AuthContext'
+import { ekranYetkisi } from '@/lib/yetki'
 
 interface IrsaliyeRow {
   key: string
@@ -34,6 +36,8 @@ interface IrsaliyeRow {
   kayitEden: string
   onaylandi: boolean
   tamamlandi: boolean
+  onaylayan: string
+  onayTarihi: string
 }
 
 const formatTarih = (d: string | null) => {
@@ -58,17 +62,19 @@ const mapIrsaliye = (i: Irsaliye): IrsaliyeRow => {
     faturaId: i.faturaId ?? null,
     aciklama: i.aciklama ?? '',
     irsaliyeToplam,
-    // 201 ve 202 talimat/sipariş belgeleri: durum dili "Teslim Alındı / Kesinleşti"
+    // 201 ve 202 talimat/sipariş belgeleri: durum dili "Onaysız / Kesinleşti / Teslim Alındı"
     eIrsaliye: i.tamamlandi
       ? (i.irsaliyeTipi === '201' || i.irsaliyeTipi === '202' ? 'Teslim Alındı' : 'Tamamlandı')
       : i.onaylandi
         ? (i.irsaliyeTipi === '201' || i.irsaliyeTipi === '202' ? 'Kesinleşti' : 'Onaylandı')
-        : 'Taslak',
+        : (i.irsaliyeTipi === '201' || i.irsaliyeTipi === '202' ? 'Onaysız' : 'Taslak'),
     eIrsaliyeDurum: i.eIrsaliyeDurum ?? null,
     eIrsaliyeNo: i.eIrsaliyeNo ?? null,
     kayitEden: i.kayitYapan ?? '-',
     onaylandi: !!i.onaylandi,
     tamamlandi: !!i.tamamlandi,
+    onaylayan: i.onaylayan ?? '-',
+    onayTarihi: formatTarih(i.onayTarihi ?? null),
   }
 }
 
@@ -113,7 +119,9 @@ const satinalmaSiparisTipiMap: Record<string, string> = {
 const irsaliyeTipiMap: Record<string, string> = { ...satisIrsaliyeTipiMap, ...satinalmaIrsaliyeTipiMap, ...satinalmaSiparisTipiMap }
 const satisTipleri = Object.keys(satisIrsaliyeTipiMap)
 const satinalmaTipleri = Object.keys(satinalmaIrsaliyeTipiMap)
-const satinalmaSiparisTipleri = Object.keys(satinalmaSiparisTipiMap)
+// Satın Alma Siparişi ekranı yalnızca 201 gösterir; 202-Fason Talimatı kendi
+// "Fason Hareket Fişleri" listesinde izlenir (etiket map'te kalır, kartta kullanılır).
+const satinalmaSiparisTipleri = ['201']
 // Fason hareket fişleri: yalnızca 202-Fason Talimatı (201-Satın Alma Siparişini çıkarır).
 const fasonHareketTipleri = ['202']
 
@@ -142,6 +150,9 @@ const fasonFisTipleri = {
 
 export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCreateFatura }: IrsaliyeListesiProps) {
   const yeniIzinli = useYeniYetkisi().izinli
+  const { kullanici } = useAuth()
+  // Onay, kaydet izninden ayrı ekran iznine bağlıdır.
+  const onayIzinli = ekranYetkisi(kullanici?.izinler, 'satinalma', 'satinalma-siparis', 'onayla')
   const gorselTipler = mod === 'satinalma' ? satinalmaTipleri : mod === 'satinalma-siparis' ? satinalmaSiparisTipleri : mod === 'fason-hareket' ? fasonHareketTipleri : satisTipleri
   const irsaliyeTipiOptions = gorselTipler.map((value) => ({ value, label: irsaliyeTipiMap[value] }))
   const baslik = mod === 'satinalma' ? 'Satın Alma İrsaliyeleri' : mod === 'satinalma-siparis' ? 'Satın Alma Siparişleri' : mod === 'fason-hareket' ? 'Fason Hareket Fişleri' : 'Satış İrsaliyeleri'
@@ -387,10 +398,47 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
     if (!r || r.irsaliyeTipi !== '201') return
     try {
       await irsaliyeApi.setOnay(r.id, onaylandi)
-      message.success(onaylandi ? `${r.irsaliyeNo} onaylandı (Kesinleşti)` : `${r.irsaliyeNo} onayı kaldırıldı (Taslak)`)
+      message.success(onaylandi ? `${r.irsaliyeNo} onaylandı (Kesinleşti)` : `${r.irsaliyeNo} onayı kaldırıldı (Onaysız)`)
       load()
     } catch (err: unknown) {
       message.error('Onay işlemi hatası: ' + ((err as Error)?.message ?? String(err)))
+    }
+  }
+
+  const handleTamamlandi = async (tamamlandi: boolean) => {
+    const r = data.find((d) => d.key === selectedRow)
+    if (!r || r.irsaliyeTipi !== '201') return
+    try {
+      await irsaliyeApi.setTamamlandi(r.id, tamamlandi)
+      message.success(tamamlandi ? `${r.irsaliyeNo} tamamlandı olarak işaretlendi` : `${r.irsaliyeNo} tamamlandı durumu kaldırıldı`)
+      load()
+    } catch (err: unknown) {
+      message.error('İşlem hatası: ' + ((err as Error)?.message ?? String(err)))
+    }
+  }
+
+  const handleKaynakSiparisTamamla = async () => {
+    const r = data.find((d) => d.key === selectedRow)
+    if (!r) return
+    try {
+      const kaynaklar = await irsaliyeApi.kaynakSiparisler(r.id)
+      if (kaynaklar.length === 0) { message.info('Bu irsaliyeye bağlı 201 siparişi yok'); return }
+      const hedef = kaynaklar.filter((k) => !k.tamamlandi)
+      if (hedef.length === 0) { message.info('Bağlı sipariş(ler) zaten tamamlandı'); return }
+      const nolar = hedef.map((k) => k.irsaliyeNo ?? `#${k.id}`).join(', ')
+      modal.confirm({
+        title: 'Siparişi Tamamlandı İşaretle',
+        content: `${nolar} numaralı sipariş(ler) tamamlandı olarak işaretlenecek. Devam edilsin mi?`,
+        okText: 'Evet',
+        cancelText: 'Vazgeç',
+        onOk: async () => {
+          for (const k of hedef) await irsaliyeApi.setTamamlandi(k.id, true)
+          message.success(`${hedef.length} sipariş tamamlandı olarak işaretlendi`)
+          load()
+        },
+      })
+    } catch (err: unknown) {
+      message.error('İşlem hatası: ' + ((err as Error)?.message ?? String(err)))
     }
   }
 
@@ -416,7 +464,8 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
             if (r) onCreateFatura?.({ faturaTipi: r.irsaliyeTipi, irsaliyeIds: [r.id], ekranAdi })
           },
         }]
-      : (() => {
+              : (() => {
+          if (!onayIzinli) return []
           const r = data.find((d) => d.key === selectedRow)
           const is201 = !!r && r.irsaliyeTipi === '201'
           return [
@@ -429,14 +478,33 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
             },
             {
               key: 'onay-kaldir',
-              label: 'Onayı Kaldır (Taslak)',
+              label: 'Onayı Kaldır (Onaysız)',
               icon: <CloseCircleOutlined />,
               disabled: !is201 || !r!.onaylandi,
               onClick: () => handleOnay(false),
             },
-          ]
+            { type: 'divider' as const },
+            {
+              key: 'tamamlandi',
+              label: 'Tamamlandı Olarak İşaretle',
+              disabled: !is201 || !r!.onaylandi || r!.tamamlandi,
+              onClick: () => handleTamamlandi(true),
+            },
+            {
+              key: 'tamamlandi-kaldir',
+              label: 'Tamamlandıyı Kaldır',
+              disabled: !is201 || !r!.tamamlandi,
+              onClick: () => handleTamamlandi(false),
+            },
+          ] as NonNullable<MenuProps['items']>
         })()),
-    { type: 'divider' },
+    ...(mod === 'satinalma' ? [{
+      key: 'siparis-tamamlandi',
+      label: 'Siparişi Tamamlandı İşaretle',
+      disabled: !selectedRow || !onayIzinli,
+      onClick: handleKaynakSiparisTamamla,
+    }] as NonNullable<MenuProps['items']> : []),
+    { type: 'divider' as const },
     { key: 'sil', label: 'Sil', danger: true, disabled: !selectedRow, onClick: handleSil },
   ]
 
@@ -506,6 +574,12 @@ export default function IrsaliyeListesi({ mod = 'satis', onNew, onSelect, onCrea
         </Tag>
       ),
     },
+    ...(mod === 'satinalma-siparis'
+      ? [
+          { headerName: 'Onaylayan', field: 'onaylayan', width: 130, resizable: true },
+          { headerName: 'Onay Tarihi', field: 'onayTarihi', width: 120, resizable: true },
+        ]
+      : []),
     {
       headerName: 'Kayıt Eden', field: 'kayitEden', width: 110, resizable: true,
     },

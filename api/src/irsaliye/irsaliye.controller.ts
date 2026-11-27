@@ -17,6 +17,7 @@ import { UpdateIrsaliyeDto } from './dto/create-irsaliye.dto'
 import { CreateIrsaliyeKalemDto } from './dto/create-irsaliye.dto'
 import { UpdateIrsaliyeKalemDto } from './dto/create-irsaliye.dto'
 import { Izin } from '../auth/izin.decorator'
+import { SATINALMA_SIPARIS_ONAY_IZNI } from '../rol/ekran-tanimi'
 
 @Controller('irsaliye')
 @Izin('satis.goruntule', 'satinalma.goruntule', 'stok.goruntule')
@@ -59,10 +60,29 @@ export class IrsaliyeController {
     return this.service.update(id, dto)
   }
 
+  // Onay, kaydet izninden ayrı bir ekran iznine bağlıdır (ekran.satinalma.satinalma-siparis.onayla).
   @Put(':id/onay')
-  @Izin('satis.kaydet', 'satinalma.kaydet', 'stok.kaydet')
-  setOnay(@Param('id', ParseIntPipe) id: number, @Body('onaylandi') onaylandi: boolean) {
-    return this.service.setOnay(id, onaylandi === true)
+  @Izin(SATINALMA_SIPARIS_ONAY_IZNI)
+  setOnay(
+    @Request() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body('onaylandi') onaylandi: boolean,
+  ) {
+    return this.service.setOnay(id, onaylandi === true, req.user)
+  }
+
+  @Put(':id/tamamlandi')
+  @Izin(SATINALMA_SIPARIS_ONAY_IZNI)
+  setTamamlandi(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('tamamlandi') tamamlandi: boolean,
+  ) {
+    return this.service.setTamamlandi(id, tamamlandi === true)
+  }
+
+  @Get(':id/kaynak-siparisler')
+  kaynakSiparisler(@Param('id', ParseIntPipe) id: number) {
+    return this.service.kaynakSiparisler(id)
   }
 
   @Delete(':id')

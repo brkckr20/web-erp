@@ -18,6 +18,33 @@ interface EIrsaliyeOnizlemeModalProps {
   onChanged?: () => void
 }
 
+/**
+ * Chrome 158 (17 Kasım 2026) tarayıcıdan XSLTProcessor'ı kaldırdı. Yerel motor
+ * yoksa aynı API'yi sunan JS motoru (@tradik/xslt-processor) yüklenir.
+ */
+type XsltMotoru = {
+  importStylesheet: (style: Node) => void
+  transformToFragment: (source: Node, output: Document) => DocumentFragment | null
+}
+
+async function xsltMotoru(): Promise<new () => XsltMotoru> {
+  if (typeof XSLTProcessor !== 'undefined') return XSLTProcessor as unknown as new () => XsltMotoru
+  const mod = await import('@tradik/xslt-processor')
+  return mod.XSLTProcessor as unknown as new () => XsltMotoru
+}
+
+/** iframe belgesi ilk karede hazır olmayabilir; kısa süre bekler. */
+async function iframeBelgesi(iframe: HTMLIFrameElement | null, timeoutMs = 2000): Promise<Document | null> {
+  if (!iframe) return null
+  const bitis = performance.now() + timeoutMs
+  for (;;) {
+    const doc = iframe.contentDocument
+    if (doc) return doc
+    if (performance.now() > bitis) return null
+    await new Promise((r) => setTimeout(r, 30))
+  }
+}
+
 const durumRengi = (durum: string | null) => {
   if (durum === 'Dosya Gönderildi') return 'green'
   if (durum === 'İptal') return 'red'
@@ -78,26 +105,33 @@ export default function EIrsaliyeOnizlemeModal({
     if (!open || !xml || !xslt || loading) return
     let active = true
     setRenderHata(null)
+    let asama = 'tasarım dosyası okunamadı'
     ;(async () => {
       try {
         const res = await fetch(`/xslt/${encodeURI(xslt)}`, { cache: 'no-store' })
-        if (!res.ok) throw new Error(`Tasarım dosyası bulunamadı: /xslt/${xslt}`)
+        if (!res.ok) throw new Error(`/xslt/${xslt} bulunamadı (HTTP ${res.status})`)
         const xsltText = await res.text()
         if (!active) return
 
+        asama = 'e-İrsaliye XML ayrıştırılamadı'
         const xmlDoc = new DOMParser().parseFromString(xml, 'application/xml')
         if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
           throw new Error('e-İrsaliye XML ayrıştırılamadı')
         }
+        asama = `tasarım dosyası ayrıştırılamadı (${xslt})`
         const xsltDoc = new DOMParser().parseFromString(xsltText, 'application/xml')
         if (xsltDoc.getElementsByTagName('parsererror').length > 0) {
           throw new Error('XSLT dosyası ayrıştırılamadı')
         }
 
-        const processor = new XSLTProcessor()
+        asama = `tasarım motoru yüklenemedi (${xslt})`
+        const Motor = await xsltMotoru()
+        if (!active) return
+        asama = `tasarım uygulanamadı (${xslt})`
+        const processor = new Motor()
         processor.importStylesheet(xsltDoc)
-        const iframe = iframeRef.current
-        const doc = iframe?.contentDocument
+        const doc = await iframeBelgesi(iframeRef.current)
+        if (!active) return
         if (!doc) throw new Error('Önizleme alanı hazır değil')
 
         doc.open()
@@ -111,7 +145,10 @@ export default function EIrsaliyeOnizlemeModal({
         )
         doc.close()
         const frag = processor.transformToFragment(xmlDoc, doc)
-        doc.body.appendChild(doc.importNode(frag, true))
+        if (!frag) throw new Error('dönüşüm sonucu boş')
+        const govde = doc.body ?? doc.documentElement
+        if (!govde) throw new Error('Önizleme gövdesi oluşturulamadı')
+        govde.replaceChildren(doc.importNode(frag, true))
 
         // XSLT karekodu <canvas data-qr="..."/> olarak bırakır; QR burada çizilir.
         for (const el of Array.from(doc.querySelectorAll('canvas[data-qr]'))) {
@@ -124,7 +161,7 @@ export default function EIrsaliyeOnizlemeModal({
           }
         }
       } catch (e) {
-        if (active) setRenderHata(hataMetni(e, 'Tasarım uygulanamadı'))
+        if (active) setRenderHata(`${asama}: ${hataMetni(e, 'bilinmeyen hata')}`)
       }
     })()
     return () => {

@@ -1,8 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
 import { Input, Switch, App, Spin, Tabs, Button, Row, Col } from 'antd'
 import { SearchOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { AgGridReact } from 'ag-grid-react'
+import type { ColDef } from 'ag-grid-community'
+import { antGridTheme } from '@/lib/ag-grid-theme'
+import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import SearchableMarkaSelect from '@/components/shared/SearchableMarkaSelect'
 import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
@@ -13,6 +17,7 @@ import { aksesuarApi, type AksesuarFormData } from '@/lib/aksesuar-api'
 import { aksesuarTipiApi, type AksesuarTipi } from '@/lib/aksesuar-tipi-api'
 import { numaratorApi, type Numarator } from '@/lib/numarator-api'
 import { malzemeEkApi, type MalzemeEk } from '@/lib/malzeme-ek-api'
+import { siparisApi, type SiparisModelOzet } from '@/lib/siparis-api'
 
 const emptyData: AksesuarFormData = {
   kod: '',
@@ -53,10 +58,11 @@ interface AksesuarKartiProps {
   isNew?: boolean
   kod?: string
   selectedTipId?: number
+  onOpenSiparis?: (id: number, siparisNo: string) => void
   onKirliChange?: (kirli: boolean) => void
 }
 
-export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange }: AksesuarKartiProps) {
+export default function AksesuarKarti({ isNew, kod, selectedTipId, onOpenSiparis, onKirliChange }: AksesuarKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<AksesuarFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
@@ -94,6 +100,8 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
   const [ekList, setEkList] = useState<MalzemeEk[]>([])
   const [selectedDosya, setSelectedDosya] = useState<{ type: 'pending'; file: File } | { type: 'existing'; ek: MalzemeEk } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [orderRows, setOrderRows] = useState<SiparisModelOzet[]>([])
+  const [orderLoading, setOrderLoading] = useState(false)
 
   const handleDosyaSec = () => fileInputRef.current?.click()
 
@@ -147,6 +155,12 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
       setSelectedDosya(null)
     }
   }, [kod])
+
+  useEffect(() => {
+    if (!id) { setOrderRows([]); return }
+    setOrderLoading(true)
+    siparisApi.listByMalzeme(id).then(setOrderRows).catch(() => setOrderRows([])).finally(() => setOrderLoading(false))
+  }, [id])
 
   useEffect(() => {
     aksesuarTipiApi.list().then(setTipList).catch(() => {})
@@ -625,6 +639,37 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
     </div>
   )
 
+  const orderColumns = useMemo<ColDef<SiparisModelOzet>[]>(() => [
+    { headerName: 'Order No', field: 'siparisNo', width: 140, minWidth: 120 },
+    { headerName: 'Tarihi', field: 'tarih', width: 100, valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleDateString('tr-TR') : '') },
+    { headerName: 'Müşteri', field: 'musteri', flex: 1, minWidth: 180 },
+    { headerName: 'Miktar', field: 'miktar', width: 110, type: 'rightAligned', valueFormatter: (p) => Number(p.value ?? 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
+  ], [])
+  const orderToplamMiktar = useMemo(() => orderRows.reduce((a, r) => a + (Number(r.miktar) || 0), 0), [orderRows])
+
+  const orderContent = (
+    <div className="!p-3">
+      <div className="!flex !justify-end !mb-1">
+        <span className="!text-[10px] !text-gray-400">Satıra çift tıklayarak siparişi açabilirsiniz</span>
+      </div>
+      <div style={{ height: 'calc(100vh - 280px)', minHeight: 240, width: '100%' }}>
+        <AgGridReact
+          rowData={orderRows}
+          columnDefs={orderColumns}
+          theme={antGridTheme}
+          localeText={agGridLocaleTR}
+          headerHeight={32}
+          rowHeight={30}
+          loading={orderLoading}
+          getRowId={(p) => String(p.data.id)}
+          defaultColDef={{ resizable: true, sortable: true, filter: true }}
+          pinnedBottomRowData={[{ id: 0, siparisNo: `Toplam (${orderRows.length})`, tarih: '', musteri: null, miktar: orderToplamMiktar } as any]}
+          onRowDoubleClicked={(e) => { if (e.data?.id) onOpenSiparis?.(e.data.id, e.data.siparisNo) }}
+        />
+      </div>
+    </div>
+  )
+
   return (
     <div className="!h-full !flex !flex-col">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
@@ -641,6 +686,7 @@ export default function AksesuarKarti({ isNew, kod, selectedTipId, onKirliChange
             items={[
               { key: 'genel', label: 'Genel', children: genelContent },
               { key: 'ekler', label: 'Ekler', children: eklerContent },
+              { key: 'siparisler', label: 'Kullanıldığı Siparişler', children: orderContent },
             ]}
           />
         </Spin>

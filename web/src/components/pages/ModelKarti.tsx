@@ -196,7 +196,7 @@ export default function ModelKarti({ isNew, kod, onOpenSiparis, onKopyalandi, on
     kumasKalemler.filter((k) => !k.backendId),
     iplikKalemler.filter((k) => !k.backendId),
     aksesuarKalemler.filter((k) => !k.backendId),
-  ])
+  ], loading)
   useEffect(() => { onKirliChange?.(kirli) }, [kirli, onKirliChange])
 
   const handleDosyaSec = () => fileInputRef.current?.click()

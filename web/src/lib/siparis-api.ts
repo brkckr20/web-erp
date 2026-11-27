@@ -124,6 +124,7 @@ export const siparisApi = {
     api.get<{ siparisNo: string }>(`/siparis/next-no?numaratorId=${numaratorId}`),
   list: () => api.get<Siparis[]>('/siparis'),
   listByModel: (malzemeId: number) => api.get<SiparisModelOzet[]>(`/siparis/model/${malzemeId}`),
+  listByMalzeme: (malzemeId: number) => api.get<SiparisModelOzet[]>(`/siparis/malzeme/${malzemeId}`),
   get: (id: number) => api.get<Siparis>(`/siparis/${id}`),
   bySiparisNo: (siparisNo: string) => api.get<Siparis>(`/siparis/by-siparis-no/${encodeURIComponent(siparisNo)}`),
   create: (data: Partial<SiparisFormData> & { kalemler?: SiparisKalem[]; aciklamalar?: SiparisAciklama[] }) =>

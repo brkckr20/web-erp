@@ -10,8 +10,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * render sonrası effect'te alınır (batch sorunu yaşamamak için); snapshot
  * alınana kadar `kirli` false döner, böylece yükleme sırasında sekmede
  * kırmızı nokta bir kare bile yanıp sönmez.
+ * `bastir`: true iken kirli raporlanmaz (async yükleme sırasında kullanılır).
  */
-export function useKirli(deps: readonly unknown[]): { kirli: boolean; temizle: () => void } {
+export function useKirli(deps: readonly unknown[], bastir = false): { kirli: boolean; temizle: () => void } {
   const ser = JSON.stringify(deps)
   const [temizSer, setTemizSer] = useState<string>(() => ser)
   const [talep, setTalep] = useState(0)
@@ -32,5 +33,5 @@ export function useKirli(deps: readonly unknown[]): { kirli: boolean; temizle: (
     setTalep((t) => t + 1)
   }, [])
 
-  return { kirli: !bekleyenRef.current && ser !== temizSer, temizle }
+  return { kirli: !bastir && !bekleyenRef.current && ser !== temizSer, temizle }
 }

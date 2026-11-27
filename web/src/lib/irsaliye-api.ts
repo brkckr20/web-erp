@@ -17,6 +17,9 @@ export interface Irsaliye {
   sevkTarihi: string | null
   terminTarihi: string | null
   onaylandi: boolean
+  /** Onayı veren kullanıcı (kod - ad) ve onay zamanı; yalnızca 201 siparişte dolar. */
+  onaylayan?: string | null
+  onayTarihi?: string | null
   tamamlandi: boolean
   kayitYapan: string | null
   kayitTarihi: string | null
@@ -130,4 +133,8 @@ export const irsaliyeApi = {
   remove: (id: number) => api.delete<void>(`/irsaliye/${id}`),
   setOnay: (id: number, onaylandi: boolean) =>
     api.put<Irsaliye>(`/irsaliye/${id}/onay`, { onaylandi }),
+  setTamamlandi: (id: number, tamamlandi: boolean) =>
+    api.put<Irsaliye>(`/irsaliye/${id}/tamamlandi`, { tamamlandi }),
+  kaynakSiparisler: (id: number) =>
+    api.get<{ id: number; irsaliyeNo: string | null; irsaliyeTipi: string; tamamlandi: boolean }[]>(`/irsaliye/${id}/kaynak-siparisler`),
 }

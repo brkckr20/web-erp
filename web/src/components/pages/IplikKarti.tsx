@@ -1,13 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Input, Switch, App, Spin } from 'antd'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Input, Switch, App, Spin, Tabs } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
+import { AgGridReact } from 'ag-grid-react'
+import type { ColDef } from 'ag-grid-community'
+import { antGridTheme } from '@/lib/ag-grid-theme'
+import { agGridLocaleTR } from '@/lib/ag-grid-locale'
 import CardToolbar, { createToolbarButtons } from '@/components/shared/CardToolbar'
 import OzellikKodlamaModal from '@/components/shared/OzellikKodlamaModal'
 import { malzemeApi, type MalzemeFormData } from '@/lib/malzeme-api'
 import { useKirli } from '@/lib/kirli'
 import { ozellikKodlamaApi, type OzellikKodlama } from '@/lib/ozellik-kodlama-api'
+import { siparisApi, type SiparisModelOzet } from '@/lib/siparis-api'
 
 const emptyData: MalzemeFormData = {
   kod: '',
@@ -65,10 +70,19 @@ const emptyData: MalzemeFormData = {
 interface IplikKartiProps {
   isNew?: boolean
   kod?: string
+  onOpenSiparis?: (id: number, siparisNo: string) => void
   onKirliChange?: (kirli: boolean) => void
 }
 
-export default function IplikKarti({ isNew, kod, onKirliChange }: IplikKartiProps) {
+const tabClass =
+  '!px-3 !pt-2 !flex-1 !flex !flex-col !min-h-0 ' +
+  '[&_.ant-tabs-nav]:!mb-2 [&_.ant-tabs-nav]:!flex-shrink-0 ' +
+  '[&_.ant-tabs-content-holder]:!flex-1 [&_.ant-tabs-content-holder]:!min-h-0 ' +
+  '[&_.ant-tabs-content]:!h-full [&_.ant-tabs-tabpane]:!h-full ' +
+  '[&_.ant-tabs-tab]:!text-[11px] [&_.ant-tabs-tab]:!px-2 [&_.ant-tabs-tab]:!py-1 ' +
+  '[&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-[#FF9933] [&_.ant-tabs-ink-bar]:!bg-[#FF9933]'
+
+export default function IplikKarti({ isNew, kod, onOpenSiparis, onKirliChange }: IplikKartiProps) {
   const { message, modal } = App.useApp()
   const [form, setForm] = useState<MalzemeFormData>(emptyData)
   const [id, setId] = useState<number | null>(null)
@@ -84,6 +98,8 @@ export default function IplikKarti({ isNew, kod, onKirliChange }: IplikKartiProp
   const [organik, setOrganik] = useState(false)
   const [iplikKompozisyonId, setIplikKompozisyonId] = useState<number | null>(null)
   const [iplikKompozisyonAd, setIplikKompozisyonAd] = useState('')
+  const [orderRows, setOrderRows] = useState<SiparisModelOzet[]>([])
+  const [orderLoading, setOrderLoading] = useState(false)
 
   const [ozellikModal, setOzellikModal] = useState<{
     kategori: string
@@ -105,6 +121,12 @@ export default function IplikKarti({ isNew, kod, onKirliChange }: IplikKartiProp
       initNextIplKod()
     }
   }, [kod])
+
+  useEffect(() => {
+    if (!id) { setOrderRows([]); return }
+    setOrderLoading(true)
+    siparisApi.listByMalzeme(id).then(setOrderRows).catch(() => setOrderRows([])).finally(() => setOrderLoading(false))
+  }, [id])
 
   useEffect(() => {
     if (!isNewMode.current) return
@@ -336,11 +358,70 @@ export default function IplikKarti({ isNew, kod, onKirliChange }: IplikKartiProp
     setOzellikModal({ kategori, value, onChange })
   }
 
+  const orderColumns = useMemo<ColDef<SiparisModelOzet>[]>(() => [
+    { headerName: 'Order No', field: 'siparisNo', width: 140, minWidth: 120 },
+    { headerName: 'Tarihi', field: 'tarih', width: 100, valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleDateString('tr-TR') : '') },
+    { headerName: 'Müşteri', field: 'musteri', flex: 1, minWidth: 180 },
+    { headerName: 'Miktar', field: 'miktar', width: 110, type: 'rightAligned', valueFormatter: (p) => Number(p.value ?? 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) },
+  ], [])
+  const orderToplamMiktar = useMemo(() => orderRows.reduce((a, r) => a + (Number(r.miktar) || 0), 0), [orderRows])
+
+  const genelContent = (
+    <div className="!p-3 !overflow-y-auto !h-full">
+      <div className="!border !border-gray-200 !rounded-sm !p-3">
+        <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">İplik Bilgileri</div>
+        <div className="!grid !grid-cols-3 !gap-x-6 !gap-y-2.5">
+          <FormField label="İplik No">
+            <Input size="small" value={iplikNoAd} className="!text-[11px]" readOnly
+              suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => openOzellikModal('iplikNo', iplikNoId, (id, rec) => { setIplikNoId(id); setIplikNoAd(rec?.ad ?? '') })} />}
+              onClick={() => openOzellikModal('iplikNo', iplikNoId, (id, rec) => { setIplikNoId(id); setIplikNoAd(rec?.ad ?? '') })} />
+          </FormField>
+          <FormField label="İplik Cinsi">
+            <Input size="small" value={iplikCinsiAd} className="!text-[11px]" readOnly
+              suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => openOzellikModal('iplikCinsi', iplikCinsiId, (id, rec) => { setIplikCinsiId(id); setIplikCinsiAd(rec?.ad ?? '') })} />}
+              onClick={() => openOzellikModal('iplikCinsi', iplikCinsiId, (id, rec) => { setIplikCinsiId(id); setIplikCinsiAd(rec?.ad ?? '') })} />
+          </FormField>
+          <FormField label="Organik">
+            <Switch checked={organik} onChange={setOrganik} />
+          </FormField>
+          <FormField label="İplik Kompozisyon">
+            <Input size="small" value={iplikKompozisyonAd} className="!text-[11px]" readOnly
+              suffix={<SearchOutlined style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }} onClick={() => openOzellikModal('iplikKompozisyon', iplikKompozisyonId, (id, rec) => { setIplikKompozisyonId(id); setIplikKompozisyonAd(rec?.ad ?? '') })} />}
+              onClick={() => openOzellikModal('iplikKompozisyon', iplikKompozisyonId, (id, rec) => { setIplikKompozisyonId(id); setIplikKompozisyonAd(rec?.ad ?? '') })} />
+          </FormField>
+        </div>
+      </div>
+    </div>
+  )
+
+  const orderContent = (
+    <div className="!p-3">
+      <div className="!flex !justify-end !mb-1">
+        <span className="!text-[10px] !text-gray-400">Satıra çift tıklayarak siparişi açabilirsiniz</span>
+      </div>
+      <div style={{ height: 'calc(100vh - 280px)', minHeight: 240, width: '100%' }}>
+        <AgGridReact
+          rowData={orderRows}
+          columnDefs={orderColumns}
+          theme={antGridTheme}
+          localeText={agGridLocaleTR}
+          headerHeight={32}
+          rowHeight={30}
+          loading={orderLoading}
+          getRowId={(p) => String(p.data.id)}
+          defaultColDef={{ resizable: true, sortable: true, filter: true }}
+          pinnedBottomRowData={[{ id: 0, siparisNo: `Toplam (${orderRows.length})`, tarih: '', musteri: null, miktar: orderToplamMiktar } as any]}
+          onRowDoubleClicked={(e) => { if (e.data?.id) onOpenSiparis?.(e.data.id, e.data.siparisNo) }}
+        />
+      </div>
+    </div>
+  )
+
   return (
     <div className="!h-full !flex !flex-col">
       <div className="!bg-white !border !border-gray-200 !rounded-sm !flex-1 !flex !flex-col !overflow-hidden">
         <CardToolbar buttons={toolbarButtons} />
-        <Spin spinning={loading}>
+        <Spin spinning={loading} className="!flex-1 !flex !flex-col !min-h-0 [&_.ant-spin-container]:!flex-1 [&_.ant-spin-container]:!flex [&_.ant-spin-container]:!flex-col [&_.ant-spin-container]:!min-h-0">
           <div className="!flex !flex-col !px-3 !py-2 !border-b !border-gray-200 !flex-shrink-0">
             <div className="!flex !items-center !gap-4 !flex-wrap">
               <div className="!flex !items-center !gap-1.5">
@@ -356,79 +437,16 @@ export default function IplikKarti({ isNew, kod, onKirliChange }: IplikKartiProp
             </div>
           </div>
 
-          <div className="!p-3 !overflow-y-auto !flex-1">
-            <div className="!border !border-gray-200 !rounded-sm !p-3">
-              <div className="!text-[10px] !font-bold !text-[#333] !uppercase !tracking-wide !mb-3">İplik Bilgileri</div>
-              <div className="!grid !grid-cols-3 !gap-x-6 !gap-y-2.5">
-                <FormField label="İplik No">
-                  <Input
-                    size="small"
-                    value={iplikNoAd}
-                    className="!text-[11px]"
-                    readOnly
-                    suffix={
-                      <SearchOutlined
-                        style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }}
-                        onClick={() => openOzellikModal('iplikNo', iplikNoId, (id, rec) => {
-                          setIplikNoId(id)
-                          setIplikNoAd(rec?.ad ?? '')
-                        })}
-                      />
-                    }
-                    onClick={() => openOzellikModal('iplikNo', iplikNoId, (id, rec) => {
-                      setIplikNoId(id)
-                      setIplikNoAd(rec?.ad ?? '')
-                    })}
-                  />
-                </FormField>
-                <FormField label="İplik Cinsi">
-                  <Input
-                    size="small"
-                    value={iplikCinsiAd}
-                    className="!text-[11px]"
-                    readOnly
-                    suffix={
-                      <SearchOutlined
-                        style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }}
-                        onClick={() => openOzellikModal('iplikCinsi', iplikCinsiId, (id, rec) => {
-                          setIplikCinsiId(id)
-                          setIplikCinsiAd(rec?.ad ?? '')
-                        })}
-                      />
-                    }
-                    onClick={() => openOzellikModal('iplikCinsi', iplikCinsiId, (id, rec) => {
-                      setIplikCinsiId(id)
-                      setIplikCinsiAd(rec?.ad ?? '')
-                    })}
-                  />
-                </FormField>
-                <FormField label="Organik">
-                  <Switch checked={organik} onChange={setOrganik} />
-                </FormField>
-                <FormField label="İplik Kompozisyon">
-                  <Input
-                    size="small"
-                    value={iplikKompozisyonAd}
-                    className="!text-[11px]"
-                    readOnly
-                    suffix={
-                      <SearchOutlined
-                        style={{ fontSize: 12, color: '#7A7A7A', cursor: 'pointer' }}
-                        onClick={() => openOzellikModal('iplikKompozisyon', iplikKompozisyonId, (id, rec) => {
-                          setIplikKompozisyonId(id)
-                          setIplikKompozisyonAd(rec?.ad ?? '')
-                        })}
-                      />
-                    }
-                    onClick={() => openOzellikModal('iplikKompozisyon', iplikKompozisyonId, (id, rec) => {
-                      setIplikKompozisyonId(id)
-                      setIplikKompozisyonAd(rec?.ad ?? '')
-                    })}
-                  />
-                </FormField>
-              </div>
-            </div>
-          </div>
+          <Tabs
+            defaultActiveKey="genel"
+            size="small"
+            tabBarGutter={2}
+            className={tabClass}
+            items={[
+              { key: 'genel', label: 'Genel', children: genelContent },
+              { key: 'siparisler', label: 'Kullanıldığı Siparişler', children: orderContent },
+            ]}
+          />
         </Spin>
       </div>
 
